@@ -1,6 +1,6 @@
 export type UserStatus = 'ACTIVE' | 'INACTIVE'
 
-export type UserRole = 'SUPER' | 'ADMIN' | 'TUTOR' | 'STUDENT'
+export type UserRole = 'admin' | 'coordinator' | 'tutor' | 'client'
 
 export type UserProfile = {
   firstName: string | null

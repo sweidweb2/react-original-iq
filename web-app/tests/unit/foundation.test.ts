@@ -26,9 +26,9 @@ describe('parseForm', () => {
 
 describe('permissions', () => {
   it('checks single and any roles', () => {
-    expect(hasRole('ADMIN', 'ADMIN')).toBe(true)
-    expect(hasRole('STUDENT', 'ADMIN')).toBe(false)
-    expect(hasAnyRole('TUTOR', ['ADMIN', 'TUTOR'])).toBe(true)
-    expect(hasRole(null, 'ADMIN')).toBe(false)
+    expect(hasRole('admin', 'admin')).toBe(true)
+    expect(hasRole('client', 'admin')).toBe(false)
+    expect(hasAnyRole('tutor', ['admin', 'tutor'])).toBe(true)
+    expect(hasRole(null, 'admin')).toBe(false)
   })
 })

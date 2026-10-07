@@ -18,5 +18,4 @@ export {
   hasAnyRole,
   isAdmin,
   isStaff,
-  isSuper,
 } from './roles.js'

@@ -12,7 +12,7 @@ export function createLoggingRoutes(controller: LoggingController): Router {
   router.get(
     '/activity-logs',
     authenticate,
-    authorize('SUPER'),
+    authorize('admin'),
     validate({ query: listLogsQuerySchema }),
     controller.listActivity,
   )
@@ -20,7 +20,7 @@ export function createLoggingRoutes(controller: LoggingController): Router {
   router.get(
     '/error-logs',
     authenticate,
-    authorize('SUPER'),
+    authorize('admin'),
     validate({ query: listLogsQuerySchema }),
     controller.listErrors,
   )

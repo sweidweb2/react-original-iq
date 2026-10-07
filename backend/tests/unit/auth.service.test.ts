@@ -13,7 +13,7 @@ vi.mock('../../src/modules/auth/auth.tokens.js', () => ({
   signRefreshToken: vi.fn(() => 'refresh-token'),
   verifyRefreshToken: vi.fn((_config: unknown, token: string) => {
     if (token === 'bad') throw new Error('invalid')
-    return { sub: 'user-1', role: 'STUDENT', typ: 'refresh' as const }
+    return { sub: 'user-1', role: 'client', typ: 'refresh' as const }
   }),
 }))
 
@@ -22,7 +22,7 @@ function makeUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
     id: 'user-1',
     email: 'user@example.com',
     passwordHash: 'hash:secret123',
-    role: 'STUDENT',
+    role: 'client',
     status: 'ACTIVE',
     profile: {
       firstName: 'Ada',
@@ -58,7 +58,7 @@ describe('auth.service', () => {
     })
 
     expect(result.user.email).toBe('user@example.com')
-    expect(result.user.role).toBe('STUDENT')
+    expect(result.user.role).toBe('client')
     expect(result.tokens).toEqual({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
@@ -66,7 +66,7 @@ describe('auth.service', () => {
     expect(repository.createUserWithProfile).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'user@example.com',
-        role: 'STUDENT',
+        role: 'client',
       }),
     )
   })

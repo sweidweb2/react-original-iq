@@ -21,27 +21,27 @@ describe('auth.tokens', () => {
   })
 
   it('signs and verifies access tokens', () => {
-    const token = signAccessToken(config, 'user-1', 'STUDENT')
+    const token = signAccessToken(config, 'user-1', 'client')
     const payload = verifyAccessToken(config, token)
     expect(payload).toMatchObject({
       sub: 'user-1',
-      role: 'STUDENT',
+      role: 'client',
       typ: 'access',
     })
   })
 
   it('signs and verifies refresh tokens', () => {
-    const token = signRefreshToken(config, 'user-1', 'ADMIN')
+    const token = signRefreshToken(config, 'user-1', 'admin')
     const payload = verifyRefreshToken(config, token)
     expect(payload).toMatchObject({
       sub: 'user-1',
-      role: 'ADMIN',
+      role: 'admin',
       typ: 'refresh',
     })
   })
 
   it('rejects access token verified as refresh', () => {
-    const access = signAccessToken(config, 'user-1', 'STUDENT')
+    const access = signAccessToken(config, 'user-1', 'client')
     expect(() => verifyRefreshToken(config, access)).toThrow()
   })
 })

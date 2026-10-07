@@ -13,18 +13,19 @@ describe('Zod request validation', () => {
   let superAccessToken = ''
 
   beforeAll(async () => {
-    const repo = createAuthRepository()
+    // Use the same config as createApp so tests stay on the in-memory repo.
+    const repo = createAuthRepository(config)
     await repo.createUserWithProfile({
-      email: 'super@originaliq.test',
+      email: 'admin@originaliq.test',
       passwordHash: await hashPassword('secret123'),
-      role: 'SUPER',
-      firstName: 'Super',
+      role: 'admin',
+      firstName: 'Admin',
       lastName: 'User',
     })
 
     const login = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'super@originaliq.test', password: 'secret123' })
+      .send({ email: 'admin@originaliq.test', password: 'secret123' })
 
     expect(login.status).toBe(200)
     superAccessToken = login.body.tokens.accessToken as string

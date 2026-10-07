@@ -1,10 +1,10 @@
 import type { RoleName } from '../modules/auth/auth.schema.js'
 
-/** Elevated platform admins. SUPER inherits admin privileges. */
-export const ADMIN_ROLES: readonly RoleName[] = ['SUPER', 'ADMIN'] as const
+/** Elevated admins. */
+export const ADMIN_ROLES: readonly RoleName[] = ['admin'] as const
 
 /** Staff roles (UI + coarse route gates). Not a permission matrix. */
-export const STAFF_ROLES: readonly RoleName[] = ['SUPER', 'ADMIN', 'TUTOR'] as const
+export const STAFF_ROLES: readonly RoleName[] = ['admin', 'coordinator', 'tutor'] as const
 
 export function hasAnyRole(
   roles: readonly string[] | undefined,
@@ -16,10 +16,6 @@ export function hasAnyRole(
 
 export function isAdmin(roles: readonly string[] | undefined): boolean {
   return hasAnyRole(roles, ADMIN_ROLES)
-}
-
-export function isSuper(roles: readonly string[] | undefined): boolean {
-  return hasAnyRole(roles, ['SUPER'])
 }
 
 export function isStaff(roles: readonly string[] | undefined): boolean {

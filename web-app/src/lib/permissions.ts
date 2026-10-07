@@ -2,7 +2,6 @@ import type { AuthRole } from '@/services/auth'
 
 /**
  * Frontend role checks are UX only — never a security boundary.
- * Backend uses role gates + ownership (not permission-matrix RBAC).
  */
 
 export function hasRole(
@@ -18,7 +17,6 @@ export function hasAnyRole(role: AuthRole | null | undefined, allowed: AuthRole[
   return hasRole(role, allowed)
 }
 
-/** Staff roles (exact product matrix may grow later). */
-export const STAFF_ROLES: AuthRole[] = ['SUPER', 'ADMIN', 'TUTOR']
+export const STAFF_ROLES: AuthRole[] = ['admin', 'coordinator', 'tutor']
 
-export const ADMIN_ROLES: AuthRole[] = ['SUPER', 'ADMIN']
+export const ADMIN_ROLES: AuthRole[] = ['admin']

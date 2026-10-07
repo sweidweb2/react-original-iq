@@ -9,15 +9,11 @@ export const usersDomain = {
       name: 'User',
       description: 'Account: email, password hash, role, status.',
     },
-    {
-      name: 'Profile',
-      description: 'Display/contact fields linked 1:1 to User.',
-    },
   ],
   valueObjects: [
     {
       name: 'UserRole',
-      description: 'SUPER | ADMIN | TUTOR | STUDENT — public register defaults to STUDENT.',
+      description: 'admin | coordinator | tutor | client — public register defaults to client.',
     },
     {
       name: 'EmailAddress',
@@ -25,7 +21,7 @@ export const usersDomain = {
     },
   ],
   useCases: ['listUsers', 'getUserById', 'createUser', 'updateUser', 'deactivateUser'],
-  relationships: ['Referenced by auth (userId) and future tutoring domains (sessions, courses).'],
+  relationships: ['Referenced by auth (userId) and tutoring domains (tasks, payments).'],
   externalAccessRules: [
     'Other modules read users only via public users service (e.g. getById), never user.repository.',
     'Role changes are authorized in users service — UI checks are not enough.',

@@ -21,7 +21,7 @@ export function assertOwner(
 }
 
 /**
- * Owner may access; ADMIN / SUPER may bypass ownership (admin rule).
+ * Owner may access; admin may bypass ownership.
  * Prefer this for user-owned domain resources.
  */
 export function assertOwnerOrAdmin(

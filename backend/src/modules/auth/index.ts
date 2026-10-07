@@ -7,7 +7,7 @@ import { createAuthRoutes } from './auth.routes.js'
 import { createAuthService } from './auth.service.js'
 
 export function createAuthModule(config: AppConfig = loadConfig()) {
-  const repository = createAuthRepository()
+  const repository = createAuthRepository(config)
   const service = createAuthService(repository, config, getLoggingService())
   const controller = createAuthController(service)
   return createAuthRoutes(controller, config)

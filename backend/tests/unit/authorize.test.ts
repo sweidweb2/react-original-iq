@@ -26,13 +26,13 @@ describe('authorize middleware', () => {
   }
 
   it('rejects unauthenticated requests', async () => {
-    const res = await request(gatedApp('ADMIN')).get('/admin')
+    const res = await request(gatedApp('admin')).get('/admin')
     expect(res.status).toBe(401)
   })
 
   it('forbids authenticated users without an allowed role', async () => {
-    const access = signAccessToken(config, 'user-1', 'STUDENT')
-    const res = await request(gatedApp('ADMIN', 'SUPER'))
+    const access = signAccessToken(config, 'user-1', 'client')
+    const res = await request(gatedApp('admin'))
       .get('/admin')
       .set('Authorization', `Bearer ${access}`)
     expect(res.status).toBe(403)
@@ -40,11 +40,11 @@ describe('authorize middleware', () => {
   })
 
   it('allows matching roles', async () => {
-    const access = signAccessToken(config, 'user-1', 'ADMIN')
-    const res = await request(gatedApp('ADMIN', 'SUPER'))
+    const access = signAccessToken(config, 'user-1', 'admin')
+    const res = await request(gatedApp('admin', 'coordinator'))
       .get('/admin')
       .set('Authorization', `Bearer ${access}`)
     expect(res.status).toBe(200)
-    expect(res.body.user.roles).toEqual(['ADMIN'])
+    expect(res.body.user.roles).toEqual(['admin'])
   })
 })

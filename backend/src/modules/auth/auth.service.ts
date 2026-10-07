@@ -60,7 +60,7 @@ export function createAuthService(
       const user = await repository.createUserWithProfile({
         email: input.email,
         passwordHash,
-        role: 'STUDENT',
+        role: 'client',
         firstName: input.firstName,
         lastName: input.lastName,
       })

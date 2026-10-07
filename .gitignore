@@ -22,6 +22,7 @@ pnpm-debug.log*
 .env.*
 !.env.example
 credentials.md
+ENV_VARIABLES.md
 *.pem
 *.p8
 *.p12

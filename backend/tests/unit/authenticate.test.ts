@@ -38,7 +38,7 @@ describe('authenticate middleware', () => {
   })
 
   it('rejects refresh token used as access token', async () => {
-    const refresh = signRefreshToken(config, 'user-1', 'STUDENT')
+    const refresh = signRefreshToken(config, 'user-1', 'client')
     const res = await request(protectedApp())
       .get('/protected')
       .set('Authorization', `Bearer ${refresh}`)
@@ -46,7 +46,7 @@ describe('authenticate middleware', () => {
   })
 
   it('attaches req.user for a valid access token', async () => {
-    const access = signAccessToken(config, 'user-1', 'ADMIN')
+    const access = signAccessToken(config, 'user-1', 'admin')
     const res = await request(protectedApp())
       .get('/protected')
       .set('Authorization', `Bearer ${access}`)
@@ -54,7 +54,7 @@ describe('authenticate middleware', () => {
     expect(res.status).toBe(200)
     expect(res.body.user).toEqual({
       id: 'user-1',
-      roles: ['ADMIN'],
+      roles: ['admin'],
     })
   })
 

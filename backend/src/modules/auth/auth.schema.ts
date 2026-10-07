@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-/** Tutoring roles — public register defaults to STUDENT. */
-export const roleSchema = z.enum(['SUPER', 'ADMIN', 'TUTOR', 'STUDENT'])
+/** Domain roles — public register defaults to `client`. */
+export const roleSchema = z.enum(['admin', 'coordinator', 'tutor', 'client'])
 
 export type RoleName = z.infer<typeof roleSchema>
 
