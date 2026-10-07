@@ -1,0 +1,24 @@
+---
+description: Web React conventions for Original IQ
+globs: web-app/**/*
+alwaysApply: false
+---
+
+# Web (`web-app`)
+
+Feature-based React + TypeScript (Vite).
+
+```
+web-app/src/
+  features/<feature>/
+  components/
+  hooks/
+  services/   # centralized REST client
+  stores/     # Zustand — client/UI state only
+  theme/
+```
+
+- Talk to `/api/v1` only via `services/`
+- Zustand for session/UI — not every API response
+- Frontend Zod = UX only; backend is authority
+- Roles: `SUPER` | `ADMIN` | `TUTOR` | `STUDENT`

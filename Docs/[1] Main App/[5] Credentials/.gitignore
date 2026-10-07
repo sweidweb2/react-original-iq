@@ -1,0 +1,4 @@
+# Ignore all credential dumps; keep only the folder README trackable via root .gitignore
+*
+!.gitignore
+!README.md

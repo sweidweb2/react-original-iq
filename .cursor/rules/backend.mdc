@@ -1,0 +1,38 @@
+---
+description: Backend Express conventions for Original IQ
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Backend
+
+Monolith Express + TypeScript under `backend/`. Organize by domain modules (`auth`, `users`, …).
+
+## Request flow
+
+```
+Route → Controller → Service → Repository → Supabase
+```
+
+- **Controller**: parse/respond HTTP; call one service; no business rules or Supabase.
+- **Service**: business logic, orchestration, authz.
+- **Repository**: data access only (Supabase client or temporary in-memory store).
+- **Schema**: Zod validate request before service logic.
+
+## Module shape
+
+```
+modules/<domain>/
+  <domain>.routes.ts
+  <domain>.controller.ts
+  <domain>.service.ts
+  <domain>.repository.ts
+  <domain>.schema.ts
+  <domain>.types.ts
+```
+
+## API & auth
+
+- REST paths: `/api/v1/...`
+- Auth: JWT access + refresh; protect routes with middleware.
+- Database: remote Supabase when `SUPABASE_*` env vars are set.

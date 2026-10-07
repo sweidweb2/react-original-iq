@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Builds / output
+dist/
+dist-ssr/
+build/
+coverage/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment & secrets — never commit real values
+.env
+.env.*
+!.env.example
+credentials.md
+*.pem
+*.p8
+*.p12
+*.key
+
+# Local credential notes under Docs (README only may be committed)
+Docs/[1] Main App/[5] Credentials/**
+!Docs/[1] Main App/[5] Credentials/README.md
+!Docs/[1] Main App/[5] Credentials/.gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Backend
+backend/dist/
+backend/coverage/
+
+# Web (Vite)
+web-app/dist/
+web-app/dist-ssr/
+web-app/*.local
+
+# Playwright
+web-app/test-results/
+web-app/playwright-report/
+web-app/blob-report/
+web-app/playwright/.cache/
+
+# Misc
+.cache/
+tmp/
+temp/

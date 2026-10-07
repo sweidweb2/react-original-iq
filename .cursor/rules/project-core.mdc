@@ -1,0 +1,43 @@
+---
+description: Original IQ project core — locked stack and architecture
+alwaysApply: true
+---
+
+# Project Core — LOCKED
+
+Source of truth: `Docs/[1] Main App/[1] Tech Stack.md`. Do not invent alternate stacks.
+
+## Monorepo
+
+| App | Path | Role |
+| --- | --- | --- |
+| Backend | `backend/` | Single API + business logic + data access |
+| Web | `web-app/` | React + TypeScript browser client |
+
+Web talks to the versioned REST API only. Never let the client touch Supabase with service-role keys.
+
+## Locked stack
+
+- Web: React + TypeScript (Vite)
+- Backend: Express + TypeScript (monolith, layered, DDD modules)
+- DB: remote Supabase (PostgreSQL) via `@supabase/supabase-js`
+- API: REST under `/api/v1`
+- Auth: JWT access + refresh tokens
+- Clients: feature-based folders + Zustand (UI/client state only)
+- Validation: Zod on clients (UX) and backend (security)
+- Deploy: Vercel
+- **No** Docker, Redis, Prisma, or mobile app
+
+## Responsibility split
+
+**Web (`web-app`)** — UI, navigation, feature screens, local UX validation; call REST only.
+
+**Backend (`backend`)** — authz, business rules, persistence. Flow: Route → Controller → Service → Repository → Supabase.
+
+## Hard rules
+
+1. Prefer existing module/feature layout.
+2. Keep layers thin — no Supabase in controllers, no HTTP in repositories, no DB in clients.
+3. Validate and authorize on the backend for every mutating or sensitive read.
+4. Version APIs as `/api/v1/...`.
+5. Roles: `SUPER` | `ADMIN` | `TUTOR` | `STUDENT`.
