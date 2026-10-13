@@ -1,11 +1,11 @@
 /**
- * typography.ts — type ramp + semantic text styles (web).
- * Font stack matches Geist Variable loaded in index.css.
+ * typography.ts — type ramp + semantic text styles.
+ * Font stack matches index.css.
  */
 
 const fontFamily = {
-  sans: "'Geist Variable', ui-sans-serif, system-ui, sans-serif",
-  display: "'Geist Variable', ui-sans-serif, system-ui, sans-serif",
+  sans: 'Inter, Helvetica, Arial, sans-serif',
+  display: 'Inter, Helvetica, Arial, sans-serif',
   mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
 } as const
 
@@ -29,7 +29,7 @@ const fontWeight = {
 
 const lineHeight = {
   tight: 1.25,
-  normal: 1.5,
+  normal: 1.6,
   relaxed: 1.65,
 } as const
 

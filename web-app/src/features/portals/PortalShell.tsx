@@ -1,26 +1,17 @@
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Home, LogOut } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
+import { BrandLogo } from '@/components/brand/BrandLogo'
 import { Button } from '@/components/ui/button'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarSeparator,
-  SidebarTrigger,
-} from '@/components/ui/sidebar'
+import { homePathForRole } from '@/lib/homePath'
+import { cn } from '@/lib/utils'
+import type { AuthUser } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
+
+/** Shared header height so the sidebar brand row lines up with the portal bar. */
+const shellBarHeight = 'h-16'
 
 export type PortalNavItem = {
   to: string
@@ -31,21 +22,123 @@ export type PortalNavItem = {
 
 type PortalShellProps = {
   title: string
-  brand: string
   nav: PortalNavItem[]
   children?: ReactNode
 }
 
-function navIsActive(pathname: string, item: PortalNavItem): boolean {
-  if (item.end) return pathname === item.to
-  return pathname === item.to || pathname.startsWith(`${item.to}/`)
+function userLabel(user: AuthUser | null): string {
+  const profile = user?.profile
+  return (
+    profile?.displayName?.trim() ||
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() ||
+    user?.email ||
+    'Account'
+  )
 }
 
-export function PortalShell({ title, brand, nav, children }: PortalShellProps) {
+/** First two letters of the user's name, skipping spaces and separators. */
+function userInitials(user: AuthUser | null): string {
+  const label = userLabel(user)
+  const source = label.includes('@') ? (label.split('@')[0] ?? label) : label
+  const letters = [...source].filter((char) => /[\p{L}\p{N}]/u.test(char))
+  return letters.slice(0, 2).join('').toUpperCase() || '?'
+}
+
+function AccountMenu({ onLogout }: { onLogout: () => void }) {
+  const user = useAuthStore((s) => s.user)
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const name = userLabel(user)
+
+  useEffect(() => {
+    if (!open) return
+
+    function onPointerDown(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false)
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
+  function goHome() {
+    setOpen(false)
+    navigate(homePathForRole(user?.role))
+  }
+
+  return (
+    <div className="relative ml-auto shrink-0" ref={rootRef}>
+      <button
+        type="button"
+        className="inline-flex size-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+        aria-label={`Account menu for ${name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {userInitials(user)}
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          aria-label="Account"
+          className="absolute right-0 top-full z-50 mt-2 w-44 rounded-md border border-sidebar-border bg-sidebar py-1 text-sm text-sidebar-foreground shadow-md"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full px-3 py-2 text-left hover:bg-sidebar-accent"
+            onClick={goHome}
+          >
+            Go to home
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full px-3 py-2 text-left hover:bg-sidebar-accent"
+            onClick={() => {
+              setOpen(false)
+              onLogout()
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function SidebarLabel({ collapsed, children }: { collapsed: boolean; children: ReactNode }) {
+  return (
+    <span
+      className={cn(
+        'grid transition-[grid-template-columns,opacity] duration-300 ease-in-out motion-reduce:transition-none',
+        collapsed ? 'md:w-0 md:min-w-0 md:grid-cols-[0fr] md:opacity-0' : 'grid-cols-[1fr] opacity-100',
+      )}
+    >
+      <span className="min-w-0 overflow-hidden whitespace-nowrap">{children}</span>
+    </span>
+  )
+}
+
+export function PortalShell({ title, nav, children }: PortalShellProps) {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
-  const location = useLocation()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
 
   async function onLogout() {
     await logout()
@@ -53,78 +146,116 @@ export function PortalShell({ title, brand, nav, children }: PortalShellProps) {
   }
 
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="icon">
-        <SidebarHeader>
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <Link to="/" className="truncate text-sm font-semibold text-sidebar-foreground">
-              {brand}
-            </Link>
-          </div>
-          <p className="px-2 text-xs text-sidebar-foreground/70">{title}</p>
-        </SidebarHeader>
-        <SidebarSeparator />
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {nav.map((item) => (
-                  <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton
-                      render={<NavLink to={item.to} end={item.end} />}
-                      isActive={navIsActive(location.pathname, item)}
-                      tooltip={item.label}
-                    >
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter>
-          <div className="truncate px-2 text-xs text-sidebar-foreground/70">{user?.email}</div>
-          <div className="truncate px-2 pb-1 text-[11px] uppercase tracking-wide text-sidebar-foreground/50">
-            {user?.role}
+    <div className="flex min-h-svh bg-background text-foreground">
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-30 flex w-64 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width,translate] duration-300 ease-in-out motion-reduce:transition-none md:static md:translate-x-0',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          collapsed && 'md:w-16',
+        )}
+      >
+        <div
+          data-shell-bar="sidebar"
+          className={cn(
+            shellBarHeight,
+            'flex items-center border-b border-sidebar-border bg-sidebar px-3',
+            collapsed ? 'md:justify-center md:px-2' : 'justify-between gap-2',
+          )}
+        >
+          <BrandLogo
+            variant="wordmark"
+            className={cn('h-9 w-auto min-w-0 md:max-w-[calc(100%-2.75rem)]', collapsed && 'md:hidden')}
+          />
+          <button
+            type="button"
+            className="hidden size-9 shrink-0 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent md:inline-flex"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((value) => !value)}
+          >
+            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
+        </div>
+        <nav className={cn('flex flex-1 flex-col gap-1 p-3', collapsed && 'md:px-2')}>
+          {nav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              title={item.label}
+              onClick={() => setMobileOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  'flex h-9 items-center overflow-hidden rounded-lg text-sm',
+                  collapsed ? 'md:justify-center md:gap-0 md:px-0' : 'gap-2 px-3',
+                  isActive
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'hover:bg-sidebar-accent/70',
+                )
+              }
+            >
+              <item.icon className="size-4 shrink-0" />
+              <SidebarLabel collapsed={collapsed}>{item.label}</SidebarLabel>
+            </NavLink>
+          ))}
+        </nav>
+        <div className={cn('border-t border-sidebar-border p-3', collapsed && 'md:px-2')}>
+          <div
+            className={cn(
+              'overflow-hidden transition-[max-height,opacity,margin] duration-300 ease-in-out motion-reduce:transition-none',
+              collapsed ? 'md:mb-0 md:max-h-0 md:opacity-0' : 'mb-2 max-h-16 opacity-100',
+            )}
+          >
+            <p className="truncate px-1 text-xs text-muted-foreground">{user?.email}</p>
+            <p className="px-1 text-[11px] uppercase tracking-wide text-muted-foreground">{user?.role}</p>
           </div>
           <Button
-            type="button"
             variant="outline"
             size="sm"
-            className="mx-2 mb-2 justify-start gap-2"
+            className={cn(
+              'w-full',
+              collapsed ? 'md:justify-center md:gap-0 md:px-0' : 'justify-start',
+            )}
+            aria-label="Log out"
             onClick={() => void onLogout()}
           >
-            <LogOut className="size-4" />
-            Log out
+            <LogOut className="size-4 shrink-0" />
+            <SidebarLabel collapsed={collapsed}>Log out</SidebarLabel>
           </Button>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset>
-        <header className="flex h-12 items-center gap-2 border-b border-border px-4">
-          <SidebarTrigger />
-          <span className="text-sm font-medium text-foreground">{title}</span>
+        </div>
+      </aside>
+
+      {mobileOpen ? (
+        <button
+          type="button"
+          aria-label="Close menu"
+          className="fixed inset-0 z-20 bg-foreground/20 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      ) : null}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header
+          className={cn(
+            shellBarHeight,
+            'flex items-center gap-2 border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground',
+          )}
+        >
+          <button
+            type="button"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-sidebar-border md:hidden"
+            aria-label="Open menu"
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu className="size-4" />
+          </button>
+          <BrandLogo className="size-8 shrink-0 md:hidden" />
+          <span className="min-w-0 truncate text-sm font-medium">{title}</span>
+          <AccountMenu onLogout={() => void onLogout()} />
         </header>
-        <div className="flex-1 p-4 md:p-6">{children ?? <Outlet />}</div>
-      </SidebarInset>
-    </SidebarProvider>
+        <main className="flex-1 p-4 md:p-6">{children ?? <Outlet />}</main>
+      </div>
+    </div>
   )
 }
 
-export const ADMIN_NAV: PortalNavItem[] = [
-  { to: '/admin', label: 'Home', icon: Home, end: true },
-]
-
-export const COORDINATOR_NAV: PortalNavItem[] = [
-  { to: '/coordinator', label: 'Home', icon: Home, end: true },
-]
-
-export const TUTOR_NAV: PortalNavItem[] = [
-  { to: '/tutor', label: 'Home', icon: Home, end: true },
-]
-
-export const CLIENT_NAV: PortalNavItem[] = [
-  { to: '/client', label: 'Home', icon: Home, end: true },
-]

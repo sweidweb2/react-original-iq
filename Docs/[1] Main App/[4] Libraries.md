@@ -8,7 +8,7 @@ Locked testing + quality + UI libs. Paths: `web-app/` · `backend/`
 
 ### UI
 
-**shadcn/ui** — Vite + Tailwind v4 (components under `src/components/ui/`)
+Custom React components in `web-app/src/components/ui/` styled with Tailwind. No shadcn.
 
 ### Core
 

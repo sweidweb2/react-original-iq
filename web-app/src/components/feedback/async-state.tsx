@@ -1,9 +1,7 @@
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { ApiError } from '@/services/api'
 
 type AsyncStateProps = {
@@ -20,9 +18,6 @@ function errorMessage(error: unknown): string {
   return 'Something went wrong'
 }
 
-/**
- * Per-feature inline loading / error — not a global app spinner.
- */
 export function AsyncState({
   isLoading,
   error,
@@ -35,9 +30,9 @@ export function AsyncState({
       <>
         {loadingFallback ?? (
           <div className="flex flex-col gap-3" role="status" aria-busy="true" aria-label="Loading">
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-24 w-full" />
+            <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
+            <div className="h-24 w-full animate-pulse rounded bg-muted" />
           </div>
         )}
       </>
@@ -46,18 +41,15 @@ export function AsyncState({
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle />
-        <AlertTitle>Could not load</AlertTitle>
-        <AlertDescription className="flex flex-col gap-3">
-          <span>{errorMessage(error)}</span>
-          {onRetry ? (
-            <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-              Try again
-            </Button>
-          ) : null}
-        </AlertDescription>
-      </Alert>
+      <div className="rounded-lg border border-destructive px-4 py-3 text-sm" role="alert">
+        <p className="font-medium text-destructive">Could not load</p>
+        <p className="mt-1 text-foreground">{errorMessage(error)}</p>
+        {onRetry ? (
+          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onRetry}>
+            Try again
+          </Button>
+        ) : null}
+      </div>
     )
   }
 

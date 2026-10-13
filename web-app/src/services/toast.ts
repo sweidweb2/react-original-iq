@@ -1,8 +1,7 @@
-import { toast } from 'sonner'
+import { toast } from '@/components/ui/toast'
 
-import { ApiError } from '@/services/api'
+import { ApiError } from './api'
 
-/** Non-blocking toast for API / mutation failures. */
 export function toastApiError(error: unknown, fallback = 'Something went wrong') {
   const message =
     error instanceof ApiError ? error.message : error instanceof Error ? error.message : fallback

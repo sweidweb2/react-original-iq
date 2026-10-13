@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiError,
   apiRequest,
-  bindAuthSession,
   type AuthTokens,
+  bindAuthSession,
 } from '@/services/api'
 
 function jsonResponse(body: unknown, status = 200): Response {

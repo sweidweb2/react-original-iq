@@ -1,7 +1,7 @@
-import { GraduationCap } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { BrandLogo } from '@/components/brand/BrandLogo'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -15,9 +15,7 @@ type ErrorPageShellProps = {
 export function ErrorPageShell({ title, description, code, actions }: ErrorPageShellProps) {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background px-4 text-center">
-      <div className="flex size-14 items-center justify-center rounded-2xl border border-border bg-muted/40">
-        <GraduationCap className="size-7 text-foreground" aria-hidden />
-      </div>
+      <BrandLogo className="size-16" />
       {code ? (
         <p className="text-sm font-medium tracking-wide text-muted-foreground">{code}</p>
       ) : null}

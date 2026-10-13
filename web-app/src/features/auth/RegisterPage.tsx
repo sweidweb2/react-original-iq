@@ -1,11 +1,12 @@
 import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { toast } from 'sonner'
 
 import { GuestOnly } from '@/components/auth'
+import { BrandLogo } from '@/components/brand/BrandLogo'
 import { Field, FieldError, FieldGroup, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { toastApiError } from '@/services/toast'
@@ -55,7 +56,8 @@ export function RegisterPage() {
     <GuestOnly>
       <div className="flex min-h-svh items-center justify-center bg-background px-4">
         <Form onSubmit={onSubmit} className="w-full max-w-sm gap-4" noValidate>
-          <div className="space-y-1">
+          <BrandLogo variant="wordmark" className="mx-auto h-16 w-auto" />
+          <div className="space-y-1 text-center">
             <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
             <p className="text-sm text-muted-foreground">
               New accounts start with the client role.
