@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  HUSKY: 0
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web-app/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: web-app
+      - run: npm ci
+        working-directory: backend
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web-app/package-lock.json
+      - run: npm ci
+        working-directory: web-app
+      - run: npm run test:unit
+        working-directory: web-app
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            web-app/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+        working-directory: web-app
+      - run: npm ci
+        working-directory: backend
+      - run: npx playwright install --with-deps chromium
+        working-directory: web-app
+      - run: npm run test:e2e
+        working-directory: web-app
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            web-app/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+        working-directory: web-app
+      - run: npm ci
+        working-directory: backend
+      - run: npm run audit:deps:ci
+        working-directory: web-app
+      - run: npm run audit:deps:ci
+        working-directory: backend

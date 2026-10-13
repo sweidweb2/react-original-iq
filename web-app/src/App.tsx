@@ -7,6 +7,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RegisterPage } from '@/features/auth/RegisterPage'
 import { NotFoundPage } from '@/features/errors/NotFoundPage'
 import { UnexpectedErrorPage } from '@/features/errors/UnexpectedErrorPage'
+import { HomePage } from '@/features/home/HomePage'
 import { PortalHomePage } from '@/features/portals/PortalHomePage'
 import {
   AdminPortalLayout,
@@ -14,31 +15,29 @@ import {
   CoordinatorPortalLayout,
   TutorPortalLayout,
 } from '@/features/portals/PortalLayouts'
-import { homePathForRole } from '@/lib/homePath'
-import { useAuthStore } from '@/stores/authStore'
-
-/** Signed-in `/` — send each role to its portal. */
-function RootHome() {
-  const role = useAuthStore((s) => s.user?.role)
-  return <Navigate to={homePathForRole(role)} replace />
-}
-
+import { FaqPage } from '@/features/public/FaqPage'
+import { AboutPage, ContactPage, ServicesPage } from '@/features/public/pages'
+import { PrivacyPage, RefundsPage, TermsPage } from '@/features/public/policyPages'
+import { PublicLayout } from '@/features/public/PublicLayout'
 function App() {
   return (
     <BrowserRouter>
       <NavigationLoader />
       <ErrorBoundary>
         <Routes>
-          <Route
-            path="/"
-            element={
-              <RequireAuth>
-                <RootHome />
-              </RequireAuth>
-            }
-          />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/faq" element={<FaqPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/refunds" element={<RefundsPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<RegisterPage />} />
+            <Route path="/register" element={<Navigate to="/signup" replace />} />
+          </Route>
           <Route path="/500" element={<UnexpectedErrorPage />} />
 
           <Route

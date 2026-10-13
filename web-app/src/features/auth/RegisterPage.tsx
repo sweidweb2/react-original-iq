@@ -1,9 +1,9 @@
 import { type FormEvent, useState } from 'react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { GuestOnly } from '@/components/auth'
-import { BrandLogo } from '@/components/brand/BrandLogo'
-import { Field, FieldError, FieldGroup, FieldLabel, Form } from '@/components/forms'
+import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
@@ -12,10 +12,13 @@ import { type FieldErrors, parseForm } from '@/lib/form'
 import { toastApiError } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
+import { AuthCard } from './AuthCard'
 import { registerSchema, type RegisterValues } from './register.schema'
 
+const fieldClass = '!h-11 !rounded-lg !bg-white !shadow-none'
+
 export function RegisterPage() {
-  useDocumentTitle('Register')
+  useDocumentTitle('Sign up')
   const register = useAuthStore((s) => s.register)
   const [values, setValues] = useState<RegisterValues>({
     firstName: '',
@@ -25,6 +28,7 @@ export function RegisterPage() {
   })
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof RegisterValues>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -54,84 +58,98 @@ export function RegisterPage() {
 
   return (
     <GuestOnly>
-      <div className="flex min-h-svh items-center justify-center bg-background px-4">
-        <Form onSubmit={onSubmit} className="w-full max-w-sm gap-4" noValidate>
-          <BrandLogo variant="wordmark" className="mx-auto h-16 w-auto" />
-          <div className="space-y-1 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-            <p className="text-sm text-muted-foreground">
-              New accounts start with the client role.
-            </p>
-          </div>
-
-          <FieldGroup>
+      <div className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,rgba(52,184,193,0.16),transparent_55%)] px-4 py-12">
+        <AuthCard badge="CREATE ACCOUNT" subtitle="Create your account">
+          <Form onSubmit={onSubmit} className="gap-4" noValidate>
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel htmlFor="firstName">First name</FieldLabel>
                 <Input
                   id="firstName"
+                  autoComplete="given-name"
+                  placeholder="First name"
+                  className={fieldClass}
                   value={values.firstName ?? ''}
-                  onChange={(e) =>
-                    setValues((prev) => ({
-                      ...prev,
-                      firstName: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setValues((prev) => ({ ...prev, firstName: e.target.value }))}
                 />
               </Field>
               <Field>
                 <FieldLabel htmlFor="lastName">Last name</FieldLabel>
                 <Input
                   id="lastName"
+                  autoComplete="family-name"
+                  placeholder="Last name"
+                  className={fieldClass}
                   value={values.lastName ?? ''}
-                  onChange={(e) =>
-                    setValues((prev) => ({
-                      ...prev,
-                      lastName: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => setValues((prev) => ({ ...prev, lastName: e.target.value }))}
                 />
               </Field>
             </div>
 
             <Field data-invalid={Boolean(fieldErrors.email) || undefined}>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <FieldLabel htmlFor="signup-email">Email Address</FieldLabel>
               <Input
-                id="email"
+                id="signup-email"
                 type="email"
                 autoComplete="email"
+                placeholder="Enter your email address"
                 value={values.email}
                 aria-invalid={Boolean(fieldErrors.email) || undefined}
+                className={fieldClass}
                 onChange={(e) => setValues((prev) => ({ ...prev, email: e.target.value }))}
               />
               <FieldError>{fieldErrors.email}</FieldError>
             </Field>
 
             <Field data-invalid={Boolean(fieldErrors.password) || undefined}>
-              <FieldLabel htmlFor="password">Password</FieldLabel>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                value={values.password}
-                aria-invalid={Boolean(fieldErrors.password) || undefined}
-                onChange={(e) => setValues((prev) => ({ ...prev, password: e.target.value }))}
-              />
+              <FieldLabel htmlFor="signup-password">Password</FieldLabel>
+              <div className="relative">
+                <Input
+                  id="signup-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Enter your password"
+                  className={`${fieldClass} !pr-10`}
+                  value={values.password}
+                  aria-invalid={Boolean(fieldErrors.password) || undefined}
+                  onChange={(e) => setValues((prev) => ({ ...prev, password: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  className="absolute top-1/2 right-2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  aria-controls="signup-password"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" aria-hidden />
+                  ) : (
+                    <Eye className="size-4" aria-hidden />
+                  )}
+                </button>
+              </div>
               <FieldError>{fieldErrors.password}</FieldError>
             </Field>
-          </FieldGroup>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating…' : 'Register'}
-          </Button>
+            <Button
+              type="submit"
+              className="!h-12 !w-full !rounded-xl !bg-primary !bg-none !shadow-[0_10px_24px_rgba(52,184,193,0.35)] hover:!translate-y-0"
+              disabled={isSubmitting}
+              aria-busy={isSubmitting}
+            >
+              {isSubmitting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+              {isSubmitting ? 'Creating…' : 'Sign up'}
+            </Button>
 
-          <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link to="/login" className="text-foreground underline-offset-4 hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </Form>
+            <p className="border-t border-border pt-4 text-center text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <Link to="/login" className="font-semibold text-primary hover:underline">
+                Sign in
+              </Link>
+            </p>
+          </Form>
+        </AuthCard>
       </div>
     </GuestOnly>
   )

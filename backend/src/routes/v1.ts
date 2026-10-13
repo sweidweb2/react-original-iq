@@ -3,6 +3,7 @@ import { Router } from 'express'
 import type { AppConfig } from '../config/index.js'
 import { loadConfig } from '../config/index.js'
 import { createAuthModule } from '../modules/auth/index.js'
+import { createContactModule } from '../modules/contact/index.js'
 import { createHealthController } from '../modules/health/health.controller.js'
 import { createHealthRepository } from '../modules/health/health.repository.js'
 import { createHealthRoutes } from '../modules/health/health.routes.js'
@@ -23,6 +24,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
   const healthController = createHealthController(healthService)
 
   router.use('/health', createHealthRoutes(healthController))
+  router.use('/contact', createContactModule(config))
   router.use('/auth', createAuthModule(config))
   router.use(createLoggingModule())
   router.use('/users', createUsersModule())
