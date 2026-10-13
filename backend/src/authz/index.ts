@@ -6,16 +6,5 @@
  * - Service: `assertOwner` / `assertOwnerOrAdmin` / `assertSelfOrAdmin` for horizontal checks
  */
 
-export {
-  assertOwner,
-  assertOwnerOrAdmin,
-  assertSelfOrAdmin,
-  type AuthActor,
-} from './ownership.js'
-export {
-  ADMIN_ROLES,
-  STAFF_ROLES,
-  hasAnyRole,
-  isAdmin,
-  isStaff,
-} from './roles.js'
+export { assertOwner, assertOwnerOrAdmin, assertSelfOrAdmin, type AuthActor } from './ownership.js'
+export { ADMIN_ROLES, hasAnyRole, isAdmin, isStaff, STAFF_ROLES } from './roles.js'

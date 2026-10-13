@@ -11,11 +11,13 @@ export function TestimonialsSection() {
     <section id="testimonials" className="bg-card py-20">
       <div className={homeContainer}>
         <header className="mb-16 text-center">
-          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">What Students Say</h2>
+          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">
+            What Students Say
+          </h2>
           <p className="mx-auto max-w-4xl text-lg text-muted-foreground">
-            Discover how our personalized tutoring approach has transformed academic success for students
-            across the Gulf region. From struggling with complex concepts to achieving top grades, hear
-            directly from learners who&apos;ve experienced the Original IQ difference.
+            Discover how our personalized tutoring approach has transformed academic success for
+            students across the Gulf region. From struggling with complex concepts to achieving top
+            grades, hear directly from learners who&apos;ve experienced the Original IQ difference.
           </p>
         </header>
 

@@ -12,10 +12,6 @@ type BrandLogoProps = {
 
 export function BrandLogo({ variant = 'mark', className }: BrandLogoProps) {
   return (
-    <img
-      src={sources[variant]}
-      alt="Original IQ"
-      className={cn('object-contain', className)}
-    />
+    <img src={sources[variant]} alt="Original IQ" className={cn('object-contain', className)} />
   )
 }

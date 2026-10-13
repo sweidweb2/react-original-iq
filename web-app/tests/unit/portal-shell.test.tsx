@@ -62,7 +62,9 @@ describe('PortalShell account menu', () => {
     renderPortal()
 
     await user.click(screen.getByRole('button', { name: 'Account menu for Sara Nabil' }))
-    expect(screen.getByRole('button', { name: 'Account menu for Sara Nabil' })).toHaveTextContent('SA')
+    expect(screen.getByRole('button', { name: 'Account menu for Sara Nabil' })).toHaveTextContent(
+      'SA',
+    )
     expect(screen.getByRole('menuitem', { name: 'Go to home' })).toBeVisible()
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
 

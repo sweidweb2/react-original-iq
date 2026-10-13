@@ -21,7 +21,8 @@ export function CtaSection() {
           Ready to Start Your Learning Journey?
         </h2>
         <p className="mx-auto mb-8 max-w-xl text-lg text-white/90">
-          Join thousands of students who have already transformed their academic success with our platform.
+          Join thousands of students who have already transformed their academic success with our
+          platform.
         </p>
         <Link to="/signup" className={buttonVariants({ variant: 'inverse', size: 'lg' })}>
           Get Started Free

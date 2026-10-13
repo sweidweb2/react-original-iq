@@ -4,9 +4,18 @@ import { homeContainer, howItWorks } from '../content'
 
 export function HowItWorksSection() {
   return (
-    <section id="how-it-works" className="relative overflow-hidden bg-gradient-to-b from-background to-card py-8 pb-20">
-      <div className="home-float pointer-events-none absolute top-[10%] left-[5%] size-20 rounded-[20px] bg-gradient-to-br from-primary/15 to-primary-light/10" aria-hidden />
-      <div className="home-pulse pointer-events-none absolute right-[8%] bottom-[15%] size-16 rounded-full bg-[radial-gradient(circle,rgba(255,107,53,0.2),transparent)]" aria-hidden />
+    <section
+      id="how-it-works"
+      className="relative overflow-hidden bg-gradient-to-b from-background to-card py-8 pb-20"
+    >
+      <div
+        className="home-float pointer-events-none absolute top-[10%] left-[5%] size-20 rounded-[20px] bg-gradient-to-br from-primary/15 to-primary-light/10"
+        aria-hidden
+      />
+      <div
+        className="home-pulse pointer-events-none absolute right-[8%] bottom-[15%] size-16 rounded-full bg-[radial-gradient(circle,rgba(255,107,53,0.2),transparent)]"
+        aria-hidden
+      />
 
       <div className={cn(homeContainer, 'relative')}>
         <header className="mb-16 text-center">

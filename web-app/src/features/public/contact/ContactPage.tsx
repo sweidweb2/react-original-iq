@@ -76,9 +76,7 @@ function InfoCard({
   children: ReactNode
 }) {
   return (
-    <Card
-      className="border-border bg-background p-4 text-center transition duration-300 hover:-translate-y-0.5 hover:border-primary-light hover:shadow-md"
-    >
+    <Card className="border-border bg-background p-4 text-center transition duration-300 hover:-translate-y-0.5 hover:border-primary-light hover:shadow-md">
       <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-primary-light to-primary text-white">
         <Icon className="size-4" aria-hidden />
       </div>
@@ -90,10 +88,7 @@ function InfoCard({
 
 function ContactSection() {
   return (
-    <section
-      id="support"
-      className="bg-background py-20 max-md:py-16 max-sm:py-12"
-    >
+    <section id="support" className="bg-background py-20 max-md:py-16 max-sm:py-12">
       <div className={publicContainerClass}>
         <div className="grid grid-cols-[1.5fr_1fr] gap-12 max-lg:grid-cols-1 max-md:gap-8 max-sm:gap-6">
           <MessageForm />
@@ -106,7 +101,10 @@ function ContactSection() {
             </SidebarCard>
             <Card className="border-border p-8 shadow-sm max-sm:p-6">
               <h2 className="mb-3 text-xl font-semibold">Follow Us</h2>
-              <SocialLinks className="mt-2 justify-center" linkClassName="text-foreground hover:text-primary" />
+              <SocialLinks
+                className="mt-2 justify-center"
+                linkClassName="text-foreground hover:text-primary"
+              />
             </Card>
             <Card className="border-0 bg-gradient-to-br from-primary-light to-primary p-8 text-white max-sm:p-6">
               <h2 className="mb-3 text-xl font-semibold text-white">Need Immediate Help?</h2>
@@ -130,9 +128,7 @@ function ContactSection() {
 function SidebarCard({ title, children }: { title: string; children: string }) {
   return (
     <Card className="p-8 max-md:p-7 max-sm:p-6">
-      <h2 className="mb-3 text-xl font-semibold max-sm:text-lg">
-        {title}
-      </h2>
+      <h2 className="mb-3 text-xl font-semibold max-sm:text-lg">{title}</h2>
       <p className="leading-[1.7] text-muted-foreground max-sm:text-[0.9rem]">{children}</p>
     </Card>
   )
@@ -248,7 +244,11 @@ function MessageForm() {
         />
       ) : null}
       {status === 'error' ? (
-        <Alert tone="danger" className="mt-4" title={errorMessage ?? 'Could not send your message'} />
+        <Alert
+          tone="danger"
+          className="mt-4"
+          title={errorMessage ?? 'Could not send your message'}
+        />
       ) : null}
     </Card>
   )

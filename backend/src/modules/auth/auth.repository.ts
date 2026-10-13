@@ -86,9 +86,7 @@ function createMemoryAuthRepository(): AuthRepository {
 
     async createUserWithProfile(input) {
       const displayName =
-        input.name?.trim() ||
-        [input.firstName, input.lastName].filter(Boolean).join(' ') ||
-        'User'
+        input.name?.trim() || [input.firstName, input.lastName].filter(Boolean).join(' ') || 'User'
       const user: AuthUserRecord = {
         id: randomUUID(),
         email: input.email,
@@ -145,9 +143,7 @@ function createSupabaseAuthRepository(config: AppConfig): AuthRepository {
 
     async createUserWithProfile(input) {
       const name =
-        input.name?.trim() ||
-        [input.firstName, input.lastName].filter(Boolean).join(' ') ||
-        'User'
+        input.name?.trim() || [input.firstName, input.lastName].filter(Boolean).join(' ') || 'User'
 
       const { data, error } = await client
         .from('users')

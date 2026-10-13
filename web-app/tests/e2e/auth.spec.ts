@@ -22,7 +22,7 @@ test.describe('auth flows', () => {
     await page.getByLabel('First name').fill('Ada')
     await page.getByLabel('Last name').fill('Lovelace')
     await page.getByLabel('Email').fill(email)
-    await page.getByLabel('Password').fill('password1')
+    await page.getByRole('textbox', { name: 'Password' }).fill('password1')
     await page.getByRole('button', { name: 'Sign up' }).click()
 
     await expect(page.getByRole('heading', { name: 'Client home' })).toBeVisible()

@@ -38,13 +38,15 @@ export const testimonials = [
     name: 'Noor Al-Otaibi',
     meta: 'Physics • Qatar',
     rating: 5,
-    quote: 'Flexible scheduling and brilliant explanations. My confidence in physics has increased significantly.',
+    quote:
+      'Flexible scheduling and brilliant explanations. My confidence in physics has increased significantly.',
   },
   {
     name: 'Khalid Al-Mutairi',
     meta: 'English Language • Bahrain',
     rating: 5,
-    quote: 'Outstanding English tutoring service. My writing and speaking skills have improved dramatically.',
+    quote:
+      'Outstanding English tutoring service. My writing and speaking skills have improved dramatically.',
   },
   {
     name: 'Sara Al-Hassan',
@@ -61,7 +63,8 @@ export const howItWorks = [
   },
   {
     title: 'Have Academic Consultant',
-    description: 'Our team of academic consultants is ready to assist you with your academic needs.',
+    description:
+      'Our team of academic consultants is ready to assist you with your academic needs.',
   },
   {
     title: 'Choose the right service',
@@ -105,7 +108,8 @@ export const processStages = [
 export const whyChooseUs = [
   {
     title: 'Expert Tutors',
-    description: 'Learn from verified professionals with years of teaching experience in their fields.',
+    description:
+      'Learn from verified professionals with years of teaching experience in their fields.',
   },
   {
     title: 'Track Progress',
@@ -121,4 +125,5 @@ export const whyChooseUs = [
   },
 ] as const
 
-export const homeContainer = 'mx-auto w-full max-w-[1400px] px-8 max-xl:px-6 max-lg:px-5 max-md:px-4'
+export const homeContainer =
+  'mx-auto w-full max-w-[1400px] px-8 max-xl:px-6 max-lg:px-5 max-md:px-4'

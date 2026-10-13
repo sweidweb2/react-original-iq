@@ -5,9 +5,7 @@ import pinoHttpImport from 'pino-http'
 
 import { getLogger } from '../logging/index.js'
 
-type PinoHttpFn = (
-  opts?: Options<IncomingMessage, ServerResponse>,
-) => RequestHandler
+type PinoHttpFn = (opts?: Options<IncomingMessage, ServerResponse>) => RequestHandler
 
 const pinoHttp = resolvePinoHttp(pinoHttpImport)
 
@@ -42,7 +40,8 @@ export function createRequestLogger(): RequestHandler {
   return pinoHttp({
     logger: getLogger(),
     autoLogging: {
-      ignore: (req) => isHealthPath(req.url) || isHealthPath((req as { originalUrl?: string }).originalUrl),
+      ignore: (req) =>
+        isHealthPath(req.url) || isHealthPath((req as { originalUrl?: string }).originalUrl),
     },
     customProps: (req) => ({
       requestId: (req as { requestId?: string }).requestId,

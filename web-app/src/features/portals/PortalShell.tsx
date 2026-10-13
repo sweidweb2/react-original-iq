@@ -124,7 +124,9 @@ function SidebarLabel({ collapsed, children }: { collapsed: boolean; children: R
     <span
       className={cn(
         'grid transition-[grid-template-columns,opacity] duration-300 ease-in-out motion-reduce:transition-none',
-        collapsed ? 'md:w-0 md:min-w-0 md:grid-cols-[0fr] md:opacity-0' : 'grid-cols-[1fr] opacity-100',
+        collapsed
+          ? 'md:w-0 md:min-w-0 md:grid-cols-[0fr] md:opacity-0'
+          : 'grid-cols-[1fr] opacity-100',
       )}
     >
       <span className="min-w-0 overflow-hidden whitespace-nowrap">{children}</span>
@@ -163,7 +165,10 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
         >
           <BrandLogo
             variant="wordmark"
-            className={cn('h-9 w-auto min-w-0 md:max-w-[calc(100%-2.75rem)]', collapsed && 'md:hidden')}
+            className={cn(
+              'h-9 w-auto min-w-0 md:max-w-[calc(100%-2.75rem)]',
+              collapsed && 'md:hidden',
+            )}
           />
           <button
             type="button"
@@ -172,7 +177,11 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
             aria-expanded={!collapsed}
             onClick={() => setCollapsed((value) => !value)}
           >
-            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+            {collapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
           </button>
         </div>
         <nav className={cn('flex flex-1 flex-col gap-1 p-3', collapsed && 'md:px-2')}>
@@ -206,7 +215,9 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
             )}
           >
             <p className="truncate px-1 text-xs text-muted-foreground">{user?.email}</p>
-            <p className="px-1 text-[11px] uppercase tracking-wide text-muted-foreground">{user?.role}</p>
+            <p className="px-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+              {user?.role}
+            </p>
           </div>
           <Button
             variant="outline"
@@ -257,4 +268,3 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
     </div>
   )
 }
-

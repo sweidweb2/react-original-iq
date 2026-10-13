@@ -127,7 +127,9 @@ function Hero() {
         </Link>
 
         <div className="mt-10">
-          <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">Trending</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+            Trending
+          </h2>
           <ul className="mt-4 flex flex-wrap justify-center gap-3">
             {trendingSubjects.map((subject) => (
               <li key={subject}>
@@ -141,7 +143,10 @@ function Hero() {
 
         <ul className="mt-12 grid w-full max-w-4xl gap-6 sm:grid-cols-3">
           {heroStats.map((stat) => (
-            <li key={stat.text} className="flex items-center gap-3 text-left sm:flex-col sm:text-center">
+            <li
+              key={stat.text}
+              className="flex items-center gap-3 text-left sm:flex-col sm:text-center"
+            >
               <span
                 className={cn(
                   'inline-flex size-10 shrink-0 items-center justify-center rounded-md',
@@ -183,11 +188,20 @@ function ServiceSection({ section }: { section: (typeof serviceSections)[number]
           >
             {section.badge}
           </Badge>
-          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{section.title}</h2>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground">{section.description}</p>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+            {section.title}
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+            {section.description}
+          </p>
           <div className="mt-8 grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
             {section.points.map((point) => (
-              <PointCard key={point.title} accent={section.accent} title={point.title} description={point.description} />
+              <PointCard
+                key={point.title}
+                accent={section.accent}
+                title={point.title}
+                description={point.description}
+              />
             ))}
           </div>
         </div>
@@ -238,7 +252,9 @@ function PointCard({
           'aria-hidden': true,
         })}
         <h3 className="mt-3 text-base font-semibold transition group-hover:text-white!">{title}</h3>
-        <p className="mt-2 text-sm text-muted-foreground transition group-hover:text-white/80!">{description}</p>
+        <p className="mt-2 text-sm text-muted-foreground transition group-hover:text-white/80!">
+          {description}
+        </p>
       </div>
     </article>
   )
@@ -261,14 +277,19 @@ function ProgramsSection() {
             {programSteps.map((step, index) => (
               <li key={step.title} className="relative flex gap-4">
                 {index < programSteps.length - 1 ? (
-                  <span aria-hidden className="absolute top-12 left-6 h-[calc(100%+0.5rem)] w-px bg-border" />
+                  <span
+                    aria-hidden
+                    className="absolute top-12 left-6 h-[calc(100%+0.5rem)] w-px bg-border"
+                  />
                 ) : null}
                 <span className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-full bg-card text-lg font-semibold shadow-md">
                   {index + 1}
                 </span>
                 <div className="pt-1">
                   <h3 className="text-base font-semibold">{step.title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.description}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    {step.description}
+                  </p>
                 </div>
               </li>
             ))}
@@ -284,15 +305,30 @@ function Roadmap() {
   const positions = ['lg:top-0 lg:left-4', 'lg:top-[42%] lg:right-0', 'lg:bottom-2 lg:left-[14%]']
 
   return (
-    <aside className="relative mx-auto w-full max-w-sm lg:min-h-[440px]" aria-label="Learning Roadmap">
+    <aside
+      className="relative mx-auto w-full max-w-sm lg:min-h-[440px]"
+      aria-label="Learning Roadmap"
+    >
       <svg
         className="pointer-events-none absolute inset-0 hidden h-full w-full lg:block"
         viewBox="0 0 320 520"
         preserveAspectRatio="none"
         aria-hidden
       >
-        <path d="M30 30 C140 110, 40 210, 160 280" fill="none" stroke="var(--primary-light)" strokeOpacity="0.7" strokeWidth="2.5" />
-        <path d="M90 180 C200 240, 120 320, 250 420" fill="none" stroke="var(--primary)" strokeOpacity="0.55" strokeWidth="2.5" />
+        <path
+          d="M30 30 C140 110, 40 210, 160 280"
+          fill="none"
+          stroke="var(--primary-light)"
+          strokeOpacity="0.7"
+          strokeWidth="2.5"
+        />
+        <path
+          d="M90 180 C200 240, 120 320, 250 420"
+          fill="none"
+          stroke="var(--primary)"
+          strokeOpacity="0.55"
+          strokeWidth="2.5"
+        />
       </svg>
       <ol className="flex flex-col gap-4 lg:block">
         {programSteps.map((step, index) => (
@@ -322,7 +358,9 @@ function WhyChooseSection() {
     <section className="bg-card py-20">
       <div className="mx-auto max-w-6xl px-4">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Why Choose Our Services</h2>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            Why Choose Our Services
+          </h2>
           <p className="mt-3 text-base text-muted-foreground">
             We go above and beyond to ensure your academic success
           </p>
@@ -331,7 +369,10 @@ function WhyChooseSection() {
           {benefits.map((benefit) => {
             const Icon = iconFor(benefit.title)
             return (
-              <Card key={benefit.title} className="group relative overflow-hidden p-6 shadow-md transition hover:shadow-lg">
+              <Card
+                key={benefit.title}
+                className="group relative overflow-hidden p-6 shadow-md transition hover:shadow-lg"
+              >
                 <span
                   aria-hidden
                   className="pointer-events-none absolute -top-10 right-0 size-32 rounded-full bg-primary/10 opacity-0 blur-2xl transition group-hover:opacity-100"
@@ -340,7 +381,9 @@ function WhyChooseSection() {
                   <Icon className="size-6" aria-hidden />
                 </span>
                 <h3 className="relative mt-4 text-base font-semibold">{benefit.title}</h3>
-                <p className="relative mt-2 text-sm leading-relaxed text-muted-foreground">{benefit.description}</p>
+                <p className="relative mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {benefit.description}
+                </p>
               </Card>
             )
           })}
@@ -359,7 +402,8 @@ function PricingSection() {
             Transparent Pricing Structure
           </h2>
           <p className="mt-3 text-base text-muted-foreground">
-            Our services rely mainly on <strong className="font-semibold text-primary">timeframe</strong>,{' '}
+            Our services rely mainly on{' '}
+            <strong className="font-semibold text-primary">timeframe</strong>,{' '}
             <strong className="font-semibold text-primary">requirements</strong>,{' '}
             <strong className="font-semibold text-primary">difficulty level</strong> and{' '}
             <strong className="font-semibold text-primary">type of subject</strong>
@@ -375,8 +419,8 @@ function PricingSection() {
         <p className="mx-auto mt-8 flex max-w-3xl items-start justify-center gap-3 text-center text-sm text-muted-foreground">
           <DollarSign className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
           <span>
-            Our prices start with <strong className="text-foreground">$50</strong> and can vary with no limits
-            according to your requirements.
+            Our prices start with <strong className="text-foreground">$50</strong> and can vary with
+            no limits according to your requirements.
           </span>
         </p>
       </div>
@@ -392,10 +436,17 @@ function PricingCard({ plan }: { plan: (typeof pricingPlans)[number] }) {
       className="relative flex h-full flex-col overflow-hidden p-6 sm:p-8"
       style={{ boxShadow: '0 16px 40px rgba(15, 23, 42, 0.06)' }}
     >
-      <span aria-hidden className="pointer-events-none absolute -top-20 -left-16 size-56 rounded-full bg-primary/10" />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -top-20 -left-16 size-56 rounded-full bg-primary/10"
+      />
       <div className="relative flex items-center gap-3">
         <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          {tutoring ? <Users className="size-5" aria-hidden /> : <FileText className="size-5" aria-hidden />}
+          {tutoring ? (
+            <Users className="size-5" aria-hidden />
+          ) : (
+            <FileText className="size-5" aria-hidden />
+          )}
         </span>
         <h3 className="text-base font-semibold tracking-tight sm:text-lg">{plan.title}</h3>
       </div>
@@ -424,18 +475,27 @@ function PriceRange({ start, max, endColor }: { start: string; max: string; endC
   const gradientId = useId().replace(/:/g, '')
 
   return (
-    <div
-      className="flex h-full w-full flex-col"
-      aria-label={`Price range ${start} to ${max}`}
-    >
+    <div className="flex h-full w-full flex-col" aria-label={`Price range ${start} to ${max}`}>
       <div className="pr-1 text-right">
         <p className="text-lg font-bold leading-none tracking-tight sm:text-xl">{max}</p>
         <p className="mt-1 mr-5 text-xs text-muted-foreground">Maximum</p>
       </div>
       <div className="relative -mt-1 min-h-44 flex-1">
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="absolute inset-0 size-full"
+          aria-hidden
+        >
           <defs>
-            <linearGradient id={gradientId} x1="22" y1="98" x2="78" y2="4" gradientUnits="userSpaceOnUse">
+            <linearGradient
+              id={gradientId}
+              x1="22"
+              y1="98"
+              x2="78"
+              y2="4"
+              gradientUnits="userSpaceOnUse"
+            >
               <stop offset="0%" stopColor="var(--chart-5)" />
               <stop offset="46%" stopColor="var(--primary)" />
               <stop offset="100%" stopColor={endColor} />
@@ -455,7 +515,10 @@ function PriceRange({ start, max, endColor }: { start: string; max: string; endC
           className="absolute top-[6%] left-[78%] size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
           style={{ backgroundColor: endColor }}
         />
-        <span aria-hidden className="absolute top-[96%] left-[22%] size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-chart-5" />
+        <span
+          aria-hidden
+          className="absolute top-[96%] left-[22%] size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-chart-5"
+        />
       </div>
       <div className="-mt-1">
         <p className="text-[11px] leading-none text-muted-foreground">Starting</p>

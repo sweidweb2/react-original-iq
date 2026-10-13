@@ -83,7 +83,9 @@ export function PublicLayout() {
         className="sticky top-0 border-b border-border bg-card"
         style={{ zIndex: zIndex.sticky }}
       >
-        <div className={cn(publicContainerClass, 'grid h-16 grid-cols-[1fr_auto_1fr] items-center')}>
+        <div
+          className={cn(publicContainerClass, 'grid h-16 grid-cols-[1fr_auto_1fr] items-center')}
+        >
           <Link to="/" className="justify-self-start" onClick={closeMenu}>
             <BrandLogo variant="wordmark" className="h-9 w-auto" />
           </Link>

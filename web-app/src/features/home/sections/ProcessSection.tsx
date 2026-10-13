@@ -9,7 +9,10 @@ const stageIcons: LucideIcon[] = [Users, CreditCard, Repeat]
 
 export function ProcessSection() {
   return (
-    <section id="process" className="relative overflow-hidden bg-gradient-to-br from-background to-card py-24 max-md:py-16">
+    <section
+      id="process"
+      className="relative overflow-hidden bg-gradient-to-br from-background to-card py-24 max-md:py-16"
+    >
       <div
         className="pointer-events-none absolute inset-0"
         aria-hidden
@@ -23,7 +26,9 @@ export function ProcessSection() {
       />
       <div className={cn(homeContainer, 'relative')}>
         <header className="mb-16 text-center">
-          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">Our Process</h2>
+          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">
+            Our Process
+          </h2>
           <p className="text-lg text-muted-foreground">
             Experience a streamlined journey from inquiry to success with our proven methodology
           </p>

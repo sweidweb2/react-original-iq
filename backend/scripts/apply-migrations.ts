@@ -15,10 +15,7 @@ import { fileURLToPath } from 'node:url'
 import pg from 'pg'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const migrationsDir = path.resolve(
-  __dirname,
-  '../../Docs/[4] Database/migrations',
-)
+const migrationsDir = path.resolve(__dirname, '../../Docs/[4] Database/migrations')
 
 function formatConnectError(error: unknown): string {
   const err = error as NodeJS.ErrnoException & { hostname?: string }

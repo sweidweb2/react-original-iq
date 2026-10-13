@@ -10,9 +10,14 @@ test.describe('public pages', () => {
     await expect(page.getByRole('heading', { name: 'About OriginaliQ' })).toBeVisible()
 
     await nav.getByRole('link', { name: 'Services' }).click()
-    await expect(page.getByRole('heading', { level: 1, name: /Guiding every learner/ })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { level: 1, name: /Guiding every learner/ }),
+    ).toBeVisible()
 
-    await page.getByRole('navigation', { name: 'Support' }).getByRole('link', { name: 'FAQ' }).click()
+    await page
+      .getByRole('navigation', { name: 'Support' })
+      .getByRole('link', { name: 'FAQ' })
+      .click()
     await expect(page.getByRole('heading', { name: 'Frequently Asked Questions' })).toBeVisible()
 
     await nav.getByRole('link', { name: 'Contact' }).click()

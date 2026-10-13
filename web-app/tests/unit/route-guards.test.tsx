@@ -99,7 +99,10 @@ describe('route guards', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Access denied' })).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Go to your portal' })).toHaveAttribute('href', '/client')
+    expect(screen.getByRole('link', { name: 'Go to your portal' })).toHaveAttribute(
+      'href',
+      '/client',
+    )
   })
 
   it('keeps a signed-out user on a guest screen', async () => {

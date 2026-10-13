@@ -51,12 +51,12 @@ Auth works locally with an in-memory store until Supabase env vars are set.
 
 ## Scripts
 
-| Command (from app folder) | What                          |
-| ------------------------- | ----------------------------- |
-| `npm run dev`             | Dev server                    |
-| `npm run build`           | Production build              |
-| `npm run test:unit`       | Unit tests                    |
-| `npm run typecheck`       | TypeScript check              |
+| Command (from app folder) | What             |
+| ------------------------- | ---------------- |
+| `npm run dev`             | Dev server       |
+| `npm run build`           | Production build |
+| `npm run test:unit`       | Unit tests       |
+| `npm run typecheck`       | TypeScript check |
 
 Root: `npm run lint` · `npm run format`
 

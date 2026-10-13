@@ -7,8 +7,8 @@ Server-state / API cache library remains deferred. This decision covers **client
 
 ## Adopted
 
-| App | Library  | First store                         |
-| --- | -------- | ----------------------------------- |
+| App | Library   | First store                       |
+| --- | --------- | --------------------------------- |
 | Web | Zustand 5 | `web-app/src/stores/authStore.ts` |
 
 Default to **local/component state**. Promote to Zustand only when multiple distant screens need the same **client** state.

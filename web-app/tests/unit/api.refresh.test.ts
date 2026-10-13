@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  ApiError,
-  apiRequest,
-  type AuthTokens,
-  bindAuthSession,
-} from '@/services/api'
+import { ApiError, apiRequest, type AuthTokens, bindAuthSession } from '@/services/api'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

@@ -15,7 +15,9 @@ export function FeaturesSection() {
     <section id="features" className="bg-card py-20">
       <div className={homeContainer}>
         <header className="mb-16 text-center">
-          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">Why Choose Us</h2>
+          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">
+            Why Choose Us
+          </h2>
           <p className="text-lg text-muted-foreground">
             Everything you need for successful learning in one platform
           </p>
@@ -24,7 +26,11 @@ export function FeaturesSection() {
         <div className="grid items-start gap-12 lg:grid-cols-3">
           <div className="order-2 grid gap-6 max-lg:grid-cols-2 max-md:grid-cols-1 lg:order-none">
             {left.map((feature, index) => (
-              <FeatureCard key={feature.title} feature={feature} icon={featureIcons[index] ?? Users} />
+              <FeatureCard
+                key={feature.title}
+                feature={feature}
+                icon={featureIcons[index] ?? Users}
+              />
             ))}
           </div>
 
@@ -37,16 +43,20 @@ export function FeaturesSection() {
             <figcaption className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-primary/80 via-primary-light/70 to-accent/80 p-8 text-center text-white">
               <p className="mb-4 text-4xl font-bold">Why Choose Us</p>
               <p className="max-w-md text-lg leading-relaxed text-white/95">
-                Experience the difference with our comprehensive academic support, expert guidance, and
-                personalized learning approach that has helped thousands of students achieve their
-                educational goals.
+                Experience the difference with our comprehensive academic support, expert guidance,
+                and personalized learning approach that has helped thousands of students achieve
+                their educational goals.
               </p>
             </figcaption>
           </figure>
 
           <div className="order-3 grid gap-6 max-lg:grid-cols-2 max-md:grid-cols-1 lg:order-none">
             {right.map((feature, index) => (
-              <FeatureCard key={feature.title} feature={feature} icon={featureIcons[index + 2] ?? Download} />
+              <FeatureCard
+                key={feature.title}
+                feature={feature}
+                icon={featureIcons[index + 2] ?? Download}
+              />
             ))}
           </div>
         </div>

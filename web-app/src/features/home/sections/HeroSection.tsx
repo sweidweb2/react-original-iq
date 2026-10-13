@@ -35,13 +35,19 @@ export function HeroSection({ onOpenLead }: HeroSectionProps) {
       <div className="mx-auto flex w-full max-w-[1280px] flex-col items-center gap-12 px-8 max-lg:text-center sm:px-12 lg:flex-row lg:items-center lg:justify-center lg:gap-24 lg:px-16 xl:px-20">
         <div className="w-full max-w-md shrink-0 max-lg:order-1 max-lg:pb-8">
           <h1 className="mb-6 text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl lg:text-[3.5rem]">
-            Learn <span className="bg-gradient-to-br from-primary to-primary-light bg-clip-text text-transparent">Smarter</span>
+            Learn{' '}
+            <span className="bg-gradient-to-br from-primary to-primary-light bg-clip-text text-transparent">
+              Smarter
+            </span>
           </h1>
           <p className="mb-8 max-w-xl text-lg leading-relaxed text-muted-foreground max-lg:mx-auto max-md:text-base">
             Tailored guidance and flexible learning to boost your results.
           </p>
           <div className="mb-12 flex flex-col items-start gap-4 max-lg:mb-10 max-lg:items-center">
-            <Link to="/signup" className={cn(buttonVariants({ size: 'lg' }), 'w-full max-w-[400px]')}>
+            <Link
+              to="/signup"
+              className={cn(buttonVariants({ size: 'lg' }), 'w-full max-w-[400px]')}
+            >
               Join Our Community - Sign Up Now
             </Link>
             <Button
@@ -84,7 +90,9 @@ export function HeroSection({ onOpenLead }: HeroSectionProps) {
                   </span>
                   <span>
                     <span className="block text-xl leading-none font-semibold">{item.value}</span>
-                    <span className="mt-1 block text-xs leading-tight text-muted-foreground">{item.label}</span>
+                    <span className="mt-1 block text-xs leading-tight text-muted-foreground">
+                      {item.label}
+                    </span>
                   </span>
                 </li>
               )

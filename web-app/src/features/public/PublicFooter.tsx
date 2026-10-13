@@ -30,7 +30,12 @@ const supportLinks = [
 export function PublicFooter() {
   return (
     <footer className="mt-auto bg-foreground text-white/80">
-      <div className={cn(publicContainerClass, 'grid gap-12 py-16 sm:grid-cols-2 xl:grid-cols-[1.6fr_1fr_1fr_1fr_auto]')}>
+      <div
+        className={cn(
+          publicContainerClass,
+          'grid gap-12 py-16 sm:grid-cols-2 xl:grid-cols-[1.6fr_1fr_1fr_1fr_auto]',
+        )}
+      >
         <div>
           <BrandLogo variant="wordmark" className="h-12 w-auto brightness-0 invert" />
           <p className="mt-4 max-w-sm leading-relaxed text-white/70">
@@ -52,7 +57,13 @@ export function PublicFooter() {
   )
 }
 
-function FooterColumn({ title, links }: { title: string; links: Array<{ to: string; label: string }> }) {
+function FooterColumn({
+  title,
+  links,
+}: {
+  title: string
+  links: Array<{ to: string; label: string }>
+}) {
   return (
     <nav aria-label={title}>
       <p className="mb-4 text-lg font-semibold text-white">{title}</p>

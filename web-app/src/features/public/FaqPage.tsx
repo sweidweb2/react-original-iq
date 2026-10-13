@@ -63,7 +63,12 @@ export function FaqPage() {
                         aria-hidden
                       />
                     </button>
-                    <div id={panelId} role="region" hidden={!open} className="px-4 pb-4 text-sm text-muted-foreground">
+                    <div
+                      id={panelId}
+                      role="region"
+                      hidden={!open}
+                      className="px-4 pb-4 text-sm text-muted-foreground"
+                    >
                       {item.answer}
                     </div>
                   </div>

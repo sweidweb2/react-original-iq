@@ -38,12 +38,14 @@ const stats = [
 const steps = [
   {
     title: 'Choose Your Payment Method',
-    description: 'Select your preferred payment method, such as credit card, debit card, or digital wallet.',
+    description:
+      'Select your preferred payment method, such as credit card, debit card, or digital wallet.',
     icon: ClipboardCheck,
   },
   {
     title: 'Enter Payment Details',
-    description: 'Securely enter your card number, expiration date, and security code in the payment form.',
+    description:
+      'Securely enter your card number, expiration date, and security code in the payment form.',
     icon: Lock,
   },
   {
@@ -57,25 +59,29 @@ const benefits: Array<{ number: string; title: string; description: string; icon
   {
     number: '01',
     title: 'Trusted & Registered',
-    description: 'Study with confidence through a registered company that upholds international academic standards.',
+    description:
+      'Study with confidence through a registered company that upholds international academic standards.',
     icon: Layers,
   },
   {
     number: '02',
     title: 'Flexible Learning',
-    description: 'Learn anytime, anywhere, with study plans that adapt to your schedule and learning pace.',
+    description:
+      'Learn anytime, anywhere, with study plans that adapt to your schedule and learning pace.',
     icon: CircleCheck,
   },
   {
     number: '03',
     title: 'Value & Quality',
-    description: 'Receive top-quality academic support that offers real value for your investment in education.',
+    description:
+      'Receive top-quality academic support that offers real value for your investment in education.',
     icon: Check,
   },
   {
     number: '04',
     title: 'Continuous Support',
-    description: 'Enjoy ongoing guidance throughout your academic journey for consistent growth and results.',
+    description:
+      'Enjoy ongoing guidance throughout your academic journey for consistent growth and results.',
     icon: Users,
   },
 ]
@@ -121,8 +127,8 @@ export function AboutPage() {
             </span>
           </h1>
           <p className="mt-6 text-base leading-8 text-muted-foreground sm:text-lg">
-            A registered company based in Lebanon 🇱🇧, now developing its Consultancy Department for academic
-            consultants. We proudly serve students locally and across the Gulf 🌍.
+            A registered company based in Lebanon 🇱🇧, now developing its Consultancy Department for
+            academic consultants. We proudly serve students locally and across the Gulf 🌍.
           </p>
         </div>
       </section>
@@ -151,9 +157,7 @@ export function AboutPage() {
               key={diamond.position}
               className={cn(
                 'about-float absolute size-12 rounded-lg xl:size-14',
-                diamond.tone === 'orange'
-                  ? 'bg-accent shadow-md'
-                  : 'bg-chart-5 shadow-md',
+                diamond.tone === 'orange' ? 'bg-accent shadow-md' : 'bg-chart-5 shadow-md',
                 diamond.position,
               )}
             />
@@ -189,7 +193,9 @@ export function AboutPage() {
                 <dt className={cn('text-2xl leading-none', stat.tone)} aria-hidden>
                   ◆
                 </dt>
-                <dd className="mt-2 text-3xl font-semibold text-primary sm:text-4xl">{stat.value}</dd>
+                <dd className="mt-2 text-3xl font-semibold text-primary sm:text-4xl">
+                  {stat.value}
+                </dd>
                 <dd className="mt-1 text-sm lowercase text-muted-foreground">{stat.label}</dd>
               </div>
             ))}
@@ -204,9 +210,12 @@ export function AboutPage() {
             <p className="inline-flex rounded-full bg-gradient-to-br from-primary to-primary-dark px-5 py-2 text-xs font-semibold tracking-wide text-white uppercase shadow-[var(--shadow-primary)]">
               Payment Methods
             </p>
-            <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">Payment Methods</h2>
+            <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Payment Methods
+            </h2>
             <p className="mt-3 text-base text-muted-foreground">
-              Ask us about payment by email or WhatsApp. We share the right details for your request.
+              Ask us about payment by email or WhatsApp. We share the right details for your
+              request.
             </p>
           </header>
 
@@ -242,8 +251,12 @@ export function AboutPage() {
       <section className="bg-card px-4 py-12 sm:py-16">
         <div className="mx-auto max-w-5xl">
           <header className="mb-10 text-center">
-            <p className="text-xs font-semibold tracking-widest text-primary uppercase">Online Payment</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Just 3 steps to get started</h2>
+            <p className="text-xs font-semibold tracking-widest text-primary uppercase">
+              Online Payment
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Just 3 steps to get started
+            </h2>
           </header>
           <div className="grid items-start gap-10 lg:grid-cols-2">
             <ol className="flex flex-col gap-8">
@@ -259,7 +272,9 @@ export function AboutPage() {
                         <span className="text-primary">{index + 1}. </span>
                         {step.title}
                       </h3>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.description}</p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {step.description}
+                      </p>
                     </div>
                   </li>
                 )
@@ -282,9 +297,12 @@ export function AboutPage() {
             <p className="inline-flex rounded-full bg-primary-light px-4 py-2 text-sm font-medium text-white">
               Why Join
             </p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Why OriginaliQ</h2>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Why OriginaliQ
+            </h2>
             <p className="mt-3 text-base leading-8 text-muted-foreground">
-              Be part of a registered company with international reach and make a difference in students&apos; lives.
+              Be part of a registered company with international reach and make a difference in
+              students&apos; lives.
             </p>
           </header>
 
@@ -301,7 +319,9 @@ export function AboutPage() {
                   </span>
                   <Icon className="size-12 text-primary" aria-hidden />
                   <h3 className="mt-3 text-xl font-semibold">{benefit.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{benefit.description}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    {benefit.description}
+                  </p>
                 </Card>
               )
             })}
@@ -407,7 +427,9 @@ function PaymentCard({
       </div>
       <p className="mt-5 text-base leading-7 text-muted-foreground">{description}</p>
       <div className="relative mt-6">
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</p>
+        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          {label}
+        </p>
         <div className="mt-3 flex flex-col items-start gap-3 rounded-xl border-2 border-border bg-background px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-mono text-sm font-semibold tracking-wide break-all">{value}</p>
           <Button size="sm" aria-label={`Copy ${label}`} onClick={onCopy}>
@@ -416,7 +438,10 @@ function PaymentCard({
           </Button>
         </div>
         {copied ? (
-          <p role="status" className="mt-2 flex items-center justify-center gap-2 rounded-md bg-chart-5 px-3 py-2 text-sm font-semibold text-white">
+          <p
+            role="status"
+            className="mt-2 flex items-center justify-center gap-2 rounded-md bg-chart-5 px-3 py-2 text-sm font-semibold text-white"
+          >
             <Check className="size-4" aria-hidden />
             Copied!
           </p>

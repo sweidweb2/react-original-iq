@@ -14,8 +14,8 @@ npm run typecheck
 
 ## Apps
 
-| App | Path | Dev |
-| --- | --- | --- |
+| App | Path       | Dev           |
+| --- | ---------- | ------------- |
 | Web | `web-app/` | `npm run dev` |
 | API | `backend/` | `npm run dev` |
 

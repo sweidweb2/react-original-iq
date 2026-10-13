@@ -42,14 +42,22 @@ export const serviceSections = [
       },
       {
         title: 'Data Analysis',
-        description: 'Statistical analysis and interpretation of research data using advanced methodologies',
+        description:
+          'Statistical analysis and interpretation of research data using advanced methodologies',
       },
       {
         title: 'Academic Writing',
-        description: 'Professional research papers, theses, and publications that meet academic standards',
+        description:
+          'Professional research papers, theses, and publications that meet academic standards',
       },
     ],
-    orbit: ['Literature Review', 'Data Analysis', 'Academic Writing', 'Quality Assurance', 'Research Methodology'],
+    orbit: [
+      'Literature Review',
+      'Data Analysis',
+      'Academic Writing',
+      'Quality Assurance',
+      'Research Methodology',
+    ],
   },
   {
     id: 'tutoring',
@@ -111,11 +119,13 @@ export const programSteps = [
   },
   {
     title: 'Custom Academic Curricula',
-    description: 'Tailored learning paths for specialized subjects, advanced topics, and unique academic requirements',
+    description:
+      'Tailored learning paths for specialized subjects, advanced topics, and unique academic requirements',
   },
   {
     title: 'Structured Learning Paths',
-    description: 'Follow carefully designed curricula that build skills progressively from fundamentals to advanced concepts',
+    description:
+      'Follow carefully designed curricula that build skills progressively from fundamentals to advanced concepts',
   },
 ] as const
 
@@ -132,11 +142,13 @@ export const benefits = [
   },
   {
     title: 'Quality Assured',
-    description: 'We maintain the highest standards in all our deliverables with rigorous quality control processes',
+    description:
+      'We maintain the highest standards in all our deliverables with rigorous quality control processes',
   },
   {
     title: 'Personalized Learning',
-    description: 'Get tailored academic support designed to match your unique goals, pace, and learning style',
+    description:
+      'Get tailored academic support designed to match your unique goals, pace, and learning style',
   },
 ] as const
 
