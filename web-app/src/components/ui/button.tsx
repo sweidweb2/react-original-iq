@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes } from 'react'
 
 import { cn } from '@/lib/utils'
 
-type ButtonVariant = 'primary' | 'outline'
+type ButtonVariant = 'primary' | 'outline' | 'danger'
 type ButtonSize = 'sm' | 'md'
 
 const variants: Record<ButtonVariant, string> = {
@@ -10,6 +10,7 @@ const variants: Record<ButtonVariant, string> = {
     'bg-gradient-to-br from-primary to-primary-dark text-primary-foreground shadow-[var(--shadow-primary)] hover:-translate-y-0.5 hover:shadow-[var(--shadow-primary-hover)]',
   outline:
     'border-[1.5px] border-primary bg-transparent text-primary hover:bg-primary hover:text-primary-foreground',
+  danger: 'bg-destructive text-white shadow-sm hover:opacity-90',
 }
 
 const sizes: Record<ButtonSize, string> = {
@@ -32,6 +33,14 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: ButtonSize
 }
 
-export function Button({ variant = 'primary', size = 'md', className, type = 'button', ...props }: ButtonProps) {
-  return <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  className,
+  type = 'button',
+  ...props
+}: ButtonProps) {
+  return (
+    <button type={type} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+  )
 }
