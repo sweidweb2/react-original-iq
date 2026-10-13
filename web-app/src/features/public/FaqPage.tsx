@@ -44,8 +44,9 @@ export function FaqPage() {
           <section key={category.id}>
             <h2 className="text-lg font-semibold">{category.title}</h2>
             <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-card">
-              {category.items.map((item) => {
+              {category.items.map((item, index) => {
                 const key = `${category.id}:${item.question}`
+                const panelId = `faq-${category.id}-${index}`
                 const open = openKey === key
                 return (
                   <div key={key}>
@@ -53,6 +54,7 @@ export function FaqPage() {
                       type="button"
                       className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium"
                       aria-expanded={open}
+                      aria-controls={panelId}
                       onClick={() => setOpenKey(open ? null : key)}
                     >
                       {item.question}
@@ -61,9 +63,9 @@ export function FaqPage() {
                         aria-hidden
                       />
                     </button>
-                    {open ? (
-                      <p className="px-4 pb-4 text-sm text-muted-foreground">{item.answer}</p>
-                    ) : null}
+                    <div id={panelId} role="region" hidden={!open} className="px-4 pb-4 text-sm text-muted-foreground">
+                      {item.answer}
+                    </div>
                   </div>
                 )
               })}
@@ -77,7 +79,7 @@ export function FaqPage() {
         <p className="mt-2 text-sm text-muted-foreground">
           Our team can help you choose the right plan.
         </p>
-        <Link to="/contact" className={`${buttonVariants()} mt-4`}>
+        <Link to="/contact" className={cn(buttonVariants(), 'mt-4')}>
           Contact us
         </Link>
       </div>

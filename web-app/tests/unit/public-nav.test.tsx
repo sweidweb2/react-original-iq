@@ -46,10 +46,7 @@ describe('public navbar', () => {
     await user.click(within(nav).getByRole('link', { name: 'Services' }))
     expect(screen.getByRole('heading', { name: /Guiding every learner/ })).toBeInTheDocument()
 
-    expect(within(nav).queryByRole('link', { name: 'FAQ' })).not.toBeInTheDocument()
-    await user.click(
-      within(screen.getByRole('navigation', { name: 'Support' })).getByRole('link', { name: 'FAQ' }),
-    )
+    await user.click(within(nav).getByRole('link', { name: 'FAQ' }))
     expect(screen.getByRole('heading', { name: 'Frequently Asked Questions' })).toBeInTheDocument()
 
     await user.click(within(nav).getByRole('link', { name: 'Contact' }))

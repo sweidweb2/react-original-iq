@@ -1,5 +1,4 @@
-import type { CSSProperties } from 'react'
-import { useEffect, useId } from 'react'
+import { createElement, type CSSProperties, useId } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   BarChart3,
@@ -22,7 +21,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
@@ -39,6 +38,7 @@ import {
   trendingSubjects,
 } from './content/services'
 import { OrbitVisual } from './services/OrbitVisual'
+import { useHashScroll } from './useHashScroll'
 
 const pointIcons: Record<string, LucideIcon> = {
   'Literature Review': Layers,
@@ -69,11 +69,12 @@ const pointIcons: Record<string, LucideIcon> = {
 const statTones = {
   success: 'bg-chart-5/10 text-chart-5',
   accent: 'bg-accent/10 text-accent',
-  warning: 'bg-amber-500/10 text-amber-500',
+  warning: 'bg-warning/10 text-warning',
 } as const
 
 const dottedBackground = {
-  backgroundImage: 'radial-gradient(rgba(180, 180, 180, 0.3) 2px, transparent 0)',
+  backgroundImage:
+    'radial-gradient(color-mix(in srgb, var(--muted-foreground) 30%, transparent) 2px, transparent 0)',
   backgroundSize: '30px 30px',
 } satisfies CSSProperties
 
@@ -178,7 +179,7 @@ function ServiceSection({ section }: { section: (typeof serviceSections)[number]
         <div className={section.visualFirst ? 'lg:order-2' : undefined}>
           <Badge
             className="rounded-full px-4 py-1 text-sm font-semibold"
-            style={{ backgroundColor: section.accentLight, color: '#ffffff' }}
+            style={{ backgroundColor: section.accentLight, color: 'var(--primary-foreground)' }}
           >
             {section.badge}
           </Badge>
@@ -214,11 +215,9 @@ function PointCard({
   title: string
   description: string
 }) {
-  const Icon = iconFor(title)
-
   return (
     <article
-      className="group relative overflow-hidden rounded-sm bg-[#f2f8f9] p-6 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
+      className="group relative overflow-hidden rounded-sm bg-muted p-6 shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-md"
       style={{ '--point': accent } as CSSProperties}
     >
       <span
@@ -234,7 +233,10 @@ function PointCard({
         →
       </span>
       <div className="relative z-10">
-        <Icon className="size-10 text-[var(--point)] transition group-hover:text-white!" aria-hidden />
+        {createElement(iconFor(title), {
+          className: 'size-10 text-[var(--point)] transition group-hover:text-white!',
+          'aria-hidden': true,
+        })}
         <h3 className="mt-3 text-base font-semibold transition group-hover:text-white!">{title}</h3>
         <p className="mt-2 text-sm text-muted-foreground transition group-hover:text-white/80!">{description}</p>
       </div>
@@ -289,8 +291,8 @@ function Roadmap() {
         preserveAspectRatio="none"
         aria-hidden
       >
-        <path d="M30 30 C140 110, 40 210, 160 280" fill="none" stroke="rgba(109,214,220,0.7)" strokeWidth="2.5" />
-        <path d="M90 180 C200 240, 120 320, 250 420" fill="none" stroke="rgba(56,189,248,0.55)" strokeWidth="2.5" />
+        <path d="M30 30 C140 110, 40 210, 160 280" fill="none" stroke="var(--primary-light)" strokeOpacity="0.7" strokeWidth="2.5" />
+        <path d="M90 180 C200 240, 120 320, 250 420" fill="none" stroke="var(--primary)" strokeOpacity="0.55" strokeWidth="2.5" />
       </svg>
       <ol className="flex flex-col gap-4 lg:block">
         {programSteps.map((step, index) => (
@@ -301,7 +303,7 @@ function Roadmap() {
               positions[index],
             )}
           >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-primary-light text-sm font-semibold text-white">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-light text-sm font-semibold text-primary-foreground">
               {index + 1}
             </span>
             <div>
@@ -350,11 +352,7 @@ function WhyChooseSection() {
 
 function PricingSection() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 py-20">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(52,184,193,0.08),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(52,184,193,0.08),transparent_45%)]"
-      />
+    <section className="relative overflow-hidden bg-muted/40 py-20">
       <div className="relative mx-auto max-w-6xl px-4">
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="bg-gradient-to-br from-primary to-foreground bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
@@ -368,52 +366,57 @@ function PricingSection() {
           </p>
         </div>
 
-        <div className="mt-12 grid gap-8 lg:grid-cols-2">
+        <div className="mt-12 grid items-stretch gap-6 lg:grid-cols-2">
           {pricingPlans.map((plan) => (
-            <Card key={plan.title} className="relative overflow-hidden p-8 shadow-lg">
-              <span aria-hidden className="absolute -top-16 -right-10 size-56 rounded-full bg-primary/10" />
-              <div className="relative flex items-center gap-3">
-                <span className="inline-flex size-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  {plan.title.startsWith('Tutoring') ? (
-                    <Users className="size-7" aria-hidden />
-                  ) : (
-                    <FileText className="size-7" aria-hidden />
-                  )}
-                </span>
-                <h3 className="text-lg font-semibold">{plan.title}</h3>
-              </div>
-              <div className="relative mt-8 flex flex-col gap-6 sm:flex-row sm:items-stretch">
-                <PriceRange start={plan.start} max={plan.max} endColor={plan.endColor} />
-                <ul className="flex flex-1 flex-col gap-3">
-                  {plan.factors.map((factor) => {
-                    const Icon = iconFor(factor)
-                    return (
-                      <li
-                        key={factor}
-                        className="flex items-center gap-3 rounded-lg border border-border bg-card/80 px-3 py-3 shadow-sm"
-                      >
-                        <Icon className="size-5 shrink-0 text-primary" aria-hidden />
-                        <span className="text-sm font-semibold">{factor}</span>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            </Card>
+            <PricingCard key={plan.title} plan={plan} />
           ))}
         </div>
 
-        <Card className="mt-8 flex items-start gap-3 p-5">
-          <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <DollarSign className="size-5" aria-hidden />
-          </span>
-          <p className="text-sm text-muted-foreground">
+        <p className="mx-auto mt-8 flex max-w-3xl items-start justify-center gap-3 text-center text-sm text-muted-foreground">
+          <DollarSign className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <span>
             Our prices start with <strong className="text-foreground">$50</strong> and can vary with no limits
             according to your requirements.
-          </p>
-        </Card>
+          </span>
+        </p>
       </div>
     </section>
+  )
+}
+
+function PricingCard({ plan }: { plan: (typeof pricingPlans)[number] }) {
+  const tutoring = plan.title.startsWith('Tutoring')
+
+  return (
+    <Card
+      className="relative flex h-full flex-col overflow-hidden p-6 sm:p-8"
+      style={{ boxShadow: '0 16px 40px rgba(15, 23, 42, 0.06)' }}
+    >
+      <span aria-hidden className="pointer-events-none absolute -top-20 -left-16 size-56 rounded-full bg-primary/10" />
+      <div className="relative flex items-center gap-3">
+        <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          {tutoring ? <Users className="size-5" aria-hidden /> : <FileText className="size-5" aria-hidden />}
+        </span>
+        <h3 className="text-base font-semibold tracking-tight sm:text-lg">{plan.title}</h3>
+      </div>
+      <div className="relative mt-8 grid flex-1 grid-cols-[7.5rem_minmax(0,1fr)] items-stretch gap-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
+        <PriceRange start={plan.start} max={plan.max} endColor={plan.endColor} />
+        <ul className="flex h-full min-h-56 flex-col justify-between gap-2.5">
+          {plan.factors.map((factor) => {
+            const Icon = iconFor(factor)
+            return (
+              <li
+                key={factor}
+                className="flex items-center gap-2.5 rounded-full border border-border bg-card px-3.5 py-2.5"
+              >
+                <Icon className="size-4 shrink-0 text-primary" aria-hidden />
+                <span className="text-sm font-medium">{factor}</span>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </Card>
   )
 }
 
@@ -421,44 +424,45 @@ function PriceRange({ start, max, endColor }: { start: string; max: string; endC
   const gradientId = useId().replace(/:/g, '')
 
   return (
-    <div className="relative h-64 w-full shrink-0 sm:h-72 sm:w-36" aria-label={`Price range ${start} to ${max}`}>
-      <svg viewBox="0 0 140 280" className="h-full w-full" aria-hidden>
-        <defs>
-          <linearGradient id={gradientId} x1="0%" y1="100%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#10b981" />
-            <stop offset="50%" stopColor="#34b8c1" />
-            <stop offset="100%" stopColor={endColor} />
-          </linearGradient>
-        </defs>
-        <path
-          d="M36 248 Q 78 140, 104 36"
-          fill="none"
-          stroke={`url(#${gradientId})`}
-          strokeWidth="8"
-          strokeLinecap="round"
+    <div
+      className="flex h-full w-full flex-col"
+      aria-label={`Price range ${start} to ${max}`}
+    >
+      <div className="pr-1 text-right">
+        <p className="text-lg font-bold leading-none tracking-tight sm:text-xl">{max}</p>
+        <p className="mt-1 mr-5 text-xs text-muted-foreground">Maximum</p>
+      </div>
+      <div className="relative -mt-1 min-h-44 flex-1">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
+          <defs>
+            <linearGradient id={gradientId} x1="22" y1="98" x2="78" y2="4" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="var(--chart-5)" />
+              <stop offset="46%" stopColor="var(--primary)" />
+              <stop offset="100%" stopColor={endColor} />
+            </linearGradient>
+          </defs>
+          <path
+            d="M22 96 Q 2 52, 78 6"
+            fill="none"
+            stroke={`url(#${gradientId})`}
+            strokeWidth="8"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <span
+          aria-hidden
+          className="absolute top-[6%] left-[78%] size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+          style={{ backgroundColor: endColor }}
         />
-        <circle cx="36" cy="248" r="8" fill="#10b981" />
-        <circle cx="104" cy="36" r="8" fill={endColor} />
-      </svg>
-      <p className="absolute top-0 right-0 text-right">
-        <span className="block text-base font-semibold">{max}</span>
-        <span className="text-xs text-muted-foreground">Maximum</span>
-      </p>
-      <p className="absolute bottom-0 left-0">
-        <span className="block text-xs text-muted-foreground">Starting</span>
-        <span className="text-base font-semibold">{start}</span>
-      </p>
+        <span aria-hidden className="absolute top-[96%] left-[22%] size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-chart-5" />
+      </div>
+      <div className="-mt-1">
+        <p className="text-[11px] leading-none text-muted-foreground">Starting</p>
+        <p className="mt-1 text-lg font-bold leading-none tracking-tight sm:text-xl">{start}</p>
+      </div>
     </div>
   )
-}
-
-function useHashScroll() {
-  const { hash } = useLocation()
-
-  useEffect(() => {
-    if (!hash) return
-    document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' })
-  }, [hash])
 }
 
 function iconFor(label: string): LucideIcon {

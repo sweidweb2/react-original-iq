@@ -32,8 +32,8 @@ export const serviceSections = [
     title: 'Comprehensive Research Assistance',
     description:
       'Unlock the power of academic research with our expert guidance. From literature reviews to data analysis, we provide comprehensive support for your research projects and academic publications.',
-    accent: '#34b8c1',
-    accentLight: '#6dd6dc',
+    accent: 'var(--primary)',
+    accentLight: 'var(--primary-light)',
     visualFirst: false,
     points: [
       {
@@ -57,8 +57,8 @@ export const serviceSections = [
     title: 'Personalized One-on-One Teaching',
     description:
       "Experience learning like never before with our expert tutors who adapt to your unique learning style. Whether you're struggling with complex concepts or aiming for top grades, our personalized approach ensures you achieve your academic goals.",
-    accent: '#f2a900',
-    accentLight: '#ffc832',
+    accent: 'var(--warning)',
+    accentLight: 'var(--warning)',
     visualFirst: true,
     points: [
       {
@@ -82,8 +82,8 @@ export const serviceSections = [
     title: 'Professional Project Assistance',
     description:
       'Get expert help with your academic and research projects. Our team of qualified professionals ensures high-quality, original work that meets your educational goals and deadlines.',
-    accent: '#2f9e44',
-    accentLight: '#50c864',
+    accent: 'var(--chart-5)',
+    accentLight: 'var(--chart-5)',
     visualFirst: false,
     points: [
       {
@@ -145,7 +145,7 @@ export const pricingPlans = [
     title: 'Projects / Assignments / Research Papers',
     start: '$50',
     max: '$10,000',
-    endColor: '#ec4899',
+    endColor: 'var(--accent)',
     factors: [
       'Complicated Subjects',
       'Extensive Research',
@@ -158,7 +158,7 @@ export const pricingPlans = [
     title: 'Tutoring Services',
     start: '$20',
     max: '$150',
-    endColor: '#0ea5e9',
+    endColor: 'var(--primary)',
     factors: [
       'Complicated Subjects',
       'Personalized Learning Plan',

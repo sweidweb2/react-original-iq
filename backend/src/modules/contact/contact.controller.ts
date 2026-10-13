@@ -5,6 +5,7 @@ import type { ContactService } from './contact.service.js'
 export type ContactController = {
   createMessage: (req: Request, res: Response, next: NextFunction) => Promise<void>
   subscribe: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  createLead: (req: Request, res: Response, next: NextFunction) => Promise<void>
 }
 
 export function createContactController(service: ContactService): ContactController {
@@ -20,6 +21,14 @@ export function createContactController(service: ContactService): ContactControl
     async subscribe(req, res, next) {
       try {
         const result = await service.subscribe(req.body)
+        res.status(201).json(result)
+      } catch (error) {
+        next(error)
+      }
+    },
+    async createLead(req, res, next) {
+      try {
+        const result = await service.createLead(req.body)
         res.status(201).json(result)
       } catch (error) {
         next(error)

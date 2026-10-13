@@ -5,7 +5,6 @@ import { Link } from 'react-router-dom'
 import { GuestOnly } from '@/components/auth'
 import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
@@ -15,8 +14,6 @@ import { useAuthStore } from '@/stores/authStore'
 
 import { AuthCard } from './AuthCard'
 import { loginSchema, type LoginValues } from './login.schema'
-
-const fieldClass = '!h-11 !rounded-lg !bg-white !shadow-none'
 
 export function LoginPage() {
   useDocumentTitle('Sign in')
@@ -28,7 +25,6 @@ export function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof LoginValues>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(false)
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -52,7 +48,7 @@ export function LoginPage() {
 
   return (
     <GuestOnly>
-      <div className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,rgba(52,184,193,0.16),transparent_55%)] px-4 py-12">
+      <div className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,color-mix(in_srgb,var(--primary)_16%,transparent),transparent_55%)] px-4 py-12">
         <AuthCard badge="UNIFIED ACCESS" subtitle="Universal Access Portal">
           <Form onSubmit={onSubmit} className="gap-4" noValidate>
             <Field data-invalid={Boolean(fieldErrors.email) || undefined}>
@@ -64,7 +60,6 @@ export function LoginPage() {
                 placeholder="Enter your email address"
                 value={values.email}
                 aria-invalid={Boolean(fieldErrors.email) || undefined}
-                className={fieldClass}
                 onChange={(e) => setValues((prev) => ({ ...prev, email: e.target.value }))}
               />
               <FieldError>{fieldErrors.email}</FieldError>
@@ -78,7 +73,7 @@ export function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="Enter your password"
-                  className={`${fieldClass} !pr-10`}
+                  className="pr-10"
                   value={values.password}
                   aria-invalid={Boolean(fieldErrors.password) || undefined}
                   onChange={(e) => setValues((prev) => ({ ...prev, password: e.target.value }))}
@@ -101,23 +96,17 @@ export function LoginPage() {
               <FieldError>{fieldErrors.password}</FieldError>
             </Field>
 
-            <div className="flex items-center justify-between gap-3">
-              <Checkbox
-                label="Remember Me"
-                checked={remember}
-                onChange={(event) => setRemember(event.target.checked)}
-              />
-              <a
-                href="mailto:info@original-iq.com"
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Forgot Your Password?
-              </a>
-            </div>
+            <a
+              href="mailto:info@original-iq.com"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Forgot Your Password?
+            </a>
 
             <Button
               type="submit"
-              className="!h-12 !w-full !rounded-xl !bg-primary !bg-none !shadow-[0_10px_24px_rgba(52,184,193,0.35)] hover:!translate-y-0"
+              size="lg"
+              className="w-full"
               disabled={isSubmitting}
               aria-busy={isSubmitting}
             >

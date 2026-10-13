@@ -22,3 +22,17 @@ export function subscribeNewsletter(email: string) {
     skipAuthRefresh: true,
   })
 }
+
+export type LeadPayload = {
+  country: string
+  dialCode: string
+  phone: string
+}
+
+export function createLead(body: LeadPayload) {
+  return apiRequest<{ ok: true }>('/contact/leads', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    skipAuthRefresh: true,
+  })
+}

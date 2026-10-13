@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 export const leadSchema = z.object({
-  country: z.string().trim().min(1, 'Select your country'),
-  dialCode: z.string().trim().min(1, 'Select your country'),
+  country: z.string().trim().min(1, 'Select your country').max(80, 'Select your country'),
+  dialCode: z.string().trim().min(1, 'Select your country').max(8, 'Select your country'),
   phone: z
     .string()
     .trim()

@@ -15,8 +15,6 @@ import { useAuthStore } from '@/stores/authStore'
 import { AuthCard } from './AuthCard'
 import { registerSchema, type RegisterValues } from './register.schema'
 
-const fieldClass = '!h-11 !rounded-lg !bg-white !shadow-none'
-
 export function RegisterPage() {
   useDocumentTitle('Sign up')
   const register = useAuthStore((s) => s.register)
@@ -58,7 +56,7 @@ export function RegisterPage() {
 
   return (
     <GuestOnly>
-      <div className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,rgba(52,184,193,0.16),transparent_55%)] px-4 py-12">
+      <div className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,color-mix(in_srgb,var(--primary)_16%,transparent),transparent_55%)] px-4 py-12">
         <AuthCard badge="CREATE ACCOUNT" subtitle="Create your account">
           <Form onSubmit={onSubmit} className="gap-4" noValidate>
             <div className="grid grid-cols-2 gap-3">
@@ -68,7 +66,6 @@ export function RegisterPage() {
                   id="firstName"
                   autoComplete="given-name"
                   placeholder="First name"
-                  className={fieldClass}
                   value={values.firstName ?? ''}
                   onChange={(e) => setValues((prev) => ({ ...prev, firstName: e.target.value }))}
                 />
@@ -79,7 +76,6 @@ export function RegisterPage() {
                   id="lastName"
                   autoComplete="family-name"
                   placeholder="Last name"
-                  className={fieldClass}
                   value={values.lastName ?? ''}
                   onChange={(e) => setValues((prev) => ({ ...prev, lastName: e.target.value }))}
                 />
@@ -95,7 +91,6 @@ export function RegisterPage() {
                 placeholder="Enter your email address"
                 value={values.email}
                 aria-invalid={Boolean(fieldErrors.email) || undefined}
-                className={fieldClass}
                 onChange={(e) => setValues((prev) => ({ ...prev, email: e.target.value }))}
               />
               <FieldError>{fieldErrors.email}</FieldError>
@@ -109,7 +104,7 @@ export function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   placeholder="Enter your password"
-                  className={`${fieldClass} !pr-10`}
+                  className="pr-10"
                   value={values.password}
                   aria-invalid={Boolean(fieldErrors.password) || undefined}
                   onChange={(e) => setValues((prev) => ({ ...prev, password: e.target.value }))}
@@ -134,7 +129,8 @@ export function RegisterPage() {
 
             <Button
               type="submit"
-              className="!h-12 !w-full !rounded-xl !bg-primary !bg-none !shadow-[0_10px_24px_rgba(52,184,193,0.35)] hover:!translate-y-0"
+              size="lg"
+              className="w-full"
               disabled={isSubmitting}
               aria-busy={isSubmitting}
             >

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { zIndex } from '@/theme'
 
+import { publicContainerClass } from './publicContainer'
 import { PublicFooter } from './PublicFooter'
 import { PUBLIC_NAV } from './publicNav'
 
@@ -82,7 +83,7 @@ export function PublicLayout() {
         className="sticky top-0 border-b border-border bg-card"
         style={{ zIndex: zIndex.sticky }}
       >
-        <div className="grid h-16 w-full grid-cols-[1fr_auto_1fr] items-center px-6 md:px-10 lg:px-14">
+        <div className={cn(publicContainerClass, 'grid h-16 grid-cols-[1fr_auto_1fr] items-center')}>
           <Link to="/" className="justify-self-start" onClick={closeMenu}>
             <BrandLogo variant="wordmark" className="h-9 w-auto" />
           </Link>

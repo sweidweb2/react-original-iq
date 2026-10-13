@@ -4,7 +4,7 @@ import type { AppConfig } from '../../config/index.js'
 import { createAuthRateLimiter } from '../../middleware/rate-limit.js'
 import { validate } from '../../middleware/validate.js'
 import type { ContactController } from './contact.controller.js'
-import { contactMessageBodySchema, newsletterBodySchema } from './contact.schema.js'
+import { contactMessageBodySchema, leadBodySchema, newsletterBodySchema } from './contact.schema.js'
 
 export function createContactRoutes(controller: ContactController, config: AppConfig): Router {
   const router = Router()
@@ -22,6 +22,7 @@ export function createContactRoutes(controller: ContactController, config: AppCo
     validate({ body: newsletterBodySchema }),
     controller.subscribe,
   )
+  router.post('/leads', limiter, validate({ body: leadBodySchema }), controller.createLead)
 
   return router
 }

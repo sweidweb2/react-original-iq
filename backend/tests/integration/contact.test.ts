@@ -47,4 +47,15 @@ describe('contact HTTP', () => {
     expect(second.status).toBe(201)
     expect(second.body).toEqual({ ok: true })
   })
+
+  it('stores a home lead', async () => {
+    const res = await request(app).post('/api/v1/contact/leads').send({
+      country: 'Lebanon',
+      dialCode: '+961',
+      phone: '70858167',
+    })
+
+    expect(res.status).toBe(201)
+    expect(res.body).toEqual({ ok: true })
+  })
 })

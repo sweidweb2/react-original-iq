@@ -15,6 +15,7 @@ function renderPortal(path = '/admin/classes') {
           <Route path="/admin" element={<h1>Portal home</h1>} />
           <Route path="/admin/classes" element={<h1>Classes</h1>} />
         </Route>
+        <Route path="/" element={<h1>Public home</h1>} />
         <Route path="/login" element={<h1>Sign in</h1>} />
       </Routes>
     </MemoryRouter>,
@@ -66,7 +67,7 @@ describe('PortalShell account menu', () => {
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
 
     await user.click(screen.getByRole('menuitem', { name: 'Go to home' }))
-    expect(screen.getByRole('heading', { name: 'Portal home' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Public home' })).toBeVisible()
     expect(screen.queryByRole('menu', { name: 'Account' })).not.toBeInTheDocument()
   })
 

@@ -1,18 +1,21 @@
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
-import type { ContactMessageInput } from './contact.types.js'
+import type { ContactMessageInput, LeadInput } from './contact.types.js'
 
 export type ContactRepository = {
   createMessage: (input: ContactMessageInput) => Promise<void>
   subscribe: (email: string) => Promise<void>
+  createLead: (input: LeadInput) => Promise<void>
 }
 
 const memoryMessages: ContactMessageInput[] = []
 const memorySubscribers = new Set<string>()
+const memoryLeads: LeadInput[] = []
 
 export function resetContactRepositoryForTests(): void {
   memoryMessages.length = 0
   memorySubscribers.clear()
+  memoryLeads.length = 0
 }
 
 function isUniqueViolation(error: { code?: string }): boolean {
@@ -26,6 +29,9 @@ function createMemoryContactRepository(): ContactRepository {
     },
     async subscribe(email) {
       memorySubscribers.add(email)
+    },
+    async createLead(input) {
+      memoryLeads.push(input)
     },
   }
 }
@@ -49,6 +55,13 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
     async subscribe(email) {
       const { error } = await client.from('stay_updated').insert({ email })
       if (error && !isUniqueViolation(error)) throw error
+    },
+    async createLead(input) {
+      const { error } = await client.from('leads').insert({
+        country: input.country,
+        phone: input.phone,
+      })
+      if (error) throw error
     },
   }
 }

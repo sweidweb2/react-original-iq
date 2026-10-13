@@ -1,34 +1,36 @@
+import './about.css'
+
 import { useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import {
   Check,
   CircleCheck,
   ClipboardCheck,
   Copy,
-  CreditCard,
   Eye,
   Layers,
   Lock,
+  Mail,
   Phone,
   Shield,
   User,
   Users,
   Zap,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { cn } from '@/lib/utils'
 
-const IBAN = 'LB12 3456 7890 1234 5678 9012 3456'
-const WISH_PHONE = '+961 3 123 456'
+const PAYMENT_EMAIL = 'info@original-iq.com'
+const PAYMENT_PHONE = '+961 70 858 167'
 const APPLY_URL = 'https://forms.gle/1T9au5gptw4bLbPZA'
 
 const stats = [
   { tone: 'text-chart-5', value: '100+', label: 'employees' },
   { tone: 'text-accent', value: '15+', label: 'countries' },
-  { tone: 'text-[#f2a900]', value: '60+', label: 'projects done' },
+  { tone: 'text-warning', value: '60+', label: 'projects done' },
   { tone: 'text-chart-5', value: '500+', label: 'graduates' },
   { tone: 'text-accent', value: '25+', label: 'project awards' },
 ] as const
@@ -94,9 +96,9 @@ const portraits = [
 
 export function AboutPage() {
   useDocumentTitle('About')
-  const [copied, setCopied] = useState<'iban' | 'phone' | null>(null)
+  const [copied, setCopied] = useState<'email' | 'phone' | null>(null)
 
-  async function copyValue(kind: 'iban' | 'phone', value: string) {
+  async function copyValue(kind: 'email' | 'phone', value: string) {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(kind)
@@ -109,7 +111,7 @@ export function AboutPage() {
   return (
     <div>
       <section className="relative overflow-hidden px-4 py-16 sm:py-20">
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(135deg,#E0F7F8_0%,#B3FBFD_50%,#E0F7F8_100%)]" />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(135deg,var(--sidebar-accent)_0%,var(--primary-light)_50%,var(--sidebar-accent)_100%)]" />
         <div className="absolute inset-0 -z-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_30px,rgba(52,184,193,0.03)_30px,rgba(52,184,193,0.03)_60px)]" />
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
@@ -150,8 +152,8 @@ export function AboutPage() {
               className={cn(
                 'about-float absolute size-12 rounded-lg xl:size-14',
                 diamond.tone === 'orange'
-                  ? 'bg-gradient-to-br from-accent to-[#ff8c42] shadow-[0_8px_25px_rgba(255,107,53,0.3)]'
-                  : 'bg-gradient-to-br from-chart-5 to-[#3dbe58] shadow-[0_8px_25px_rgba(47,158,68,0.3)]',
+                  ? 'bg-accent shadow-md'
+                  : 'bg-chart-5 shadow-md',
                 diamond.position,
               )}
             />
@@ -195,7 +197,7 @@ export function AboutPage() {
         </div>
       </section>
 
-      <section className="relative overflow-hidden bg-[linear-gradient(135deg,#f7f9fa_0%,#ffffff_50%,#f0f4f8_100%)] px-4 py-16">
+      <section className="relative overflow-hidden bg-gradient-to-br from-background via-card to-muted px-4 py-16">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(52,184,193,0.05),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(255,107,53,0.05),transparent_50%)]" />
         <div className="relative mx-auto max-w-6xl">
           <header className="mx-auto mb-12 max-w-xl text-center">
@@ -204,34 +206,33 @@ export function AboutPage() {
             </p>
             <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">Payment Methods</h2>
             <p className="mt-3 text-base text-muted-foreground">
-              Choose from multiple secure payment options that suit your preferences. We offer bank transfers,
-              digital wallet payments, and online payment processing.
+              Ask us about payment by email or WhatsApp. We share the right details for your request.
             </p>
           </header>
 
           <div className="grid gap-8 md:grid-cols-2">
             <PaymentCard
-              title="Bank Transfer"
-              description="Transfer funds directly to our bank account using the IBAN code. Secure and reliable for larger transactions."
-              label="IBAN Code"
-              value={IBAN}
-              copied={copied === 'iban'}
-              onCopy={() => copyValue('iban', IBAN)}
-              icon={CreditCard}
+              title="Email"
+              description="Send payment questions to our team. We reply from the address below."
+              label="Email"
+              value={PAYMENT_EMAIL}
+              copied={copied === 'email'}
+              onCopy={() => copyValue('email', PAYMENT_EMAIL)}
+              icon={Mail}
               iconClass="bg-gradient-to-br from-primary to-primary-dark"
-              feature="Secure Transfer"
+              feature="We reply by email"
               featureIcon={Shield}
             />
             <PaymentCard
-              title="Wish Payment"
-              description="Send payments instantly using Wish digital wallet. Quick and convenient for mobile users."
-              label="Wish Phone Number"
-              value={WISH_PHONE}
+              title="WhatsApp"
+              description="Message us on WhatsApp for payment help. This is the number we answer."
+              label="WhatsApp"
+              value={PAYMENT_PHONE}
               copied={copied === 'phone'}
-              onCopy={() => copyValue('phone', WISH_PHONE)}
+              onCopy={() => copyValue('phone', PAYMENT_PHONE)}
               icon={Phone}
-              iconClass="bg-gradient-to-br from-accent to-[#e85a2b]"
-              feature="Instant Transfer"
+              iconClass="bg-accent"
+              feature="Same number as our contact page"
               featureIcon={Zap}
             />
           </div>
@@ -293,7 +294,7 @@ export function AboutPage() {
               return (
                 <Card
                   key={benefit.number}
-                  className="relative w-full max-w-64 overflow-hidden p-8 shadow-[0_0_15px_rgba(0,0,0,0.09)] transition hover:-translate-y-1 hover:shadow-[0_5px_25px_rgba(0,0,0,0.15)]"
+                  className="relative w-full max-w-64 overflow-hidden p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                 >
                   <span className="absolute -top-7 -right-5 flex size-24 items-end justify-start rounded-full bg-primary pb-6 pl-7 text-2xl text-white">
                     {benefit.number}
@@ -317,7 +318,7 @@ export function AboutPage() {
                 href={APPLY_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-6 inline-flex items-center justify-center gap-2 rounded-md bg-white px-8 py-3 text-base font-medium text-primary shadow-[0_4px_20px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:shadow-[0_6px_30px_rgba(0,0,0,0.3)]"
+                className={cn(buttonVariants({ variant: 'inverse', size: 'lg' }), 'mt-6')}
               >
                 <Zap className="size-5" aria-hidden />
                 Apply Now
@@ -342,14 +343,14 @@ function StoryCard({
   tone: 'primary' | 'accent'
 }) {
   return (
-    <Card className="relative overflow-hidden p-8 shadow-[0_10px_40px_rgba(0,0,0,0.08)] transition hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] sm:p-12">
+    <Card className="relative overflow-hidden p-8 shadow-lg transition hover:-translate-y-1 sm:p-12">
       <div className="flex items-center gap-4 sm:gap-6">
         <span
           className={cn(
             'flex size-14 shrink-0 items-center justify-center rounded-full text-white sm:size-16',
             tone === 'primary'
-              ? 'bg-gradient-to-br from-primary to-primary-dark shadow-[0_8px_25px_rgba(52,184,193,0.3)]'
-              : 'bg-gradient-to-br from-accent to-[#ff8c42] shadow-[0_8px_25px_rgba(255,107,53,0.3)]',
+              ? 'bg-gradient-to-br from-primary to-primary-dark shadow-[var(--shadow-primary)]'
+              : 'bg-accent shadow-md',
           )}
         >
           <Icon className="size-7" aria-hidden />
@@ -360,7 +361,7 @@ function StoryCard({
       <span
         className={cn(
           'absolute right-5 bottom-5 size-2 rounded-full opacity-60',
-          tone === 'primary' ? 'bg-primary-light' : 'bg-[#ff8c42]',
+          tone === 'primary' ? 'bg-primary-light' : 'bg-accent',
         )}
         aria-hidden
       />
@@ -392,7 +393,7 @@ function PaymentCard({
   featureIcon: LucideIcon
 }) {
   return (
-    <Card className="group relative overflow-hidden border-2 p-8 shadow-[0_4px_20px_rgba(0,0,0,0.08)] transition duration-300 before:absolute before:inset-x-0 before:top-0 before:h-1 before:origin-left before:scale-x-0 before:bg-gradient-to-r before:from-primary before:to-accent before:transition before:duration-300 before:content-[''] hover:-translate-y-2 hover:border-primary hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)] hover:before:scale-x-100 sm:p-10">
+    <Card className="group relative overflow-hidden border-2 p-8 shadow-md transition duration-300 before:absolute before:inset-x-0 before:top-0 before:h-1 before:origin-left before:scale-x-0 before:bg-gradient-to-r before:from-primary before:to-accent before:transition before:duration-300 before:content-[''] hover:-translate-y-2 hover:border-primary hover:shadow-lg hover:before:scale-x-100 sm:p-10">
       <div className="flex items-center gap-4">
         <span
           className={cn(

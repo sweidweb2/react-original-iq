@@ -9,8 +9,8 @@ type AuthCardProps = {
 
 export function AuthCard({ badge, subtitle, children }: AuthCardProps) {
   return (
-    <div className="w-full max-w-[440px] overflow-hidden rounded-[28px] bg-card shadow-[0_24px_60px_rgba(15,23,32,0.12)]">
-      <div className="relative overflow-hidden bg-gradient-to-b from-[#5fd0d6] to-primary px-6 pt-5 pb-14 text-center text-white">
+    <div className="w-full max-w-[440px] overflow-hidden rounded-lg bg-card shadow-lg">
+      <div className="relative overflow-hidden bg-gradient-to-b from-primary-light to-primary px-6 pt-5 pb-14 text-center text-primary-foreground">
         <div
           className="pointer-events-none absolute inset-0 opacity-40"
           style={{
@@ -25,7 +25,7 @@ export function AuthCard({ badge, subtitle, children }: AuthCardProps) {
         <span className="absolute top-4 right-4 rounded-full bg-white/25 px-3 py-1 text-[10px] font-semibold tracking-[0.14em] text-white/95">
           {badge}
         </span>
-        <div className="relative mx-auto flex size-[84px] items-center justify-center rounded-full bg-white text-primary shadow-[0_8px_24px_rgba(15,23,32,0.12)]">
+        <div className="relative mx-auto flex size-[84px] items-center justify-center rounded-full bg-white text-primary shadow-md">
           <User className="size-10" aria-hidden />
         </div>
         <h1 className="relative mt-4 text-3xl font-bold tracking-tight">Original IQ</h1>

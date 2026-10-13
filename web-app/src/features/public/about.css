@@ -1,0 +1,19 @@
+@keyframes about-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(45deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(45deg);
+  }
+}
+
+.about-float {
+  animation: about-float 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-float {
+    animation: none;
+  }
+}

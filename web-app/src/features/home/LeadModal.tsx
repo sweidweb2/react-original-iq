@@ -1,12 +1,14 @@
 import { type FormEvent, useMemo, useState } from 'react'
 
 import { Field, FieldError, FieldGroup, Form } from '@/components/forms'
+import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
 import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { createLead } from '@/services/contact'
 
 import { countries } from './countries'
 import { leadSchema, type LeadValues } from './lead.schema'
@@ -23,6 +25,8 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
   const [query, setQuery] = useState('')
   const [listOpen, setListOpen] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof LeadValues>>({})
+  const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const matches = useMemo(() => {
     const term = query.trim().toLowerCase()
@@ -35,6 +39,8 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
     setQuery('')
     setListOpen(false)
     setFieldErrors({})
+    setFormError(null)
+    setIsSubmitting(false)
     onClose()
   }
 
@@ -45,7 +51,7 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
     setFieldErrors((current) => ({ ...current, country: undefined, dialCode: undefined }))
   }
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault()
     const parsed = parseForm(leadSchema, values)
     if (!parsed.success) {
@@ -54,8 +60,17 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
     }
 
     setFieldErrors({})
-    toast.success("Thanks — we'll reach out to assist you.")
-    close()
+    setFormError(null)
+    setIsSubmitting(true)
+    try {
+      await createLead(parsed.data)
+      toast.success("Thanks — we'll reach out to assist you.")
+      close()
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not send your details')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -65,12 +80,13 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
       title="Struggling with school or university work?"
       description="Leave your country and phone number, and we'll reach out to assist you."
       footer={
-        <Button type="submit" form="home-lead-form">
-          Send
+        <Button type="submit" form="home-lead-form" disabled={isSubmitting}>
+          {isSubmitting ? 'Sending…' : 'Send'}
         </Button>
       }
     >
       <Form id="home-lead-form" onSubmit={onSubmit}>
+        {formError ? <Alert tone="danger" className="mb-4" title={formError} /> : null}
         <FieldGroup>
           <Field>
             <div

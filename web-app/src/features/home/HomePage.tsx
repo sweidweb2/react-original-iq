@@ -2,6 +2,7 @@ import './home.css'
 
 import { useState } from 'react'
 
+import { useHashScroll } from '@/features/public/useHashScroll'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
 import { LeadModal } from './LeadModal'
@@ -15,6 +16,7 @@ import { WhatsAppButton } from './WhatsAppButton'
 
 export function HomePage() {
   useDocumentTitle('Learn Smarter, Achieve More')
+  useHashScroll()
   const [leadOpen, setLeadOpen] = useState(false)
 
   return (

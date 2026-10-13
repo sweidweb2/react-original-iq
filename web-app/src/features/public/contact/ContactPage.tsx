@@ -10,29 +10,12 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { cn } from '@/lib/utils'
 import { sendContactMessage, subscribeNewsletter } from '@/services/contact'
 
+import { publicContainerClass } from '../publicContainer'
+import { SocialLinks } from '../SocialLinks'
 import { contactMessageSchema, type ContactMessageValues, newsletterSchema } from './contact.schema'
-
-const containerClass = 'mx-auto w-full max-w-[1400px] px-8 max-[1024px]:px-5 max-md:px-4'
-
-const socialLinks = [
-  {
-    label: 'Instagram',
-    href: 'https://www.instagram.com/original_iq_?igsh=MTF0bGliODdiNm42MQ==',
-    icon: InstagramIcon,
-  },
-  {
-    label: 'Facebook',
-    href: 'https://www.facebook.com/share/1CpNrw1AWx/?mibextid=wwXIfr',
-    icon: FacebookIcon,
-  },
-  {
-    label: 'TikTok',
-    href: 'https://www.tiktok.com/@original.iq?_r=1&_t=ZS-91UsBiS4OWI',
-    icon: TikTokIcon,
-  },
-] as const
 
 const emptyMessage: ContactMessageValues = {
   name: '',
@@ -57,8 +40,8 @@ export function ContactPage() {
 function InfoCards() {
   return (
     <section className="bg-card py-8 max-md:py-6">
-      <div className={containerClass}>
-        <div className="mx-auto grid max-w-4xl grid-cols-3 gap-4 max-[1024px]:max-w-md max-[1024px]:grid-cols-1">
+      <div className={publicContainerClass}>
+        <div className="mx-auto grid max-w-4xl grid-cols-3 gap-4 max-lg:max-w-md max-lg:grid-cols-1">
           <InfoCard title="Visit Us" icon={MapPin}>
             Bambouk center, 6th floor,
             <br /> Bauchrieh, Lebanon
@@ -95,7 +78,6 @@ function InfoCard({
   return (
     <Card
       className="border-border bg-background p-4 text-center transition duration-300 hover:-translate-y-0.5 hover:border-primary-light hover:shadow-md"
-      style={{ backgroundColor: 'var(--background)' }}
     >
       <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-primary-light to-primary text-white">
         <Icon className="size-4" aria-hidden />
@@ -110,34 +92,21 @@ function ContactSection() {
   return (
     <section
       id="support"
-      className="bg-background py-20 max-md:py-16 max-sm:py-14 max-[480px]:py-12"
+      className="bg-background py-20 max-md:py-16 max-sm:py-12"
     >
-      <div className={containerClass}>
-        <div className="grid grid-cols-[1.5fr_1fr] gap-12 max-[1024px]:grid-cols-1 max-md:gap-8 max-[480px]:gap-6">
+      <div className={publicContainerClass}>
+        <div className="grid grid-cols-[1.5fr_1fr] gap-12 max-lg:grid-cols-1 max-md:gap-8 max-sm:gap-6">
           <MessageForm />
-          <aside className="flex flex-col gap-6 max-[480px]:gap-5">
+          <aside className="flex flex-col gap-6 max-sm:gap-5">
             <SidebarCard title="Quick Response">
               Our support team typically responds within 2-4 hours during business hours.
             </SidebarCard>
             <SidebarCard title="24/7 Support">
               Premium plan members get round-the-clock support with priority response.
             </SidebarCard>
-            <Card className="border-[#e8ecef] p-8 shadow-[0_2px_8px_rgba(0,0,0,0.03)] max-sm:p-7 max-[480px]:p-6">
+            <Card className="border-border p-8 shadow-sm max-sm:p-6">
               <h2 className="mb-3 text-xl font-semibold">Follow Us</h2>
-              <div className="mt-2 flex items-center justify-center gap-[18px] max-sm:gap-3.5 max-[480px]:gap-3">
-                {socialLinks.map((item) => (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={item.label}
-                    className="text-[#333] transition hover:-translate-y-0.5 hover:text-[#111]"
-                  >
-                    <item.icon />
-                  </a>
-                ))}
-              </div>
+              <SocialLinks className="mt-2 justify-center" linkClassName="text-foreground hover:text-primary" />
             </Card>
             <Card className="border-0 bg-gradient-to-br from-primary-light to-primary p-8 text-white max-sm:p-6">
               <h2 className="mb-3 text-xl font-semibold text-white">Need Immediate Help?</h2>
@@ -146,8 +115,7 @@ function ContactSection() {
               </p>
               <Link
                 to="/faq"
-                className={`${buttonVariants({ variant: 'outline', size: 'sm' })} w-full`}
-                style={{ background: '#fff', color: 'var(--primary)', borderColor: '#fff' }}
+                className={cn(buttonVariants({ variant: 'inverse', size: 'sm' }), 'w-full')}
               >
                 Visit FAQ
               </Link>
@@ -162,7 +130,7 @@ function ContactSection() {
 function SidebarCard({ title, children }: { title: string; children: string }) {
   return (
     <Card className="p-8 max-md:p-7 max-sm:p-6">
-      <h2 className="mb-3 text-xl font-semibold max-sm:text-[1.15rem] max-[480px]:text-[1.1rem]">
+      <h2 className="mb-3 text-xl font-semibold max-sm:text-lg">
         {title}
       </h2>
       <p className="leading-[1.7] text-muted-foreground max-sm:text-[0.9rem]">{children}</p>
@@ -174,6 +142,7 @@ function MessageForm() {
   const [values, setValues] = useState<ContactMessageValues>(emptyMessage)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof ContactMessageValues>>({})
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function onSubmit(event: FormEvent) {
@@ -188,23 +157,25 @@ function MessageForm() {
     setFieldErrors({})
     setIsSubmitting(true)
     setStatus('idle')
+    setErrorMessage(null)
     try {
       await sendContactMessage(parsed.data)
       setValues(emptyMessage)
       setStatus('success')
-    } catch {
+    } catch (error) {
       setStatus('error')
+      setErrorMessage(error instanceof Error ? error.message : 'Could not send your message')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <Card className="p-12 max-md:p-8 max-sm:p-7 max-[480px]:p-6">
+    <Card className="p-12 max-md:p-8 max-sm:p-6">
       <h1 className="text-[2rem] leading-snug font-semibold max-md:text-[1.75rem] max-sm:text-2xl">
         Send Us a Message
       </h1>
-      <p className="mt-3 mb-8 leading-[1.7] text-muted-foreground max-md:text-[0.95rem] max-[480px]:mb-6 max-[480px]:text-sm">
+      <p className="mt-3 mb-8 leading-[1.7] text-muted-foreground max-md:text-[0.95rem] max-sm:mb-6 max-sm:text-sm">
         Fill out the form below and we&apos;ll get back to you within 24 hours.
       </p>
       <Form onSubmit={onSubmit} className="gap-6" noValidate>
@@ -264,12 +235,7 @@ function MessageForm() {
           />
           <FieldError>{fieldErrors.message}</FieldError>
         </Field>
-        <Button
-          type="submit"
-          className="w-full text-base"
-          style={{ height: '3rem' }}
-          disabled={isSubmitting}
-        >
+        <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
           <Send className="size-5" aria-hidden />
           {isSubmitting ? 'Sending...' : 'Send Message'}
         </Button>
@@ -282,11 +248,7 @@ function MessageForm() {
         />
       ) : null}
       {status === 'error' ? (
-        <Alert
-          tone="danger"
-          className="mt-4"
-          title="Oops! Something went wrong. Please try again."
-        />
+        <Alert tone="danger" className="mt-4" title={errorMessage ?? 'Could not send your message'} />
       ) : null}
     </Card>
   )
@@ -296,6 +258,7 @@ function Newsletter() {
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | undefined>()
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function onSubmit(event: FormEvent) {
@@ -310,24 +273,26 @@ function Newsletter() {
     setError(undefined)
     setIsSubmitting(true)
     setStatus('idle')
+    setErrorMessage(null)
     try {
       await subscribeNewsletter(parsed.data.email)
       setEmail('')
       setStatus('success')
-    } catch {
+    } catch (failure) {
       setStatus('error')
+      setErrorMessage(failure instanceof Error ? failure.message : 'Could not subscribe')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-primary to-primary-dark py-16 max-md:py-14 max-sm:py-12 max-[480px]:py-10">
+    <section className="relative overflow-hidden bg-gradient-to-br from-primary to-primary-dark py-16 max-md:py-14 max-sm:py-10">
       <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_20px,rgba(255,255,255,0.05)_20px,rgba(255,255,255,0.05)_40px)]" />
-      <div className={`${containerClass} relative`}>
-        <div className="flex items-center justify-between gap-12 max-[1024px]:flex-col max-[1024px]:gap-8 max-[1024px]:text-center max-[480px]:gap-6">
-          <div className="max-w-[500px] flex-1 max-[1024px]:max-w-none">
-            <h2 className="text-[2.5rem] leading-[1.2] font-semibold text-white max-md:text-[2rem] max-sm:text-[1.85rem] max-[480px]:mb-3 max-[480px]:text-[1.75rem]">
+      <div className={cn(publicContainerClass, 'relative')}>
+        <div className="flex items-center justify-between gap-12 max-lg:flex-col max-lg:gap-8 max-lg:text-center max-sm:gap-6">
+          <div className="max-w-[500px] flex-1 max-lg:max-w-none">
+            <h2 className="text-[2.5rem] leading-[1.2] font-semibold text-white max-md:text-[2rem] max-sm:mb-3 max-sm:text-[1.75rem]">
               Stay Updated
             </h2>
             <p className="mt-4 text-[1.1rem] leading-relaxed text-white/90 max-md:text-base max-sm:text-[0.95rem]">
@@ -349,21 +314,16 @@ function Newsletter() {
                   autoComplete="email"
                   value={email}
                   aria-invalid={Boolean(error) || undefined}
-                  className="border-2 border-white/20 bg-white/95 px-5 text-base"
-                  style={{ height: '3.5rem' }}
+                  className="h-14 border-2 border-white/20 bg-white/95 px-5 text-base"
                   onChange={(event) => setEmail(event.target.value)}
                 />
               </div>
               <Button
                 type="submit"
+                variant="inverse"
+                size="lg"
                 disabled={isSubmitting}
-                className="shrink-0 px-8 text-base max-md:w-full"
-                style={{
-                  height: '3.5rem',
-                  background: '#fff',
-                  color: 'var(--primary)',
-                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)',
-                }}
+                className="h-14 shrink-0 px-8 max-md:w-full"
               >
                 <Send className="size-5" aria-hidden />
                 {isSubmitting ? 'Subscribing...' : 'Subscribe'}
@@ -373,16 +333,12 @@ function Newsletter() {
             {status === 'success' ? (
               <Alert
                 tone="success"
-                className="mt-4 border-[#2F9E44]/30 bg-[#2F9E44]/15"
+                className="mt-4"
                 title="You're subscribed. We'll send the latest updates to your inbox."
               />
             ) : null}
             {status === 'error' ? (
-              <Alert
-                tone="danger"
-                className="mt-4"
-                title="Oops! Something went wrong. Please try again."
-              />
+              <Alert tone="danger" className="mt-4" title={errorMessage ?? 'Could not subscribe'} />
             ) : null}
           </Form>
         </div>
@@ -426,41 +382,5 @@ function LocationMap() {
         </div>
       </div>
     </section>
-  )
-}
-
-function InstagramIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-    </svg>
-  )
-}
-
-function FacebookIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-    </svg>
-  )
-}
-
-function TikTokIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
-    </svg>
   )
 }

@@ -80,6 +80,28 @@ describe('route guards', () => {
     expect(await screen.findByRole('heading', { name: 'Root' })).toBeVisible()
   })
 
+  it('shows access denied when the role does not match', async () => {
+    useAuthStore.setState({ user: user('client'), tokens: null, isHydrated: true })
+    render(
+      <MemoryRouter initialEntries={['/admin']}>
+        <Routes>
+          <Route
+            path="/admin"
+            element={
+              <RequireRole roles={['admin']}>
+                <h1>Admin home</h1>
+              </RequireRole>
+            }
+          />
+          <Route path="/client" element={<h1>Client home</h1>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Access denied' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Go to your portal' })).toHaveAttribute('href', '/client')
+  })
+
   it('keeps a signed-out user on a guest screen', async () => {
     useAuthStore.setState({ user: null, tokens: null, isHydrated: true })
     renderAt('/guest')

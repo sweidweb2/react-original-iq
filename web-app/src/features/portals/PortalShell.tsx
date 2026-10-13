@@ -5,7 +5,6 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/brand/BrandLogo'
 import { Button } from '@/components/ui/button'
-import { homePathForRole } from '@/lib/homePath'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
@@ -74,7 +73,7 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
 
   function goHome() {
     setOpen(false)
-    navigate(homePathForRole(user?.role))
+    navigate('/')
   }
 
   return (

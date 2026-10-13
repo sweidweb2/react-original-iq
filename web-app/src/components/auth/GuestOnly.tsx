@@ -17,7 +17,7 @@ export function GuestOnly({ children, redirectTo }: GuestOnlyProps) {
 
   if (!isHydrated) {
     return (
-      <div className="flex min-h-svh items-center justify-center">
+      <div className="flex flex-1 items-center justify-center py-16">
         <InlineSpinner label="Loading session…" />
       </div>
     )

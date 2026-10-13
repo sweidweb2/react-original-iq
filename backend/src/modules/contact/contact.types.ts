@@ -5,6 +5,11 @@ export type ContactMessageInput = {
   message: string
 }
 
+export type LeadInput = {
+  country: string
+  phone: string
+}
+
 export type ContactResult = {
   ok: true
 }

@@ -37,14 +37,15 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<RegisterPage />} />
             <Route path="/register" element={<Navigate to="/signup" replace />} />
+            <Route path="/500" element={<UnexpectedErrorPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
-          <Route path="/500" element={<UnexpectedErrorPage />} />
 
           <Route
             path="/admin"
             element={
               <RequireAuth>
-                <RequireRole roles={['admin']} fallbackTo="/">
+                <RequireRole roles={['admin']}>
                   <AdminPortalLayout />
                 </RequireRole>
               </RequireAuth>
@@ -65,7 +66,7 @@ function App() {
             path="/coordinator"
             element={
               <RequireAuth>
-                <RequireRole roles={['coordinator']} fallbackTo="/">
+                <RequireRole roles={['coordinator']}>
                   <CoordinatorPortalLayout />
                 </RequireRole>
               </RequireAuth>
@@ -86,7 +87,7 @@ function App() {
             path="/tutor"
             element={
               <RequireAuth>
-                <RequireRole roles={['tutor']} fallbackTo="/">
+                <RequireRole roles={['tutor']}>
                   <TutorPortalLayout />
                 </RequireRole>
               </RequireAuth>
@@ -107,7 +108,7 @@ function App() {
             path="/client"
             element={
               <RequireAuth>
-                <RequireRole roles={['client']} fallbackTo="/">
+                <RequireRole roles={['client']}>
                   <ClientPortalLayout />
                 </RequireRole>
               </RequireAuth>
@@ -123,8 +124,6 @@ function App() {
               }
             />
           </Route>
-
-          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </ErrorBoundary>
     </BrowserRouter>

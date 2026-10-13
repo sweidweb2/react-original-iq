@@ -32,7 +32,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback ?? <UnexpectedErrorPage onReset={this.handleReset} />
+      return (
+        this.props.fallback ?? (
+          <div className="flex min-h-svh flex-col bg-background">
+            <UnexpectedErrorPage onReset={this.handleReset} />
+          </div>
+        )
+      )
     }
 
     return this.props.children
