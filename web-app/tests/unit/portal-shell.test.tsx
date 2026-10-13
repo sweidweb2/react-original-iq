@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { ADMIN_NAV } from '@/features/portals/portalNav'
+import { PORTALS } from '@/features/portals/portalNav'
 import { PortalShell } from '@/features/portals/PortalShell'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -11,7 +11,14 @@ function renderPortal(path = '/admin/classes') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route element={<PortalShell title="Admin portal" nav={ADMIN_NAV} />}>
+        <Route
+          element={
+            <PortalShell
+              title="Admin portal"
+              nav={PORTALS.find((portal) => portal.role === 'admin')?.nav ?? []}
+            />
+          }
+        >
           <Route path="/admin" element={<h1>Portal home</h1>} />
           <Route path="/admin/classes" element={<h1>Classes</h1>} />
         </Route>

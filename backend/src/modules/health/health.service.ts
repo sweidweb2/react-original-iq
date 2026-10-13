@@ -15,8 +15,11 @@ export function createHealthService(repository: HealthRepository): HealthService
     },
 
     async getDbHealth() {
-      const ok = await repository.ping()
-      if (!ok) {
+      const result = await repository.ping()
+      if (result === 'not_configured') {
+        throw serviceUnavailable(ErrorCodes.DB_NOT_CONFIGURED, 'Supabase is not configured')
+      }
+      if (result !== 'ok') {
         throw serviceUnavailable(ErrorCodes.DB_UNAVAILABLE, 'Database is unavailable')
       }
       return { ok: true, db: true }

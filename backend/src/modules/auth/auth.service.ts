@@ -2,7 +2,8 @@ import type { AppConfig } from '../../config/index.js'
 import { conflict, unauthorized } from '../../errors/app-error.js'
 import { getLogger } from '../../logging/index.js'
 import type { LoggingService } from '../logging/index.js'
-import type { AuthRepository, AuthUserRecord } from './auth.repository.js'
+import type { UsersService } from '../users/users.service.js'
+import type { AccountRecord } from '../users/users.types.js'
 import type { LoginBody, RefreshBody, RegisterBody } from './auth.schema.js'
 import type { RoleName } from './auth.schema.js'
 import {
@@ -21,7 +22,7 @@ export type AuthService = {
   logout: (input: RefreshBody) => Promise<void>
 }
 
-function toUserDto(user: AuthUserRecord): AuthUserDto {
+function toUserDto(user: AccountRecord): AuthUserDto {
   return {
     id: user.id,
     email: user.email,
@@ -36,7 +37,7 @@ function toUserDto(user: AuthUserRecord): AuthUserDto {
   }
 }
 
-function issueTokens(config: AppConfig, user: AuthUserRecord): AuthTokens {
+function issueTokens(config: AppConfig, user: AccountRecord): AuthTokens {
   const role = user.role as RoleName
   return {
     accessToken: signAccessToken(config, user.id, role),
@@ -45,19 +46,19 @@ function issueTokens(config: AppConfig, user: AuthUserRecord): AuthTokens {
 }
 
 export function createAuthService(
-  repository: AuthRepository,
+  users: UsersService,
   config: AppConfig,
   logging?: LoggingService,
 ): AuthService {
   return {
     async register(input) {
-      const existing = await repository.findByEmail(input.email)
+      const existing = await users.findByEmail(input.email)
       if (existing) {
         throw conflict('Email already registered')
       }
 
       const passwordHash = await hashPassword(input.password)
-      const user = await repository.createUserWithProfile({
+      const user = await users.createAccount({
         email: input.email,
         passwordHash,
         role: 'client',
@@ -83,7 +84,7 @@ export function createAuthService(
     },
 
     async login(input) {
-      const user = await repository.findByEmail(input.email)
+      const user = await users.findByEmail(input.email)
       if (!user || user.status !== 'ACTIVE') {
         throw unauthorized('Invalid email or password')
       }
@@ -118,7 +119,7 @@ export function createAuthService(
         throw unauthorized('Invalid or expired refresh token')
       }
 
-      const user = await repository.findById(payload.sub)
+      const user = await users.findById(payload.sub)
       if (!user || user.status !== 'ACTIVE') {
         throw unauthorized('Invalid or expired refresh token')
       }

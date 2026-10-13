@@ -1,38 +1,18 @@
-import type { NextFunction, Request, Response } from 'express'
+import type { RequestHandler } from 'express'
 
+import { respond } from '../../middleware/respond.js'
 import type { ContactService } from './contact.service.js'
 
 export type ContactController = {
-  createMessage: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  subscribe: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  createLead: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  createMessage: RequestHandler
+  subscribe: RequestHandler
+  createLead: RequestHandler
 }
 
 export function createContactController(service: ContactService): ContactController {
   return {
-    async createMessage(req, res, next) {
-      try {
-        const result = await service.createMessage(req.body)
-        res.status(201).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async subscribe(req, res, next) {
-      try {
-        const result = await service.subscribe(req.body)
-        res.status(201).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async createLead(req, res, next) {
-      try {
-        const result = await service.createLead(req.body)
-        res.status(201).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
+    createMessage: respond(201, (req) => service.createMessage(req.body)),
+    subscribe: respond(201, (req) => service.subscribe(req.body)),
+    createLead: respond(201, (req) => service.createLead(req.body)),
   }
 }

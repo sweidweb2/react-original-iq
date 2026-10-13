@@ -16,7 +16,7 @@ delete process.env.DATABASE_URL
 
 const { createApp } = await import('../src/app.js')
 const { loadConfig } = await import('../src/config/index.js')
-const { createAuthRepository } = await import('../src/modules/auth/auth.repository.js')
+const { createUsersRepository } = await import('../src/modules/users/users.repository.js')
 const { hashPassword } = await import('../src/modules/auth/auth.tokens.js')
 
 const seeds = [
@@ -32,13 +32,13 @@ const seeds = [
 ] as const
 
 const config = loadConfig()
-const repo = createAuthRepository(config)
+const repo = createUsersRepository(config)
 const passwordHash = await hashPassword('password')
 
 for (const user of seeds) {
   const existing = await repo.findByEmail(user.email)
   if (existing) continue
-  await repo.createUserWithProfile({
+  await repo.createAccount({
     email: user.email,
     passwordHash,
     role: user.role,

@@ -10,6 +10,8 @@ import { createHealthRoutes } from '../modules/health/health.routes.js'
 import { createHealthService } from '../modules/health/health.service.js'
 import { createLoggingModule } from '../modules/logging/index.js'
 import { createUsersModule } from '../modules/users/index.js'
+import { createUsersRepository } from '../modules/users/users.repository.js'
+import { createUsersService } from '../modules/users/users.service.js'
 
 export type V1Deps = {
   config?: AppConfig
@@ -23,11 +25,13 @@ export function createV1Router(deps: V1Deps = {}): Router {
   const healthService = createHealthService(healthRepository)
   const healthController = createHealthController(healthService)
 
+  const users = createUsersService(createUsersRepository(config))
+
   router.use('/health', createHealthRoutes(healthController))
   router.use('/contact', createContactModule(config))
-  router.use('/auth', createAuthModule(config))
+  router.use('/auth', createAuthModule(config, users))
   router.use(createLoggingModule())
-  router.use('/users', createUsersModule())
+  router.use('/users', createUsersModule(config, users))
 
   return router
 }

@@ -51,8 +51,12 @@ test.describe('auth flows', () => {
     await expect(page.getByRole('heading', { name: 'Client home' })).toBeVisible()
 
     await page.goto('/admin')
-    await expect(page.getByRole('heading', { name: 'Learn Smarter' })).toBeVisible()
-    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('heading', { name: 'Access denied' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Go to your portal' })).toHaveAttribute(
+      'href',
+      '/client',
+    )
+    await expect(page).toHaveURL(/\/admin$/)
   })
 
   test('sign out returns to sign in', async ({ page }) => {

@@ -2,8 +2,8 @@ import request from 'supertest'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { createApp } from '../../src/app.js'
-import { createAuthRepository } from '../../src/modules/auth/auth.repository.js'
 import { hashPassword } from '../../src/modules/auth/auth.tokens.js'
+import { createUsersRepository } from '../../src/modules/users/users.repository.js'
 import { ensureTestJwtEnv, loadTestConfig } from '../helpers/test-config.js'
 
 describe('Zod request validation', () => {
@@ -14,8 +14,8 @@ describe('Zod request validation', () => {
 
   beforeAll(async () => {
     // Use the same config as createApp so tests stay on the in-memory repo.
-    const repo = createAuthRepository(config)
-    await repo.createUserWithProfile({
+    const repo = createUsersRepository(config)
+    await repo.createAccount({
       email: 'admin@originaliq.test',
       passwordHash: await hashPassword('secret123'),
       role: 'admin',

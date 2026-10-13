@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AuthRepository, AuthUserRecord } from '../../src/modules/auth/auth.repository.js'
 import { createAuthService } from '../../src/modules/auth/auth.service.js'
+import type { UsersService } from '../../src/modules/users/users.service.js'
+import type { AccountRecord } from '../../src/modules/users/users.types.js'
 import { loadTestConfig } from '../helpers/test-config.js'
 
 vi.mock('../../src/modules/auth/auth.tokens.js', () => ({
@@ -17,7 +18,7 @@ vi.mock('../../src/modules/auth/auth.tokens.js', () => ({
   }),
 }))
 
-function makeUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
+function makeUser(overrides: Partial<AccountRecord> = {}): AccountRecord {
   return {
     id: 'user-1',
     email: 'user@example.com',
@@ -29,27 +30,29 @@ function makeUser(overrides: Partial<AuthUserRecord> = {}): AuthUserRecord {
       lastName: 'Lovelace',
       displayName: 'Ada Lovelace',
     },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   }
 }
 
 describe('auth.service', () => {
   const config = loadTestConfig()
-  let repository: AuthRepository
+  let users: UsersService
 
   beforeEach(() => {
-    repository = {
+    users = {
       findByEmail: vi.fn(),
       findById: vi.fn(),
-      createUserWithProfile: vi.fn(),
-    }
+      createAccount: vi.fn(),
+    } as unknown as UsersService
   })
 
   it('registers a new user and returns tokens', async () => {
-    vi.mocked(repository.findByEmail).mockResolvedValue(null)
-    vi.mocked(repository.createUserWithProfile).mockResolvedValue(makeUser())
+    vi.mocked(users.findByEmail).mockResolvedValue(null)
+    vi.mocked(users.createAccount).mockResolvedValue(makeUser())
 
-    const service = createAuthService(repository, config)
+    const service = createAuthService(users, config)
     const result = await service.register({
       email: 'user@example.com',
       password: 'secret123',
@@ -63,7 +66,7 @@ describe('auth.service', () => {
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
     })
-    expect(repository.createUserWithProfile).toHaveBeenCalledWith(
+    expect(users.createAccount).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'user@example.com',
         role: 'client',
@@ -72,8 +75,8 @@ describe('auth.service', () => {
   })
 
   it('rejects duplicate email on register', async () => {
-    vi.mocked(repository.findByEmail).mockResolvedValue(makeUser())
-    const service = createAuthService(repository, config)
+    vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
+    const service = createAuthService(users, config)
 
     await expect(
       service.register({
@@ -84,8 +87,8 @@ describe('auth.service', () => {
   })
 
   it('logs in with valid credentials', async () => {
-    vi.mocked(repository.findByEmail).mockResolvedValue(makeUser())
-    const service = createAuthService(repository, config)
+    vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
+    const service = createAuthService(users, config)
 
     const result = await service.login({
       email: 'user@example.com',
@@ -97,8 +100,8 @@ describe('auth.service', () => {
   })
 
   it('rejects login with wrong password', async () => {
-    vi.mocked(repository.findByEmail).mockResolvedValue(makeUser())
-    const service = createAuthService(repository, config)
+    vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
+    const service = createAuthService(users, config)
 
     await expect(
       service.login({ email: 'user@example.com', password: 'wrong' }),
@@ -106,8 +109,8 @@ describe('auth.service', () => {
   })
 
   it('rejects login for inactive users', async () => {
-    vi.mocked(repository.findByEmail).mockResolvedValue(makeUser({ status: 'INACTIVE' }))
-    const service = createAuthService(repository, config)
+    vi.mocked(users.findByEmail).mockResolvedValue(makeUser({ status: 'INACTIVE' }))
+    const service = createAuthService(users, config)
 
     await expect(
       service.login({ email: 'user@example.com', password: 'secret123' }),
@@ -115,8 +118,8 @@ describe('auth.service', () => {
   })
 
   it('refreshes tokens for an active user', async () => {
-    vi.mocked(repository.findById).mockResolvedValue(makeUser())
-    const service = createAuthService(repository, config)
+    vi.mocked(users.findById).mockResolvedValue(makeUser())
+    const service = createAuthService(users, config)
 
     const tokens = await service.refreshTokens({ refreshToken: 'good' })
     expect(tokens).toEqual({
@@ -126,7 +129,7 @@ describe('auth.service', () => {
   })
 
   it('rejects invalid refresh tokens', async () => {
-    const service = createAuthService(repository, config)
+    const service = createAuthService(users, config)
 
     await expect(service.refreshTokens({ refreshToken: 'bad' })).rejects.toMatchObject({
       status: 401,
@@ -134,7 +137,7 @@ describe('auth.service', () => {
   })
 
   it('logout resolves without error', async () => {
-    const service = createAuthService(repository, config)
+    const service = createAuthService(users, config)
     await expect(service.logout({ refreshToken: 'anything' })).resolves.toBeUndefined()
   })
 })

@@ -9,16 +9,13 @@ import { NotFoundPage } from '@/features/errors/NotFoundPage'
 import { UnexpectedErrorPage } from '@/features/errors/UnexpectedErrorPage'
 import { HomePage } from '@/features/home/HomePage'
 import { PortalHomePage } from '@/features/portals/PortalHomePage'
-import {
-  AdminPortalLayout,
-  ClientPortalLayout,
-  CoordinatorPortalLayout,
-  TutorPortalLayout,
-} from '@/features/portals/PortalLayouts'
+import { PortalLayout } from '@/features/portals/PortalLayouts'
+import { PORTALS } from '@/features/portals/portalNav'
 import { FaqPage } from '@/features/public/FaqPage'
 import { AboutPage, ContactPage, ServicesPage } from '@/features/public/pages'
 import { PrivacyPage, RefundsPage, TermsPage } from '@/features/public/policyPages'
 import { PublicLayout } from '@/features/public/PublicLayout'
+
 function App() {
   return (
     <BrowserRouter>
@@ -41,89 +38,26 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Route>
 
-          <Route
-            path="/admin"
-            element={
-              <RequireAuth>
-                <RequireRole roles={['admin']}>
-                  <AdminPortalLayout />
-                </RequireRole>
-              </RequireAuth>
-            }
-          >
+          {PORTALS.map((portal) => (
             <Route
-              index
+              key={portal.path}
+              path={portal.path}
               element={
-                <PortalHomePage
-                  title="Admin home"
-                  description="Admin portal landing — tools will land here."
-                />
+                <RequireAuth>
+                  <RequireRole roles={[portal.role]}>
+                    <PortalLayout portal={portal} />
+                  </RequireRole>
+                </RequireAuth>
               }
-            />
-          </Route>
-
-          <Route
-            path="/coordinator"
-            element={
-              <RequireAuth>
-                <RequireRole roles={['coordinator']}>
-                  <CoordinatorPortalLayout />
-                </RequireRole>
-              </RequireAuth>
-            }
-          >
-            <Route
-              index
-              element={
-                <PortalHomePage
-                  title="Coordinator home"
-                  description="Coordinator portal landing — tools will land here."
-                />
-              }
-            />
-          </Route>
-
-          <Route
-            path="/tutor"
-            element={
-              <RequireAuth>
-                <RequireRole roles={['tutor']}>
-                  <TutorPortalLayout />
-                </RequireRole>
-              </RequireAuth>
-            }
-          >
-            <Route
-              index
-              element={
-                <PortalHomePage
-                  title="Tutor home"
-                  description="Tutor portal landing — tools will land here."
-                />
-              }
-            />
-          </Route>
-
-          <Route
-            path="/client"
-            element={
-              <RequireAuth>
-                <RequireRole roles={['client']}>
-                  <ClientPortalLayout />
-                </RequireRole>
-              </RequireAuth>
-            }
-          >
-            <Route
-              index
-              element={
-                <PortalHomePage
-                  title="Client home"
-                  description="Client portal landing — tools will land here."
-                />
-              }
-            />
-          </Route>
+            >
+              <Route
+                index
+                element={
+                  <PortalHomePage title={portal.homeTitle} description={portal.description} />
+                }
+              />
+            </Route>
+          ))}
         </Routes>
       </ErrorBoundary>
     </BrowserRouter>

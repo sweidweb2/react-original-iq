@@ -12,15 +12,26 @@ describe('health.service', () => {
 
   it('returns db ok when ping succeeds', async () => {
     const repository: HealthRepository = {
-      ping: vi.fn().mockResolvedValue(true),
+      ping: vi.fn().mockResolvedValue('ok'),
     }
     const service = createHealthService(repository)
     await expect(service.getDbHealth()).resolves.toEqual({ ok: true, db: true })
   })
 
+  it('throws when Supabase is not configured', async () => {
+    const repository: HealthRepository = {
+      ping: vi.fn().mockResolvedValue('not_configured'),
+    }
+    const service = createHealthService(repository)
+    await expect(service.getDbHealth()).rejects.toMatchObject({
+      status: 503,
+      code: 'DB_NOT_CONFIGURED',
+    })
+  })
+
   it('throws when ping fails', async () => {
     const repository: HealthRepository = {
-      ping: vi.fn().mockResolvedValue(false),
+      ping: vi.fn().mockResolvedValue('unavailable'),
     }
     const service = createHealthService(repository)
     await expect(service.getDbHealth()).rejects.toMatchObject({

@@ -1,24 +1,25 @@
 import type { AppConfig } from '../../config/index.js'
 import { isSupabaseConfigured } from '../../config/index.js'
 import { pingSupabase } from '../../database/index.js'
-import { serviceUnavailable } from '../../errors/app-error.js'
-import { ErrorCodes } from '../../errors/error-codes.js'
+
+export type DbPingResult = 'ok' | 'not_configured' | 'unavailable'
 
 export type HealthRepository = {
-  ping: () => Promise<boolean>
+  ping: () => Promise<DbPingResult>
 }
 
 export function createHealthRepository(config: AppConfig): HealthRepository {
   return {
     async ping() {
       if (!isSupabaseConfigured(config)) {
-        throw serviceUnavailable(ErrorCodes.DB_NOT_CONFIGURED, 'Supabase is not configured')
+        return 'not_configured'
       }
 
       try {
-        return await pingSupabase(config)
+        const ok = await pingSupabase(config)
+        return ok ? 'ok' : 'unavailable'
       } catch {
-        throw serviceUnavailable(ErrorCodes.DB_UNAVAILABLE, 'Supabase is unavailable')
+        return 'unavailable'
       }
     },
   }

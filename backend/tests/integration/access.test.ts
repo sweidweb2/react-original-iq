@@ -2,8 +2,8 @@ import request from 'supertest'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { createApp } from '../../src/app.js'
-import { createAuthRepository } from '../../src/modules/auth/auth.repository.js'
 import { hashPassword } from '../../src/modules/auth/auth.tokens.js'
+import { createUsersRepository } from '../../src/modules/users/users.repository.js'
 import { loadTestConfig } from '../helpers/test-config.js'
 
 describe('users and logs HTTP', () => {
@@ -13,8 +13,8 @@ describe('users and logs HTTP', () => {
   let clientToken = ''
 
   beforeAll(async () => {
-    const repo = createAuthRepository(config)
-    await repo.createUserWithProfile({
+    const repo = createUsersRepository(config)
+    await repo.createAccount({
       email: 'access-admin@originaliq.test',
       passwordHash: await hashPassword('password1'),
       role: 'admin',
@@ -52,7 +52,13 @@ describe('users and logs HTTP', () => {
       .get('/api/v1/users')
       .set('Authorization', `Bearer ${adminToken}`)
     expect(admin.status).toBe(200)
-    expect(admin.body).toEqual({ data: [] })
+    expect(admin.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: 'access-admin@originaliq.test', role: 'admin' }),
+        expect.objectContaining({ email: 'access-client@originaliq.test', role: 'client' }),
+      ]),
+    )
+    expect(JSON.stringify(admin.body)).not.toContain('passwordHash')
   })
 
   it('returns 404 for an unknown user and 501 when an admin creates one', async () => {
