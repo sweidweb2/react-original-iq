@@ -1,5 +1,5 @@
 import type { AuthActor } from '../../authz/index.js'
-import { assertSelfOrAdmin, isAdmin } from '../../authz/index.js'
+import { assertSelfOrOps, isAdmin, isOps } from '../../authz/index.js'
 import { conflict, forbidden, notFound } from '../../errors/app-error.js'
 import { hashPassword } from '../auth/auth.tokens.js'
 import { getLoggingService } from '../logging/index.js'
@@ -30,6 +30,13 @@ export type UsersService = {
   createUser: (input: CreateUserBody) => Promise<User>
   updateUser: (id: string, input: UpdateUserBody, actor: AuthActor) => Promise<User>
   deactivateUser: (id: string, actor: AuthActor) => Promise<User>
+  /** Authenticated self-service profile updates (auth /me). */
+  updateSelfProfile: (
+    id: string,
+    input: { name?: string; passwordHash?: string },
+  ) => Promise<AccountRecord>
+  /** Password reset flow after code verification. */
+  updateSelfPassword: (id: string, passwordHash: string) => Promise<AccountRecord | null>
 }
 
 export function createUsersService(repository: UsersRepository): UsersService {
@@ -43,7 +50,7 @@ export function createUsersService(repository: UsersRepository): UsersService {
 
   async function assertAccessible(id: string, actor: AuthActor): Promise<User> {
     const user = await loadOrThrow(id)
-    assertSelfOrAdmin(actor, user.id)
+    assertSelfOrOps(actor, user.id)
     return user
   }
 
@@ -110,6 +117,12 @@ export function createUsersService(repository: UsersRepository): UsersService {
       if (privileged && !isAdmin(actor.roles)) {
         throw forbidden('Only admins can change role, status, or password')
       }
+      if (!isAdmin(actor.roles) && isOps(actor.roles) && actor.id !== id) {
+        // Coordinators may update display name only on other users.
+        if (input.role !== undefined || input.status !== undefined || input.password) {
+          throw forbidden('Only admins can change role, status, or password')
+        }
+      }
       if (actor.id === id && input.status === 'INACTIVE') {
         throw forbidden('You cannot deactivate your own account')
       }
@@ -160,6 +173,28 @@ export function createUsersService(repository: UsersRepository): UsersService {
         entityId: id,
       })
       return toPublicUser(updated)
+    },
+
+    async updateSelfProfile(id, input) {
+      const account = await repository.findById(id)
+      if (!account || account.status !== 'ACTIVE') {
+        throw notFound('User not found', 'USER_NOT_FOUND')
+      }
+      if (input.name === undefined && input.passwordHash === undefined) {
+        return account
+      }
+      const updated = await repository.updateAccount(id, {
+        name: input.name,
+        passwordHash: input.passwordHash,
+      })
+      if (!updated) {
+        throw notFound('User not found', 'USER_NOT_FOUND')
+      }
+      return updated
+    },
+
+    updateSelfPassword(id, passwordHash) {
+      return repository.updateAccount(id, { passwordHash })
     },
   }
 }

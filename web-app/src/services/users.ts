@@ -74,6 +74,10 @@ export function getUserStats() {
   return apiRequest<UserStats>('/users/stats')
 }
 
+export function getUser(id: string) {
+  return apiRequest<ManagedUser>(`/users/${id}`)
+}
+
 export function createUser(input: CreateUserInput) {
   return apiRequest<ManagedUser>('/users', {
     method: 'POST',

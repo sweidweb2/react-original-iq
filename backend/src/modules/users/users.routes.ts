@@ -19,7 +19,7 @@ export function createUsersRoutes(controller: UsersController): Router {
 
   router.get(
     '/',
-    authorize(...ADMIN_ROLES),
+    authorize('admin', 'coordinator'),
     validate({ query: listUsersQuerySchema }),
     controller.list,
   )

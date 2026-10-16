@@ -20,6 +20,7 @@ export type UsersRepository = {
   findByEmail: (email: string) => Promise<AccountRecord | null>
   createAccount: (input: CreateAccountInput) => Promise<AccountRecord>
   updateAccount: (id: string, input: UpdateAccountInput) => Promise<AccountRecord | null>
+  incrementNbDone: (id: string) => Promise<void>
 }
 
 type UserRow = {
@@ -188,6 +189,10 @@ function createMemoryUsersRepository(): UsersRepository {
       memoryUsersById.set(id, updated)
       return updated
     },
+
+    async incrementNbDone(_id) {
+      // nb_done not tracked on in-memory accounts
+    },
   }
 }
 
@@ -308,6 +313,19 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
 
       if (error) throw error
       return data ? toRecord(data as UserRow) : null
+    },
+
+    async incrementNbDone(id) {
+      const { data, error: readError } = await client
+        .from('users')
+        .select('nb_done')
+        .eq('id', id)
+        .maybeSingle()
+      if (readError) throw readError
+      if (!data) return
+      const current = (data as { nb_done: number }).nb_done ?? 0
+      const { error } = await client.from('users').update({ nb_done: current + 1 }).eq('id', id)
+      if (error) throw error
     },
   }
 }

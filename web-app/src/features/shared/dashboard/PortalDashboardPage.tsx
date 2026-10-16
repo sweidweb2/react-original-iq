@@ -1,13 +1,29 @@
+import { type FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { EmptyState } from '@/components/feedback'
+import { AsyncState, EmptyState } from '@/components/feedback'
+import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { toast } from '@/components/ui/toast'
+import { type FieldErrors, parseForm } from '@/lib/form'
+import { downloadExport } from '@/services/exports'
+import { toastApiError } from '@/services/toast'
+import {
+  createTask,
+  getTaskStats,
+  listTasks,
+  type Task,
+  type TaskStats,
+  taskStatusLabel,
+} from '@/services/tasks'
 import type { AuthRole } from '@/services/auth'
+import { getUserStats, type UserStats } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
-import { comingSoon } from '../comingSoon'
+import { createTaskFormSchema, type CreateTaskFormValues } from '../tasks/task-form.schema'
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 
 const TITLES: Record<AuthRole, { title: string; description: string }> = {
@@ -21,7 +37,7 @@ const TITLES: Record<AuthRole, { title: string; description: string }> = {
   },
   coordinator: {
     title: 'Coordinator dashboard',
-    description: 'Ops overview — requests, kanban, tutors, and leaderboard.',
+    description: 'Ops overview — requests, tasks, and workload.',
   },
   tutor: {
     title: 'Tutor dashboard',
@@ -33,23 +49,111 @@ const TITLES: Record<AuthRole, { title: string; description: string }> = {
   },
 }
 
-function KpiStub({ label }: { label: string }) {
+function Kpi({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-muted-foreground">—</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   )
 }
 
+function deadlineToApi(value: string): string {
+  const parsed = value.includes('T') ? new Date(value) : new Date(`${value}T12:00:00`)
+  return parsed.toISOString()
+}
+
+const emptyRequest: CreateTaskFormValues = {
+  topic: '',
+  type: 'assignment',
+  category: '',
+  description: '',
+  deadline: '',
+}
+
+function RecentTasksList({ base, tasks }: { base: string; tasks: Task[] }) {
+  if (tasks.length === 0) {
+    return <EmptyState title="No tasks to preview" description="Tasks in your scope will appear here." />
+  }
+  return (
+    <ul className="space-y-2 text-sm">
+      {tasks.map((task) => (
+        <li key={task.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+          <div>
+            <p className="font-medium">{task.topic ?? 'Untitled'}</p>
+            <p className="text-xs text-muted-foreground">{taskStatusLabel(task.status)}</p>
+          </div>
+          <Link to={`${base}/tasks/${task.id}`} className="text-primary hover:underline">
+            Open
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function AdminSections({ base }: { base: string }) {
+  const [stats, setStats] = useState<TaskStats | null>(null)
+  const [userStats, setUserStats] = useState<UserStats | null>(null)
+  const [recent, setRecent] = useState<Task[]>([])
+  const [error, setError] = useState<unknown>(null)
+  const [exporting, setExporting] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const [taskStats, users, tasksPage] = await Promise.all([
+          getTaskStats(),
+          getUserStats(),
+          listTasks({ page: 1, limit: 5 }),
+        ])
+        if (!cancelled) {
+          setStats(taskStats)
+          setUserStats(users)
+          setRecent(tasksPage.data)
+        }
+      } catch (err) {
+        if (!cancelled) setError(err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function onExport(resource: Parameters<typeof downloadExport>[0]) {
+    setExporting(resource)
+    try {
+      await downloadExport(resource)
+      toast.success(`Downloaded ${resource}.csv`)
+    } catch (err) {
+      toastApiError(err, 'Export failed')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  if (error) {
+    return (
+      <AsyncState error={error} onRetry={() => window.location.reload()}>
+        <span className="sr-only">Dashboard unavailable</span>
+      </AsyncState>
+    )
+  }
+
+  const openTasks =
+    (stats?.pending ?? 0) +
+    (stats?.['in-progress'] ?? 0) +
+    (stats?.waiting_coordinator_approval ?? 0)
+
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiStub label="Open tasks" />
-        <KpiStub label="Users" />
-        <KpiStub label="Payments" />
-        <KpiStub label="Leads" />
+        <Kpi label="Open tasks" value={openTasks} />
+        <Kpi label="Users" value={userStats?.total ?? '—'} />
+        <Kpi label="All tasks" value={stats?.total ?? '—'} />
+        <Kpi label="Completed" value={stats?.completed ?? '—'} />
       </div>
       <SectionCard
         title="Tasks preview"
@@ -60,97 +164,153 @@ function AdminSections({ base }: { base: string }) {
           </Link>
         }
       >
-        <EmptyState title="No tasks to preview" description="Task list will populate this section." />
+        <RecentTasksList base={base} tasks={recent} />
       </SectionCard>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SectionCard title="Payments & refunds" description="Manual payment and refund queue.">
-          <EmptyState title="No money activity" description="Modals live on task payments pages." />
-        </SectionCard>
-        <SectionCard
-          title="Feedback"
-          description="Latest ratings."
-          actions={
-            <Link to={`${base}/feedback`} className="text-sm font-medium text-primary hover:underline">
-              Open feedback
-            </Link>
-          }
-        >
-          <EmptyState title="No feedback" description="Feedback rows will appear here." />
-        </SectionCard>
-      </div>
       <SectionCard
         title="Exports"
-        description="CSV / PDF exports (also on profile later)."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={() => comingSoon('Exports')}>
-            Run export
-          </Button>
-        }
+        description="Download CSV snapshots for reporting."
       >
-        <p className="text-sm text-muted-foreground">Export actions are scaffolded — wiring comes later.</p>
+        <div className="flex flex-wrap gap-2">
+          {(['users', 'tasks', 'payments', 'refunds', 'leads', 'feedback'] as const).map((resource) => (
+            <Button
+              key={resource}
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={exporting !== null}
+              onClick={() => void onExport(resource)}
+            >
+              {exporting === resource ? 'Exporting…' : resource}
+            </Button>
+          ))}
+        </div>
       </SectionCard>
     </>
   )
 }
 
 function CoordinatorSections({ base }: { base: string }) {
+  const [stats, setStats] = useState<TaskStats | null>(null)
+  const [recent, setRecent] = useState<Task[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
+  const [values, setValues] = useState(emptyRequest)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof CreateTaskFormValues>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      const [taskStats, tasksPage] = await Promise.all([
+        getTaskStats(),
+        listTasks({ page: 1, limit: 5 }),
+      ])
+      setStats(taskStats)
+      setRecent(tasksPage.data)
+    })()
+  }, [])
+
+  async function onCreate(event: FormEvent) {
+    event.preventDefault()
+    const parsed = parseForm(createTaskFormSchema, values)
+    if (!parsed.success) {
+      setFieldErrors(parsed.fieldErrors)
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      await createTask({
+        ...parsed.data,
+        deadline: deadlineToApi(parsed.data.deadline),
+      })
+      toast.success('Task created')
+      setValues(emptyRequest)
+      setCreateOpen(false)
+      const tasksPage = await listTasks({ page: 1, limit: 5 })
+      setRecent(tasksPage.data)
+    } catch (err) {
+      toastApiError(err, 'Could not create task')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiStub label="Assigned tasks" />
-        <KpiStub label="Pending review" />
-        <KpiStub label="Tutors" />
-        <KpiStub label="Clients" />
+        <Kpi label="Assigned tasks" value={stats?.total ?? '—'} />
+        <Kpi label="Pending review" value={stats?.waiting_coordinator_approval ?? '—'} />
+        <Kpi label="In progress" value={stats?.['in-progress'] ?? '—'} />
+        <Kpi label="Pending" value={stats?.pending ?? '—'} />
       </div>
       <SectionCard
-        title="Requests & kanban"
-        description="Intake board and create-task entry."
+        title="Requests & tasks"
+        description="Recent tasks in your queue."
         actions={
-          <Button type="button" size="sm" onClick={() => comingSoon('Create task')}>
-            Create task
+          <Button type="button" size="sm" onClick={() => setCreateOpen((o) => !o)}>
+            {createOpen ? 'Hide form' : 'Create task'}
           </Button>
         }
       >
-        <EmptyState
-          title="Board empty"
-          description="Kanban columns will land here."
-          action={
-            <Link to={`${base}/tasks`} className="text-sm font-medium text-primary hover:underline">
-              Open tasks
-            </Link>
-          }
-        />
+        {createOpen ? (
+          <form onSubmit={onCreate} className="mb-6 grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
+            <Field data-invalid={Boolean(fieldErrors.topic) || undefined} className="sm:col-span-2">
+              <FieldLabel htmlFor="dash-topic">Topic</FieldLabel>
+              <Input id="dash-topic" value={values.topic} onChange={(e) => setValues((v) => ({ ...v, topic: e.target.value }))} />
+              <FieldError>{fieldErrors.topic}</FieldError>
+            </Field>
+            <Field data-invalid={Boolean(fieldErrors.category) || undefined}>
+              <FieldLabel htmlFor="dash-category">Category</FieldLabel>
+              <Input id="dash-category" value={values.category} onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))} />
+              <FieldError>{fieldErrors.category}</FieldError>
+            </Field>
+            <Field data-invalid={Boolean(fieldErrors.deadline) || undefined}>
+              <FieldLabel htmlFor="dash-deadline">Deadline</FieldLabel>
+              <Input
+                id="dash-deadline"
+                type="datetime-local"
+                value={values.deadline}
+                onChange={(e) => setValues((v) => ({ ...v, deadline: e.target.value }))}
+              />
+              <FieldError>{fieldErrors.deadline}</FieldError>
+            </Field>
+            <Field data-invalid={Boolean(fieldErrors.description) || undefined} className="sm:col-span-2">
+              <FieldLabel htmlFor="dash-desc">Description</FieldLabel>
+              <Textarea id="dash-desc" rows={2} value={values.description} onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))} />
+              <FieldError>{fieldErrors.description}</FieldError>
+            </Field>
+            <div className="sm:col-span-2">
+              <Button type="submit" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? 'Submitting…' : 'Submit request'}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+        <RecentTasksList base={base} tasks={recent} />
       </SectionCard>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SectionCard title="Tutors & clients" description="Quick profile management entry.">
-          <EmptyState
-            title="No people listed"
-            description="Open manage-user from task details later."
-            action={
-              <Link
-                to={`${base}/users/example`}
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Preview manage user
-              </Link>
-            }
-          />
-        </SectionCard>
-        <SectionCard title="Leaderboard" description="Tutor performance ranking.">
-          <EmptyState title="No leaderboard data" description="Scores will appear here." />
-        </SectionCard>
-      </div>
     </>
   )
 }
 
 function TutorSections({ base }: { base: string }) {
+  const [stats, setStats] = useState<TaskStats | null>(null)
+  const [recent, setRecent] = useState<Task[]>([])
+
+  useEffect(() => {
+    void (async () => {
+      const [taskStats, tasksPage] = await Promise.all([
+        getTaskStats(),
+        listTasks({ page: 1, limit: 5 }),
+      ])
+      setStats(taskStats)
+      setRecent(tasksPage.data)
+    })()
+  }, [])
+
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-3">
-        <KpiStub label="Assigned" />
-        <KpiStub label="In progress" />
-        <KpiStub label="Submitted" />
+        <Kpi label="Assigned" value={stats?.total ?? '—'} />
+        <Kpi label="In progress" value={stats?.['in-progress'] ?? '—'} />
+        <Kpi label="Awaiting approval" value={stats?.waiting_coordinator_approval ?? '—'} />
       </div>
       <SectionCard
         title="Assigned tasks"
@@ -161,58 +321,111 @@ function TutorSections({ base }: { base: string }) {
           </Link>
         }
       >
-        <EmptyState title="No assignments" description="Assigned tasks will list here." />
+        <RecentTasksList base={base} tasks={recent} />
       </SectionCard>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SectionCard title="Performance" description="Delivery and revision stats.">
-          <EmptyState title="No performance data" description="Charts and totals come later." />
-        </SectionCard>
-        <SectionCard
-          title="Feedback"
-          description="Ratings on your work."
-          actions={
-            <Link to={`${base}/feedback`} className="text-sm font-medium text-primary hover:underline">
-              Open feedback
-            </Link>
-          }
-        >
-          <EmptyState title="No feedback yet" description="Client ratings will appear here." />
-        </SectionCard>
-      </div>
     </>
   )
 }
 
 function ClientSections({ base }: { base: string }) {
+  const [recent, setRecent] = useState<Task[]>([])
+  const [values, setValues] = useState(emptyRequest)
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof CreateTaskFormValues>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    void listTasks({ page: 1, limit: 5 }).then((page) => setRecent(page.data))
+  }, [])
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    const parsed = parseForm(createTaskFormSchema, values)
+    if (!parsed.success) {
+      setFieldErrors(parsed.fieldErrors)
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      await createTask({
+        ...parsed.data,
+        deadline: deadlineToApi(parsed.data.deadline),
+      })
+      toast.success('Request submitted')
+      setValues(emptyRequest)
+      const page = await listTasks({ page: 1, limit: 5 })
+      setRecent(page.data)
+    } catch (err) {
+      toastApiError(err, 'Could not submit request')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <>
-      <SectionCard
-        title="Request help"
-        description="Create a new task request (topic, type, files)."
-        actions={
-          <Button type="button" size="sm" onClick={() => comingSoon('Submit request')}>
-            Submit request
-          </Button>
-        }
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-1.5 text-sm sm:col-span-2">
-            <span className="font-medium">Topic</span>
-            <Input disabled placeholder="What do you need help with?" />
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-medium">Type</span>
-            <Input disabled placeholder="Assignment / tutoring / …" />
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-medium">Deadline</span>
-            <Input disabled type="date" />
-          </label>
-          <label className="grid gap-1.5 text-sm sm:col-span-2">
-            <span className="font-medium">Description</span>
-            <Textarea disabled rows={3} placeholder="Details…" />
-          </label>
-        </div>
+      <SectionCard title="Request help" description="Create a new task request.">
+        <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+          <Field data-invalid={Boolean(fieldErrors.topic) || undefined} className="sm:col-span-2">
+            <FieldLabel htmlFor="client-topic">Topic</FieldLabel>
+            <Input
+              id="client-topic"
+              value={values.topic}
+              placeholder="What do you need help with?"
+              onChange={(e) => setValues((v) => ({ ...v, topic: e.target.value }))}
+            />
+            <FieldError>{fieldErrors.topic}</FieldError>
+          </Field>
+          <Field data-invalid={Boolean(fieldErrors.type) || undefined}>
+            <FieldLabel htmlFor="client-type">Type</FieldLabel>
+            <Select
+              id="client-type"
+              value={values.type}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, type: e.target.value as CreateTaskFormValues['type'] }))
+              }
+            >
+              <option value="assignment">Assignment</option>
+              <option value="tutoring">Tutoring</option>
+              <option value="research">Research</option>
+              <option value="editing">Editing</option>
+            </Select>
+            <FieldError>{fieldErrors.type}</FieldError>
+          </Field>
+          <Field data-invalid={Boolean(fieldErrors.category) || undefined}>
+            <FieldLabel htmlFor="client-category">Category</FieldLabel>
+            <Input
+              id="client-category"
+              value={values.category}
+              onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))}
+            />
+            <FieldError>{fieldErrors.category}</FieldError>
+          </Field>
+          <Field data-invalid={Boolean(fieldErrors.deadline) || undefined}>
+            <FieldLabel htmlFor="client-deadline">Deadline</FieldLabel>
+            <Input
+              id="client-deadline"
+              type="datetime-local"
+              value={values.deadline}
+              onChange={(e) => setValues((v) => ({ ...v, deadline: e.target.value }))}
+            />
+            <FieldError>{fieldErrors.deadline}</FieldError>
+          </Field>
+          <Field data-invalid={Boolean(fieldErrors.description) || undefined} className="sm:col-span-2">
+            <FieldLabel htmlFor="client-desc">Description</FieldLabel>
+            <Textarea
+              id="client-desc"
+              rows={3}
+              value={values.description}
+              onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+            />
+            <FieldError>{fieldErrors.description}</FieldError>
+          </Field>
+          <div className="sm:col-span-2">
+            <Button type="submit" size="sm" disabled={isSubmitting}>
+              {isSubmitting ? 'Submitting…' : 'Submit request'}
+            </Button>
+          </div>
+        </form>
       </SectionCard>
       <SectionCard
         title="My requests"
@@ -223,35 +436,8 @@ function ClientSections({ base }: { base: string }) {
           </Link>
         }
       >
-        <EmptyState title="No requests yet" description="After you submit, tasks show as pending here." />
+        <RecentTasksList base={base} tasks={recent} />
       </SectionCard>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <SectionCard title="Billing" description="Balances and invoices.">
-          <EmptyState
-            title="No billing activity"
-            description="Open a task to pay remaining balance."
-            action={
-              <Link
-                to={`${base}/tasks/example/payments`}
-                className="text-sm font-medium text-primary hover:underline"
-              >
-                Preview payments
-              </Link>
-            }
-          />
-        </SectionCard>
-        <SectionCard
-          title="Feedback"
-          description="Rate completed work."
-          actions={
-            <Link to={`${base}/feedback`} className="text-sm font-medium text-primary hover:underline">
-              Give feedback
-            </Link>
-          }
-        >
-          <EmptyState title="Nothing to rate" description="Feedback UI is ready when tasks complete." />
-        </SectionCard>
-      </div>
     </>
   )
 }
@@ -261,7 +447,7 @@ export function PortalDashboardPage() {
   const role = user?.role ?? 'client'
   const copy = TITLES[role]
   const base =
-    role === 'admin'
+    role === 'super' || role === 'admin'
       ? '/admin'
       : role === 'coordinator'
         ? '/coordinator'
@@ -276,7 +462,7 @@ export function PortalDashboardPage() {
           Signed in as <span className="font-medium text-foreground">{user.email}</span>
         </p>
       ) : null}
-      {role === 'admin' ? <AdminSections base={base} /> : null}
+      {role === 'super' || role === 'admin' ? <AdminSections base={base} /> : null}
       {role === 'coordinator' ? <CoordinatorSections base={base} /> : null}
       {role === 'tutor' ? <TutorSections base={base} /> : null}
       {role === 'client' ? <ClientSections base={base} /> : null}

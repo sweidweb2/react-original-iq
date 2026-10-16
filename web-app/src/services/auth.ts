@@ -52,3 +52,60 @@ export function logout(refreshToken: string) {
     skipAuthRefresh: true,
   })
 }
+
+export type MessageResponse = { message: string }
+
+export function forgotPassword(email: string) {
+  return apiRequest<MessageResponse>('/auth/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    skipAuthRefresh: true,
+  })
+}
+
+export function verifyResetCode(email: string, code: string) {
+  return apiRequest<{ verified: true }>('/auth/password/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+    skipAuthRefresh: true,
+  })
+}
+
+export function resetPassword(input: {
+  email: string
+  code: string
+  newPassword: string
+  confirmPassword: string
+}) {
+  return apiRequest<MessageResponse>('/auth/password/reset', {
+    method: 'POST',
+    body: JSON.stringify(input),
+    skipAuthRefresh: true,
+  })
+}
+
+export function resendResetCode(email: string) {
+  return apiRequest<MessageResponse>('/auth/password/resend', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    skipAuthRefresh: true,
+  })
+}
+
+export type MeResponse = { user: AuthUser }
+
+export function getMe() {
+  return apiRequest<MeResponse>('/auth/me')
+}
+
+export function updateMe(input: {
+  name?: string
+  currentPassword?: string
+  newPassword?: string
+  confirmPassword?: string
+}) {
+  return apiRequest<MeResponse>('/auth/me', {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}

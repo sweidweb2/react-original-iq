@@ -2,6 +2,7 @@ import {
   ClipboardList,
   Contact,
   Home,
+  KeyRound,
   Mail,
   MessageSquare,
   Newspaper,
@@ -30,7 +31,11 @@ export const PORTALS: readonly PortalDefinition[] = [
     title: 'Super portal',
     homeTitle: 'Activity log',
     description: 'Platform activity and audit trail.',
-    nav: [{ to: '/super', label: 'Activity log', icon: ScrollText, end: true }],
+    nav: [
+      { to: '/super', label: 'Activity log', icon: ScrollText, end: true },
+      { to: '/super/rbac', label: 'RBAC', icon: KeyRound },
+      { to: '/super/profile', label: 'Profile', icon: UserCircle },
+    ],
   },
   {
     role: 'admin',

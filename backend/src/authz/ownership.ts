@@ -1,9 +1,16 @@
 import { forbidden } from '../errors/app-error.js'
-import { isAdmin } from './roles.js'
+import { hasAnyRole, isAdmin } from './roles.js'
 
 export type AuthActor = {
   id: string
   roles: readonly string[]
+}
+
+/** Admin or coordinator — ops user management. */
+const OPS_ROLES = ['admin', 'coordinator'] as const
+
+export function isOps(roles: readonly string[] | undefined): boolean {
+  return hasAnyRole(roles, OPS_ROLES)
 }
 
 /**
@@ -44,6 +51,20 @@ export function assertSelfOrAdmin(
   message = 'You cannot access this user',
 ): void {
   if (isAdmin(actor.roles)) {
+    return
+  }
+  assertOwner(actor.id, resourceUserId, message)
+}
+
+/**
+ * Self, admin, or coordinator may access a user record (manage-user profile).
+ */
+export function assertSelfOrOps(
+  actor: AuthActor,
+  resourceUserId: string,
+  message = 'You cannot access this user',
+): void {
+  if (isOps(actor.roles)) {
     return
   }
   assertOwner(actor.id, resourceUserId, message)

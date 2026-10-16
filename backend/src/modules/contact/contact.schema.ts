@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { paginationQuerySchema } from '../_shared/pagination.schema.js'
+
 const emailSchema = z
   .string()
   .trim()
@@ -35,6 +37,15 @@ export const leadBodySchema = z.object({
     .regex(/^[0-9\s()-]+$/),
 })
 
+export const listContactQuerySchema = paginationQuerySchema.extend({
+  search: z.string().trim().max(120).optional(),
+})
+
+export const contactIdParamsSchema = z.object({
+  id: z.string().trim().uuid(),
+})
+
 export type ContactMessageBody = z.infer<typeof contactMessageBodySchema>
 export type NewsletterBody = z.infer<typeof newsletterBodySchema>
 export type LeadBody = z.infer<typeof leadBodySchema>
+export type ListContactQuery = z.infer<typeof listContactQuerySchema>

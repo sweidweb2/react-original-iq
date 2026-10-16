@@ -161,3 +161,58 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
   return exchangeRefreshToken(refreshToken)
 }
+
+/** Authenticated download (CSV, etc.) with refresh retry; triggers a browser save. */
+export async function apiDownload(
+  path: string,
+  filename: string,
+  options: ApiRequestOptions = {},
+): Promise<void> {
+  const { accessToken, skipAuthRefresh, headers, ...rest } = options
+
+  const resolveToken = (override?: string | null) => {
+    if (override !== undefined) return override
+    return authSession?.getAccessToken() ?? null
+  }
+
+  const execute = async (token: string | null) => {
+    return fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+    })
+  }
+
+  let token = resolveToken(accessToken)
+  let response = await execute(token)
+
+  const canRefresh =
+    response.status === 401 &&
+    !skipAuthRefresh &&
+    !shouldSkipRefresh(path) &&
+    Boolean(authSession?.getRefreshToken())
+
+  if (canRefresh) {
+    const refreshed = await tryRefreshSession()
+    if (refreshed) {
+      token = authSession?.getAccessToken() ?? null
+      response = await execute(token)
+    }
+  }
+
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as ApiErrorBody
+    const message = data.error?.message || data.message || `Request failed (${response.status})`
+    throw new ApiError(response.status, message, data.error?.code)
+  }
+
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}

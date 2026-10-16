@@ -96,12 +96,9 @@ export function LoginPage() {
               <FieldError>{fieldErrors.password}</FieldError>
             </Field>
 
-            <a
-              href="mailto:info@original-iq.com"
-              className="text-sm font-medium text-primary hover:underline"
-            >
+            <Link to="/forgot-password" className="text-sm font-medium text-primary hover:underline">
               Forgot Your Password?
-            </a>
+            </Link>
 
             <Button
               type="submit"

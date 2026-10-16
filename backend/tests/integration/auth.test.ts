@@ -2,6 +2,7 @@ import request from 'supertest'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { createApp } from '../../src/app.js'
+import { getPasswordResetCodeForTests } from '../../src/modules/auth/login-verifications.repository.js'
 import { loadTestConfig } from '../helpers/test-config.js'
 
 const email = 'auth-flow@originaliq.test'
@@ -72,5 +73,58 @@ describe('auth HTTP', () => {
 
     expect(res.status).toBe(401)
     expect(res.body).toMatchObject({ code: 'UNAUTHORIZED' })
+  })
+
+  it('resets password with a verification code', async () => {
+    const loginBefore = await request(app).post('/api/v1/auth/login').send({ email, password })
+    expect(loginBefore.status).toBe(200)
+    const userId = loginBefore.body.user.id as string
+
+    const forgot = await request(app).post('/api/v1/auth/password/forgot').send({ email })
+    expect(forgot.status).toBe(200)
+    expect(forgot.body.message).toEqual(expect.any(String))
+
+    const code = getPasswordResetCodeForTests(userId)
+    expect(code).toMatch(/^\d{6}$/)
+
+    const badVerify = await request(app)
+      .post('/api/v1/auth/password/verify')
+      .send({ email, code: '000000' })
+    expect(badVerify.status).toBe(401)
+
+    const verify = await request(app)
+      .post('/api/v1/auth/password/verify')
+      .send({ email, code })
+    expect(verify.status).toBe(200)
+
+    const newPassword = 'newpass99'
+    const reset = await request(app)
+      .post('/api/v1/auth/password/reset')
+      .send({
+        email,
+        code,
+        newPassword,
+        confirmPassword: newPassword,
+      })
+    expect(reset.status).toBe(200)
+
+    const loginNew = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email, password: newPassword })
+    expect(loginNew.status).toBe(200)
+
+    const loginOld = await request(app).post('/api/v1/auth/login').send({ email, password })
+    expect(loginOld.status).toBe(401)
+  })
+
+  it('returns the authenticated profile on GET /auth/me', async () => {
+    const login = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email, password: 'newpass99' })
+    const accessToken = login.body.tokens.accessToken as string
+
+    const me = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${accessToken}`)
+    expect(me.status).toBe(200)
+    expect(me.body.user).toMatchObject({ email, role: 'client' })
   })
 })

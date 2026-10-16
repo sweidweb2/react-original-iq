@@ -20,6 +20,14 @@ type AuthState = {
     lastName?: string
   }) => Promise<void>
   logout: () => Promise<void>
+  refreshProfile: () => Promise<void>
+  updateProfile: (input: {
+    name?: string
+    currentPassword?: string
+    newPassword?: string
+    confirmPassword?: string
+  }) => Promise<void>
+  setUser: (user: AuthUser) => void
 }
 
 /**
@@ -34,6 +42,7 @@ export const useAuthStore = create<AuthState>()(
       isHydrated: false,
       setHydrated: (value) => set({ isHydrated: value }),
       setTokens: (tokens) => set({ tokens }),
+      setUser: (user) => set({ user }),
       clearSession: () => set({ user: null, tokens: null }),
       async login(email, password) {
         const result = await authApi.login(email, password)
@@ -52,6 +61,14 @@ export const useAuthStore = create<AuthState>()(
         } finally {
           set({ user: null, tokens: null })
         }
+      },
+      async refreshProfile() {
+        const result = await authApi.getMe()
+        set({ user: result.user })
+      },
+      async updateProfile(input) {
+        const result = await authApi.updateMe(input)
+        set({ user: result.user })
       },
     }),
     {

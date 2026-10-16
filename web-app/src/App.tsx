@@ -5,10 +5,14 @@ import { ErrorBoundary } from '@/components/errors/ErrorBoundary'
 import { NavigationLoader } from '@/components/feedback'
 import { ContactMessagesPage } from '@/features/admin/contact/ContactMessagesPage'
 import { LeadsPage } from '@/features/admin/leads/LeadsPage'
+import { ManageRbacPage } from '@/features/super/rbac/ManageRbacPage'
 import { StayUpdatedPage } from '@/features/admin/stay-updated/StayUpdatedPage'
 import { ManageUsersPage } from '@/features/admin/users/ManageUsersPage'
+import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RegisterPage } from '@/features/auth/RegisterPage'
+import { ResetUpdatePage } from '@/features/auth/ResetUpdatePage'
+import { ResetVerifyPage } from '@/features/auth/ResetVerifyPage'
 import { NotFoundPage } from '@/features/errors/NotFoundPage'
 import { UnexpectedErrorPage } from '@/features/errors/UnexpectedErrorPage'
 import { HomePage } from '@/features/home/HomePage'
@@ -31,7 +35,13 @@ import type { AuthRole } from '@/services/auth'
 
 function portalChildRoutes(role: AuthRole) {
   if (role === 'super') {
-    return <Route index element={<ActivityLogsPage />} />
+    return (
+      <>
+        <Route index element={<ActivityLogsPage />} />
+        <Route path="rbac" element={<ManageRbacPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+      </>
+    )
   }
 
   const hasPayments = role === 'admin' || role === 'coordinator' || role === 'client'
@@ -84,6 +94,9 @@ function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/refunds" element={<RefundsPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/password-reset/verify" element={<ResetVerifyPage />} />
+            <Route path="/password-reset/update" element={<ResetUpdatePage />} />
             <Route path="/signup" element={<RegisterPage />} />
             <Route path="/register" element={<Navigate to="/signup" replace />} />
             <Route path="/500" element={<UnexpectedErrorPage />} />

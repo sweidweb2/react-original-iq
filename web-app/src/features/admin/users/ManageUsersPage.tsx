@@ -1,5 +1,6 @@
-import { type ReactNode,useEffect, useState } from 'react'
-import { Pencil, UserPlus, Users } from 'lucide-react'
+import { type ReactNode, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Pencil, UserPlus, Users, UserRound } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -427,7 +428,16 @@ export function ManageUsersPage() {
                             </div>
                           </td>
                           <td className="px-2 py-3">
-                            <div className="flex justify-center">
+                            <div className="flex justify-center gap-1">
+                              <Tooltip content={`Open profile for ${name}`}>
+                                <Link
+                                  to={`/admin/users/${user.id}`}
+                                  aria-label={`Open profile for ${name}`}
+                                  className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-muted"
+                                >
+                                  <UserRound className="size-4" />
+                                </Link>
+                              </Tooltip>
                               <IconAction
                                 label={`Edit ${name}`}
                                 onClick={() => {

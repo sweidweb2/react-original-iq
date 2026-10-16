@@ -1,6 +1,6 @@
 import { Router } from 'express'
 
-import { ADMIN_ROLES } from '../../authz/index.js'
+import { SUPER_ROLES } from '../../authz/index.js'
 import { authenticate } from '../../middleware/authenticate.js'
 import { authorize } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
@@ -21,7 +21,7 @@ export function createRbacRoutes(controller: RbacController): Router {
   const router = Router()
 
   router.use(authenticate)
-  router.use(authorize(...ADMIN_ROLES))
+  router.use(authorize(...SUPER_ROLES))
 
   router.get('/roles', controller.listRoles)
   router.post('/roles', validate({ body: createRoleBodySchema }), controller.createRole)

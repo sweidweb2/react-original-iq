@@ -47,6 +47,7 @@ describe('users.service', () => {
       findByEmail: vi.fn(),
       createAccount: vi.fn(),
       updateAccount: vi.fn(),
+      incrementNbDone: vi.fn(),
     }
   })
 
