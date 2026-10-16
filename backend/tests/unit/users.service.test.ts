@@ -18,6 +18,7 @@ function makeAccount(overrides: Partial<AccountRecord> = {}): AccountRecord {
     passwordHash: 'hash',
     role: 'client',
     status: 'ACTIVE',
+    phone: null,
     profile: {
       firstName: 'Ada',
       lastName: 'Lovelace',
@@ -47,6 +48,7 @@ describe('users.service', () => {
       findByEmail: vi.fn(),
       createAccount: vi.fn(),
       updateAccount: vi.fn(),
+      deleteAccount: vi.fn(),
       incrementNbDone: vi.fn(),
     }
   })
@@ -223,5 +225,45 @@ describe('users.service', () => {
       status: 404,
       code: 'USER_NOT_FOUND',
     })
+  })
+
+  it('lets an admin hard-delete a user when assertDeletable passes', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeAccount())
+    vi.mocked(repository.deleteAccount).mockResolvedValue(true)
+    const assertDeletable = vi.fn().mockResolvedValue(undefined)
+    const service = createUsersService(repository, { assertDeletable })
+
+    await expect(service.deleteUser('user-1', admin)).resolves.toBeUndefined()
+    expect(assertDeletable).toHaveBeenCalledWith('user-1')
+    expect(repository.deleteAccount).toHaveBeenCalledWith('user-1')
+  })
+
+  it('blocks self-delete and non-staff delete', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeAccount())
+    const service = createUsersService(repository)
+
+    await expect(service.deleteUser('user-1', self)).rejects.toMatchObject({ status: 403 })
+    await expect(service.deleteUser('user-1', other)).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('lets a coordinator delete tutors/clients but not admins', async () => {
+    const coordinator: AuthActor = { id: 'coord-1', roles: ['coordinator'] }
+    vi.mocked(repository.findById).mockResolvedValue(makeAccount({ role: 'tutor' }))
+    vi.mocked(repository.deleteAccount).mockResolvedValue(true)
+    const service = createUsersService(repository)
+
+    await expect(service.deleteUser('user-1', coordinator)).resolves.toBeUndefined()
+
+    vi.mocked(repository.findById).mockResolvedValue(makeAccount({ role: 'admin' }))
+    await expect(service.deleteUser('user-1', coordinator)).rejects.toMatchObject({ status: 403 })
+  })
+
+  it('propagates assertDeletable conflicts', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeAccount())
+    const assertDeletable = vi.fn().mockRejectedValue({ status: 409, code: 'CONFLICT' })
+    const service = createUsersService(repository, { assertDeletable })
+
+    await expect(service.deleteUser('user-1', admin)).rejects.toMatchObject({ status: 409 })
+    expect(repository.deleteAccount).not.toHaveBeenCalled()
   })
 })

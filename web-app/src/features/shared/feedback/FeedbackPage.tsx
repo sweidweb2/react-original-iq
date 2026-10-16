@@ -7,8 +7,8 @@ import { PageHeader } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
+import { Select } from '@/components/ui/select'
 import { StarRating } from '@/components/ui/star-rating'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
@@ -21,6 +21,7 @@ import {
   type FeedbackListMeta,
   type FeedbackRecord,
 } from '@/services/feedback'
+import { listTasks, type Task } from '@/services/tasks'
 import { toastApiError } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -87,11 +88,33 @@ export function FeedbackPage() {
   const [comments, setComments] = useState('')
   const [suggestions, setSuggestions] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [clientTasks, setClientTasks] = useState<Task[]>([])
+  const [tasksLoading, setTasksLoading] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300)
     return () => window.clearTimeout(timer)
   }, [searchInput])
+
+  useEffect(() => {
+    if (!isClient) return
+    let cancelled = false
+    setTasksLoading(true)
+    listTasks({ page: 1, limit: 100 })
+      .then((result) => {
+        if (cancelled) return
+        setClientTasks(result.data.filter((task) => task.tutorId))
+        setTasksLoading(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setClientTasks([])
+        setTasksLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isClient])
 
   useEffect(() => {
     setPage(1)
@@ -134,8 +157,18 @@ export function FeedbackPage() {
     setReloadKey((value) => value + 1)
   }
 
+  function onTaskChange(nextTaskId: string) {
+    setTaskId(nextTaskId)
+    const selected = clientTasks.find((task) => task.id === nextTaskId)
+    setTutorId(selected?.tutorId ?? '')
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+    if (!taskId || !tutorId) {
+      toast.error('Select a task with an assigned tutor')
+      return
+    }
     if (rating < 0 || rating > 5) {
       toast.error('Choose a rating between 0 and 5')
       return
@@ -143,8 +176,8 @@ export function FeedbackPage() {
     setIsSubmitting(true)
     try {
       await createFeedback({
-        taskId: taskId.trim(),
-        tutorId: tutorId.trim(),
+        taskId,
+        tutorId,
         rating,
         comments: comments.trim() || undefined,
         suggestions: suggestions.trim() || undefined,
@@ -203,24 +236,28 @@ export function FeedbackPage() {
             <h2 className="text-lg font-semibold">Submit feedback</h2>
             <form className="grid max-w-lg gap-4" onSubmit={handleSubmit}>
               <Field>
-                <FieldLabel htmlFor="feedback-task-id">Task ID</FieldLabel>
-                <Input
+                <FieldLabel htmlFor="feedback-task-id">Task</FieldLabel>
+                <Select
                   id="feedback-task-id"
                   value={taskId}
-                  onChange={(event) => setTaskId(event.target.value)}
-                  placeholder="Task UUID"
+                  onChange={(event) => onTaskChange(event.target.value)}
                   required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="feedback-tutor-id">Tutor ID</FieldLabel>
-                <Input
-                  id="feedback-tutor-id"
-                  value={tutorId}
-                  onChange={(event) => setTutorId(event.target.value)}
-                  placeholder="Tutor user UUID"
-                  required
-                />
+                  disabled={tasksLoading || clientTasks.length === 0}
+                >
+                  <option value="">
+                    {tasksLoading
+                      ? 'Loading tasks…'
+                      : clientTasks.length === 0
+                        ? 'No assigned tasks available'
+                        : 'Select a task'}
+                  </option>
+                  {clientTasks.map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {(task.topic ?? 'Untitled').slice(0, 60)}
+                      {task.status === 'completed' ? ' (completed)' : ''}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field>
                 <FieldLabel>Rating</FieldLabel>

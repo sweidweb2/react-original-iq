@@ -30,6 +30,16 @@ export const createRefundBodySchema = z.object({
   currency: z.string().trim().length(3).optional(),
 })
 
+export const taskRefundParamsSchema = z.object({
+  id: z.string().trim().uuid(),
+  refundId: z.string().trim().uuid(),
+})
+
+export const updateRefundStatusBodySchema = z.object({
+  status: z.enum(['paid', 'canceled']),
+})
+
 export type CreateManualPaymentBody = z.infer<typeof createManualPaymentBodySchema>
 export type CheckoutPaymentBody = z.infer<typeof checkoutPaymentBodySchema>
 export type CreateRefundBody = z.infer<typeof createRefundBodySchema>
+export type UpdateRefundStatusBody = z.infer<typeof updateRefundStatusBodySchema>

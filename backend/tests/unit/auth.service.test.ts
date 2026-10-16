@@ -25,6 +25,7 @@ function makeUser(overrides: Partial<AccountRecord> = {}): AccountRecord {
     passwordHash: 'hash:secret123',
     role: 'client',
     status: 'ACTIVE',
+    phone: null,
     profile: {
       firstName: 'Ada',
       lastName: 'Lovelace',

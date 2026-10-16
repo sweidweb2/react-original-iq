@@ -12,6 +12,9 @@ import {
   leadBodySchema,
   listContactQuerySchema,
   newsletterBodySchema,
+  updateLeadBodySchema,
+  updateMessageBodySchema,
+  updateNewsletterBodySchema,
 } from './contact.schema.js'
 
 const ADMIN_GATE = ['super', 'admin'] as const
@@ -46,6 +49,13 @@ export function createContactRoutes(controller: ContactController, config: AppCo
     validate({ params: contactIdParamsSchema }),
     controller.getMessage,
   )
+  router.patch(
+    '/messages/:id',
+    authenticate,
+    authorize(...ADMIN_GATE),
+    validate({ params: contactIdParamsSchema, body: updateMessageBodySchema }),
+    controller.updateMessage,
+  )
   router.delete(
     '/messages/:id',
     authenticate,
@@ -73,6 +83,13 @@ export function createContactRoutes(controller: ContactController, config: AppCo
     validate({ query: listContactQuerySchema }),
     controller.listNewsletter,
   )
+  router.patch(
+    '/newsletter/:id',
+    authenticate,
+    authorize(...ADMIN_GATE),
+    validate({ params: contactIdParamsSchema, body: updateNewsletterBodySchema }),
+    controller.updateNewsletter,
+  )
   router.delete(
     '/newsletter/:id',
     authenticate,
@@ -89,6 +106,13 @@ export function createContactRoutes(controller: ContactController, config: AppCo
     authorize(...ADMIN_GATE),
     validate({ query: listContactQuerySchema }),
     controller.listLeads,
+  )
+  router.patch(
+    '/leads/:id',
+    authenticate,
+    authorize(...ADMIN_GATE),
+    validate({ params: contactIdParamsSchema, body: updateLeadBodySchema }),
+    controller.updateLead,
   )
   router.delete(
     '/leads/:id',

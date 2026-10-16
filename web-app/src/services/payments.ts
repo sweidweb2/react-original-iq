@@ -81,3 +81,14 @@ export function createRefund(taskId: string, input: { amount: number; refundReas
     body: JSON.stringify(input),
   })
 }
+
+export function updateRefundStatus(taskId: string, refundId: string, status: 'paid' | 'canceled') {
+  return apiRequest<RefundRecord>(`/tasks/${taskId}/refunds/${refundId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function deleteRefund(taskId: string, refundId: string) {
+  return apiRequest<void>(`/tasks/${taskId}/refunds/${refundId}`, { method: 'DELETE' })
+}

@@ -1,86 +1,56 @@
-import type { NextFunction, Request, Response } from 'express'
+import type { RequestHandler } from 'express'
 
-import { unauthorized } from '../../errors/app-error.js'
+import { requireActor, respond, respondEmpty } from '../../middleware/respond.js'
 import type {
   CheckoutPaymentBody,
   CreateManualPaymentBody,
   CreateRefundBody,
+  UpdateRefundStatusBody,
 } from './payments.schema.js'
 import type { PaymentsService } from './payments.service.js'
 
 export type PaymentsController = {
-  getTaskPayments: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  createManualPayment: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  checkout: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  deletePayment: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  createRefund: (req: Request, res: Response, next: NextFunction) => Promise<void>
-}
-
-function requireActor(req: Request) {
-  if (!req.user) {
-    throw unauthorized()
-  }
-  return { id: req.user.id, roles: req.user.roles }
+  getTaskPayments: RequestHandler
+  createManualPayment: RequestHandler
+  checkout: RequestHandler
+  deletePayment: RequestHandler
+  createRefund: RequestHandler
+  updateRefundStatus: RequestHandler
+  deleteRefund: RequestHandler
 }
 
 export function createPaymentsController(service: PaymentsService): PaymentsController {
   return {
-    async getTaskPayments(req, res, next) {
-      try {
-        const actor = requireActor(req)
-        const view = await service.getTaskPayments(String(req.params.id), actor)
-        res.status(200).json(view)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async createManualPayment(req, res, next) {
-      try {
-        const actor = requireActor(req)
-        const payment = await service.createManualPayment(
-          String(req.params.id),
-          req.body as CreateManualPaymentBody,
-          actor,
-        )
-        res.status(201).json(payment)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async checkout(req, res, next) {
-      try {
-        const actor = requireActor(req)
-        const payment = await service.checkout(
-          String(req.params.id),
-          req.body as CheckoutPaymentBody,
-          actor,
-        )
-        res.status(201).json(payment)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async deletePayment(req, res, next) {
-      try {
-        const actor = requireActor(req)
-        await service.deletePayment(String(req.params.id), String(req.params.paymentId), actor)
-        res.status(204).send()
-      } catch (error) {
-        next(error)
-      }
-    },
-    async createRefund(req, res, next) {
-      try {
-        const actor = requireActor(req)
-        const refund = await service.createRefund(
-          String(req.params.id),
-          req.body as CreateRefundBody,
-          actor,
-        )
-        res.status(201).json(refund)
-      } catch (error) {
-        next(error)
-      }
-    },
+    getTaskPayments: respond(200, (req) =>
+      service.getTaskPayments(String(req.params.id), requireActor(req)),
+    ),
+    createManualPayment: respond(201, (req) =>
+      service.createManualPayment(
+        String(req.params.id),
+        req.body as CreateManualPaymentBody,
+        requireActor(req),
+      ),
+    ),
+    checkout: respond(201, (req) =>
+      service.checkout(String(req.params.id), req.body as CheckoutPaymentBody, requireActor(req)),
+    ),
+    deletePayment: respondEmpty(204, (req) =>
+      service.deletePayment(String(req.params.id), String(req.params.paymentId), requireActor(req)),
+    ),
+    createRefund: respond(201, (req) =>
+      service.createRefund(String(req.params.id), req.body as CreateRefundBody, requireActor(req)),
+    ),
+    updateRefundStatus: respond(200, (req) => {
+      const body = req.body as UpdateRefundStatusBody
+      return service.updateRefundStatus(
+        String(req.params.id),
+        String(req.params.refundId),
+        body.status,
+        requireActor(req),
+      )
+    }),
+    deleteRefund: respondEmpty(204, (req) =>
+      service.deleteRefund(String(req.params.id), String(req.params.refundId), requireActor(req)),
+    ),
   }
 }

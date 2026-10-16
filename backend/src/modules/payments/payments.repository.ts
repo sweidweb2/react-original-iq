@@ -22,6 +22,9 @@ export type PaymentsRepository = {
   updatePaymentStatus: (id: string, status: PaymentStatus) => Promise<PaymentRecord | null>
   deletePayment: (id: string) => Promise<boolean>
   createRefund: (input: CreateRefundInput) => Promise<RefundRecord>
+  findRefundById: (id: string) => Promise<RefundRecord | null>
+  updateRefundStatus: (id: string, status: PaymentStatus) => Promise<RefundRecord | null>
+  deleteRefund: (id: string) => Promise<boolean>
   createInvoiceForPayment: (paymentId: string, invoiceNumber: string) => Promise<InvoiceRecord>
   sumPaidByTask: (taskId: string) => Promise<number>
   sumRefundedByTask: (taskId: string) => Promise<number>
@@ -261,6 +264,23 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
       memoryRefunds.push(refund)
       return refund
     },
+    async findRefundById(id) {
+      return memoryRefunds.find((row) => row.id === id) ?? null
+    },
+    async updateRefundStatus(id, status) {
+      const index = memoryRefunds.findIndex((row) => row.id === id)
+      if (index === -1) return null
+      const current = memoryRefunds[index]!
+      const updated = { ...current, status, updatedAt: nowIso() }
+      memoryRefunds[index] = updated
+      return updated
+    },
+    async deleteRefund(id) {
+      const index = memoryRefunds.findIndex((row) => row.id === id)
+      if (index === -1) return false
+      memoryRefunds.splice(index, 1)
+      return true
+    },
     async createInvoiceForPayment(paymentId, invoiceNumber) {
       const stamp = nowIso()
       const invoice: InvoiceRecord = {
@@ -433,6 +453,34 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
         .single()
       if (error) throw error
       return fromRefundRow(data as RefundRow)
+    },
+    async findRefundById(id) {
+      const { data, error } = await client
+        .from('refunds')
+        .select(
+          'id, task_id, refunder_id, amount, refund_reason, currency, gateway, montypay_transaction_id, status, payment_url, payment_method, created_at, updated_at',
+        )
+        .eq('id', id)
+        .maybeSingle()
+      if (error) throw error
+      return data ? fromRefundRow(data as RefundRow) : null
+    },
+    async updateRefundStatus(id, status) {
+      const { data, error } = await client
+        .from('refunds')
+        .update({ status })
+        .eq('id', id)
+        .select(
+          'id, task_id, refunder_id, amount, refund_reason, currency, gateway, montypay_transaction_id, status, payment_url, payment_method, created_at, updated_at',
+        )
+        .maybeSingle()
+      if (error) throw error
+      return data ? fromRefundRow(data as RefundRow) : null
+    },
+    async deleteRefund(id) {
+      const { error, count } = await client.from('refunds').delete({ count: 'exact' }).eq('id', id)
+      if (error) throw error
+      return (count ?? 0) > 0
     },
     async createInvoiceForPayment(paymentId, invoiceNumber) {
       const { data, error } = await client

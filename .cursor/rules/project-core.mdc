@@ -40,4 +40,4 @@ Web talks to the versioned REST API only. Never let the client touch Supabase wi
 2. Keep layers thin — no Supabase in controllers, no HTTP in repositories, no DB in clients.
 3. Validate and authorize on the backend for every mutating or sensitive read.
 4. Version APIs as `/api/v1/...`.
-5. Roles: `SUPER` | `ADMIN` | `TUTOR` | `STUDENT`.
+5. Roles: `SUPER` | `ADMIN` | `COORDINATOR` | `TUTOR` | `CLIENT` (`CLIENT` = student).

@@ -106,8 +106,17 @@ export type ApiRequestOptions = RequestInit & {
   skipAuthRefresh?: boolean
 }
 
-export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { accessToken, skipAuthRefresh, headers, ...rest } = options
+type AuthenticatedFetchOptions = ApiRequestOptions & {
+  /** When true, omit default Content-Type: application/json (e.g. downloads). */
+  omitJsonContentType?: boolean
+}
+
+/** Shared auth + 401 refresh retry. Returns the final Response. */
+async function authenticatedFetch(
+  path: string,
+  options: AuthenticatedFetchOptions = {},
+): Promise<Response> {
+  const { accessToken, skipAuthRefresh, headers, omitJsonContentType, ...rest } = options
 
   const resolveToken = (override?: string | null) => {
     if (override !== undefined) return override
@@ -115,15 +124,14 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   const execute = async (token: string | null) => {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    return fetch(`${API_BASE_URL}${path}`, {
       ...rest,
       headers: {
-        'Content-Type': 'application/json',
+        ...(omitJsonContentType ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
     })
-    return response
   }
 
   let token = resolveToken(accessToken)
@@ -142,6 +150,12 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       response = await execute(token)
     }
   }
+
+  return response
+}
+
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const response = await authenticatedFetch(path, options)
 
   if (response.status === 204) {
     return undefined as T
@@ -168,39 +182,7 @@ export async function apiDownload(
   filename: string,
   options: ApiRequestOptions = {},
 ): Promise<void> {
-  const { accessToken, skipAuthRefresh, headers, ...rest } = options
-
-  const resolveToken = (override?: string | null) => {
-    if (override !== undefined) return override
-    return authSession?.getAccessToken() ?? null
-  }
-
-  const execute = async (token: string | null) => {
-    return fetch(`${API_BASE_URL}${path}`, {
-      ...rest,
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...headers,
-      },
-    })
-  }
-
-  let token = resolveToken(accessToken)
-  let response = await execute(token)
-
-  const canRefresh =
-    response.status === 401 &&
-    !skipAuthRefresh &&
-    !shouldSkipRefresh(path) &&
-    Boolean(authSession?.getRefreshToken())
-
-  if (canRefresh) {
-    const refreshed = await tryRefreshSession()
-    if (refreshed) {
-      token = authSession?.getAccessToken() ?? null
-      response = await execute(token)
-    }
-  }
+  const response = await authenticatedFetch(path, { ...options, omitJsonContentType: true })
 
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as ApiErrorBody

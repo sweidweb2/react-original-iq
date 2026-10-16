@@ -66,6 +66,6 @@ Zod schemas validate at the HTTP edge before the service runs.
 
 ## 6. Roles (tutoring)
 
-`SUPER` · `ADMIN` · `TUTOR` · `STUDENT`
+`SUPER` · `ADMIN` · `COORDINATOR` · `TUTOR` · `CLIENT`
 
-Public register defaults to `STUDENT`.
+`CLIENT` is the student role. Public register defaults to `CLIENT`.

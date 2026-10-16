@@ -53,6 +53,7 @@ function toUserDto(user: AccountRecord): AuthUserDto {
     id: user.id,
     email: user.email,
     role: user.role as RoleName,
+    phone: user.phone,
     profile: user.profile
       ? {
           firstName: user.profile.firstName,
@@ -279,6 +280,7 @@ export function createAuthService(
 
       const updated = await users.updateSelfProfile(userId, {
         name: input.name,
+        phone: input.phone,
         passwordHash: input.newPassword ? await hashPassword(input.newPassword) : undefined,
       })
 
@@ -290,6 +292,7 @@ export function createAuthService(
           entityId: userId,
           meta: {
             nameChanged: Boolean(input.name),
+            phoneChanged: input.phone !== undefined,
             passwordChanged: Boolean(input.newPassword),
           },
         })

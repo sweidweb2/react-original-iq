@@ -10,14 +10,15 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import {
-  checkoutTaskPayment,
   createManualPayment,
   createRefund,
   deletePayment,
+  deleteRefund,
   getTaskPayments,
   type PaymentRecord,
   type RefundRecord,
   type TaskPaymentsView,
+  updateRefundStatus,
 } from '@/services/payments'
 import { toastApiError } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
@@ -38,7 +39,6 @@ export function TaskPaymentsPage() {
   const { taskId = '' } = useParams()
   const role = useAuthStore((s) => s.user?.role)
   const isStaff = role === 'admin' || role === 'coordinator' || role === 'super'
-  const isClient = role === 'client'
 
   const [view, setView] = useState<TaskPaymentsView | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -123,23 +123,6 @@ export function TaskPaymentsPage() {
     }
   }
 
-  async function onCheckout() {
-    if (!taskId) return
-    setIsActing(true)
-    try {
-      const payment = await checkoutTaskPayment(taskId)
-      toast.success('Checkout started')
-      if (payment.paymentUrl) {
-        window.open(payment.paymentUrl, '_blank', 'noopener,noreferrer')
-      }
-      await reload()
-    } catch (err) {
-      toastApiError(err, 'Checkout failed')
-    } finally {
-      setIsActing(false)
-    }
-  }
-
   async function onDeletePayment(payment: PaymentRecord) {
     if (!taskId) return
     setIsActing(true)
@@ -198,11 +181,6 @@ export function TaskPaymentsPage() {
               </Button>
             </>
           ) : null}
-          {isClient && summary.due > 0 ? (
-            <Button type="button" size="sm" disabled={isActing} onClick={() => void onCheckout()}>
-              Pay remaining
-            </Button>
-          ) : null}
         </>
       }
     >
@@ -238,7 +216,10 @@ export function TaskPaymentsPage() {
 
       <SectionCard title="Payments" description="Recorded payments for this task.">
         {payments.length === 0 ? (
-          <EmptyState title="No payments yet" description="Record a manual payment or start checkout." />
+          <EmptyState
+            title="No payments yet"
+            description={isStaff ? 'Record a manual payment from the actions above.' : 'Staff will record payments for this task.'}
+          />
         ) : (
           <ul className="space-y-2 text-sm">
             {payments.map((payment) => (
@@ -279,13 +260,78 @@ export function TaskPaymentsPage() {
         ) : (
           <ul className="space-y-2 text-sm">
             {refunds.map((refund: RefundRecord) => (
-              <li key={refund.id} className="rounded-md border p-2">
-                <p className="font-medium tabular-nums">
-                  {formatMoney(refund.amount, refund.currency)} · {refund.status}
-                </p>
-                <p className="text-xs text-muted-foreground">{formatDate(refund.createdAt)}</p>
-                {refund.refundReason ? (
-                  <p className="mt-1 text-xs text-muted-foreground">{refund.refundReason}</p>
+              <li
+                key={refund.id}
+                className="flex flex-wrap items-start justify-between gap-2 rounded-md border p-2"
+              >
+                <div>
+                  <p className="font-medium tabular-nums">
+                    {formatMoney(refund.amount, refund.currency)} · {refund.status}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{formatDate(refund.createdAt)}</p>
+                  {refund.refundReason ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{refund.refundReason}</p>
+                  ) : null}
+                </div>
+                {isStaff && refund.status === 'pending' ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isActing}
+                      onClick={() => {
+                        if (!taskId) return
+                        setIsActing(true)
+                        void updateRefundStatus(taskId, refund.id, 'paid')
+                          .then(() => {
+                            toast.success('Refund marked paid')
+                            return reload()
+                          })
+                          .catch((err) => toastApiError(err, 'Could not update refund'))
+                          .finally(() => setIsActing(false))
+                      }}
+                    >
+                      Mark paid
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isActing}
+                      onClick={() => {
+                        if (!taskId) return
+                        setIsActing(true)
+                        void updateRefundStatus(taskId, refund.id, 'canceled')
+                          .then(() => {
+                            toast.success('Refund canceled')
+                            return reload()
+                          })
+                          .catch((err) => toastApiError(err, 'Could not update refund'))
+                          .finally(() => setIsActing(false))
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isActing}
+                      onClick={() => {
+                        if (!taskId) return
+                        setIsActing(true)
+                        void deleteRefund(taskId, refund.id)
+                          .then(() => {
+                            toast.success('Refund deleted')
+                            return reload()
+                          })
+                          .catch((err) => toastApiError(err, 'Could not delete refund'))
+                          .finally(() => setIsActing(false))
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 ) : null}
               </li>
             ))}

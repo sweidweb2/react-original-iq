@@ -66,13 +66,23 @@ export const resetPasswordBodySchema = z
 export const updateMeBodySchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
+    phone: z
+      .string()
+      .trim()
+      .max(40)
+      .optional()
+      .transform((value) => (value === undefined ? undefined : value || null)),
     currentPassword: z.string().min(1).max(128).optional(),
     newPassword: z.string().min(8).max(128).optional(),
     confirmPassword: z.string().min(8).max(128).optional(),
   })
-  .refine((value) => value.name !== undefined || value.newPassword !== undefined, {
-    message: 'At least one field is required',
-  })
+  .refine(
+    (value) =>
+      value.name !== undefined || value.phone !== undefined || value.newPassword !== undefined,
+    {
+      message: 'At least one field is required',
+    },
+  )
   .refine((value) => !value.newPassword || value.currentPassword, {
     message: 'Current password is required to change password',
     path: ['currentPassword'],

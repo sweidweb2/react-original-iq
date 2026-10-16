@@ -9,6 +9,9 @@ export const ADMIN_ROLES: readonly RoleName[] = ['admin'] as const
 /** Staff roles (UI + coarse route gates). Not a permission matrix. */
 export const STAFF_ROLES: readonly RoleName[] = ['super', 'admin', 'coordinator', 'tutor'] as const
 
+export const TUTOR_ROLES: readonly RoleName[] = ['tutor'] as const
+export const CLIENT_ROLES: readonly RoleName[] = ['client'] as const
+
 export function hasAnyRole(
   roles: readonly string[] | undefined,
   allowed: readonly RoleName[],
@@ -27,4 +30,12 @@ export function isAdmin(roles: readonly string[] | undefined): boolean {
 
 export function isStaff(roles: readonly string[] | undefined): boolean {
   return hasAnyRole(roles, STAFF_ROLES)
+}
+
+export function isTutor(roles: readonly string[] | undefined): boolean {
+  return hasAnyRole(roles, TUTOR_ROLES)
+}
+
+export function isClient(roles: readonly string[] | undefined): boolean {
+  return hasAnyRole(roles, CLIENT_ROLES)
 }

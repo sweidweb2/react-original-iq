@@ -33,6 +33,8 @@ export type TasksRepository = {
   listSolutions: (taskId: string) => Promise<TaskSolution[]>
   deleteSolution: (taskId: string, solutionId: string) => Promise<boolean>
   hasPayments: (taskId: string) => Promise<boolean>
+  countActiveInvolvingUser: (userId: string) => Promise<number>
+  listTaskIdsForClient: (clientId: string) => Promise<string[]>
 }
 
 export type TasksRepositoryDeps = {
@@ -341,6 +343,28 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
       const payments = memoryPaymentsByTaskId.get(taskId) ?? []
       return payments.length > 0
     },
+
+    async countActiveInvolvingUser(userId) {
+      const active: TaskStatus[] = ['pending', 'in-progress', 'waiting_coordinator_approval']
+      let count = 0
+      for (const task of memoryTasksById.values()) {
+        if (!active.includes(task.status)) continue
+        if (
+          task.clientId === userId ||
+          task.tutorId === userId ||
+          task.coordinatorId === userId
+        ) {
+          count += 1
+        }
+      }
+      return count
+    },
+
+    async listTaskIdsForClient(clientId) {
+      return [...memoryTasksById.values()]
+        .filter((task) => task.clientId === clientId)
+        .map((task) => task.id)
+    },
   }
 }
 
@@ -572,6 +596,23 @@ function createSupabaseTasksRepository(
         .eq('task_id', taskId)
       if (error) throw error
       return (count ?? 0) > 0
+    },
+
+    async countActiveInvolvingUser(userId) {
+      const active = ['pending', 'in-progress', 'waiting_coordinator_approval']
+      const { count, error } = await client
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .in('status', active)
+        .or(`client_id.eq.${userId},tutor_id.eq.${userId},coordinator_id.eq.${userId}`)
+      if (error) throw error
+      return count ?? 0
+    },
+
+    async listTaskIdsForClient(clientId) {
+      const { data, error } = await client.from('tasks').select('id').eq('client_id', clientId)
+      if (error) throw error
+      return ((data as { id: string }[]) ?? []).map((row) => row.id)
     },
   }
 }

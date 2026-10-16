@@ -21,4 +21,4 @@ web-app/src/
 - Talk to `/api/v1` only via `services/`
 - Zustand for session/UI — not every API response
 - Frontend Zod = UX only; backend is authority
-- Roles: `SUPER` | `ADMIN` | `TUTOR` | `STUDENT`
+- Roles: `SUPER` | `ADMIN` | `COORDINATOR` | `TUTOR` | `CLIENT` (`CLIENT` = student)

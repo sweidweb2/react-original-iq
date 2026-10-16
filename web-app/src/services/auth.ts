@@ -6,6 +6,7 @@ export type AuthUser = {
   id: string
   email: string
   role: AuthRole
+  phone?: string | null
   profile: {
     firstName: string | null
     lastName: string | null
@@ -100,6 +101,7 @@ export function getMe() {
 
 export function updateMe(input: {
   name?: string
+  phone?: string | null
   currentPassword?: string
   newPassword?: string
   confirmPassword?: string

@@ -13,6 +13,7 @@ export type User = {
   email: string
   role: UserRole
   status: UserStatus
+  phone: string | null
   profile: UserProfile | null
   createdAt: string
   updatedAt: string
@@ -37,6 +38,7 @@ export type UpdateAccountInput = {
   role?: UserRole
   status?: UserStatus
   passwordHash?: string
+  phone?: string | null
 }
 
 export type UserListFilter = {
@@ -60,6 +62,7 @@ export function toPublicUser(account: AccountRecord): User {
     email: account.email,
     role: account.role,
     status: account.status,
+    phone: account.phone,
     profile: account.profile,
     createdAt: account.createdAt,
     updatedAt: account.updatedAt,

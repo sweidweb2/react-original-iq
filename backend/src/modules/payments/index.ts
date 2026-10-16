@@ -10,6 +10,7 @@ export type PaymentsModule = {
   paymentRoutes: ReturnType<typeof createTaskPaymentsRoutes>
   refundRoutes: ReturnType<typeof createTaskRefundsRoutes>
   repository: ReturnType<typeof createPaymentsRepository>
+  recomputeForTask: (taskId: string) => Promise<string>
 }
 
 export function createPaymentsModule(
@@ -23,5 +24,6 @@ export function createPaymentsModule(
     repository,
     paymentRoutes: createTaskPaymentsRoutes(controller),
     refundRoutes: createTaskRefundsRoutes(controller),
+    recomputeForTask: (taskId) => service.recomputeForTask(taskId),
   }
 }

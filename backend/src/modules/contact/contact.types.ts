@@ -8,6 +8,30 @@ export type ContactMessageInput = {
 export type LeadInput = {
   country: string
   phone: string
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  zip?: string | null
+}
+
+export type UpdateLeadInput = {
+  country?: string
+  phone?: string
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  zip?: string | null
+}
+
+export type UpdateMessageInput = {
+  name?: string
+  email?: string
+  subject?: string | null
+  message?: string
+}
+
+export type UpdateNewsletterInput = {
+  email: string
 }
 
 export type ContactResult = {

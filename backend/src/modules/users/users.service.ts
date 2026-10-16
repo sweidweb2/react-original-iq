@@ -30,16 +30,24 @@ export type UsersService = {
   createUser: (input: CreateUserBody) => Promise<User>
   updateUser: (id: string, input: UpdateUserBody, actor: AuthActor) => Promise<User>
   deactivateUser: (id: string, actor: AuthActor) => Promise<User>
+  deleteUser: (id: string, actor: AuthActor) => Promise<void>
   /** Authenticated self-service profile updates (auth /me). */
   updateSelfProfile: (
     id: string,
-    input: { name?: string; passwordHash?: string },
+    input: { name?: string; passwordHash?: string; phone?: string | null },
   ) => Promise<AccountRecord>
   /** Password reset flow after code verification. */
   updateSelfPassword: (id: string, passwordHash: string) => Promise<AccountRecord | null>
 }
 
-export function createUsersService(repository: UsersRepository): UsersService {
+export type UsersServiceDeps = {
+  assertDeletable?: (userId: string) => Promise<void>
+}
+
+export function createUsersService(
+  repository: UsersRepository,
+  deps: UsersServiceDeps = {},
+): UsersService {
   async function loadOrThrow(id: string): Promise<User> {
     const account = await repository.findById(id)
     if (!account) {
@@ -175,17 +183,50 @@ export function createUsersService(repository: UsersRepository): UsersService {
       return toPublicUser(updated)
     },
 
+    async deleteUser(id, actor) {
+      if (actor.id === id) {
+        throw forbidden('You cannot delete your own account')
+      }
+      const target = await loadOrThrow(id)
+      const adminActor = isAdmin(actor.roles)
+      const coordActor = isOps(actor.roles) && !adminActor
+      if (!adminActor && !coordActor) {
+        throw forbidden('Only admins or coordinators can delete users')
+      }
+      if (coordActor && (target.role === 'admin' || target.role === 'super' || target.role === 'coordinator')) {
+        throw forbidden('Coordinators can only delete tutors or clients')
+      }
+      if (deps.assertDeletable) {
+        await deps.assertDeletable(id)
+      }
+      const deleted = await repository.deleteAccount(id)
+      if (!deleted) {
+        throw notFound('User not found', 'USER_NOT_FOUND')
+      }
+      getLoggingService().recordActivitySafe({
+        userId: actor.id,
+        action: 'users.delete',
+        entity: 'user',
+        entityId: id,
+      })
+    },
+
     async updateSelfProfile(id, input) {
       const account = await repository.findById(id)
       if (!account || account.status !== 'ACTIVE') {
         throw notFound('User not found', 'USER_NOT_FOUND')
       }
-      if (input.name === undefined && input.passwordHash === undefined) {
+      if (
+        input.name === undefined &&
+        input.passwordHash === undefined &&
+        input.phone === undefined
+      ) {
         return account
       }
       const updated = await repository.updateAccount(id, {
         name: input.name,
         passwordHash: input.passwordHash,
+        phone: input.phone,
       })
       if (!updated) {
         throw notFound('User not found', 'USER_NOT_FOUND')

@@ -1,7 +1,13 @@
 import type { AuthActor } from '../../authz/index.js'
-import { isAdmin, isOps, isSuper } from '../../authz/index.js'
+import {
+  assertTaskRelated,
+  isAdmin,
+  isClient,
+  isOps,
+  isSuper,
+  isTutor,
+} from '../../authz/index.js'
 import { conflict, forbidden, notFound, validationError } from '../../errors/app-error.js'
-import { hasAnyRole } from '../../authz/roles.js'
 import { getLoggingService } from '../logging/index.js'
 import type { UsersRepository } from '../users/users.repository.js'
 import type { UsersService } from '../users/users.service.js'
@@ -56,14 +62,6 @@ export type TasksService = {
   deleteSolution: (id: string, solutionId: string, actor: AuthActor) => Promise<void>
 }
 
-function isClient(roles: readonly string[]): boolean {
-  return hasAnyRole(roles, ['client'])
-}
-
-function isTutor(roles: readonly string[]): boolean {
-  return hasAnyRole(roles, ['tutor'])
-}
-
 function scopeForActor(actor: AuthActor): TaskListFilter['scope'] {
   if (isSuper(actor.roles) || isAdmin(actor.roles)) {
     return { kind: 'all' }
@@ -78,14 +76,6 @@ function scopeForActor(actor: AuthActor): TaskListFilter['scope'] {
     return { kind: 'client', clientId: actor.id }
   }
   throw forbidden('Your role cannot access tasks')
-}
-
-function assertTaskRelated(actor: AuthActor, task: Task): void {
-  if (isSuper(actor.roles) || isAdmin(actor.roles)) return
-  if (isOps(actor.roles) && task.coordinatorId === actor.id) return
-  if (isTutor(actor.roles) && task.tutorId === actor.id) return
-  if (isClient(actor.roles) && task.clientId === actor.id) return
-  throw forbidden('You cannot access this task')
 }
 
 function assertOps(actor: AuthActor): void {
@@ -142,10 +132,16 @@ async function pickLeastLoadedCoordinator(
   return bestId
 }
 
+export type TasksServiceDeps = {
+  hasOpenRevision?: (taskId: string) => Promise<boolean>
+  recomputePaymentStatus?: (taskId: string) => Promise<unknown>
+}
+
 export function createTasksService(
   repository: TasksRepository,
   users: UsersService,
   usersRepository: UsersRepository,
+  deps: TasksServiceDeps = {},
 ): TasksService {
   async function loadOrThrow(id: string): Promise<Task> {
     const task = await repository.findById(id)
@@ -289,6 +285,14 @@ export function createTasksService(
         throw validationError('No editable fields provided')
       }
 
+      if (
+        patch.status === 'completed' &&
+        deps.hasOpenRevision &&
+        (await deps.hasOpenRevision(id))
+      ) {
+        throw validationError('Cannot complete task while an open revision exists')
+      }
+
       const updated = await repository.update(id, patch)
       if (!updated) {
         throw notFound('Task not found', 'TASK_NOT_FOUND')
@@ -302,13 +306,17 @@ export function createTasksService(
       if (!canManageTask(actor, task)) {
         throw forbidden('You cannot edit this task')
       }
-      const hasMoney = await repository.hasPayments(id)
-      const updated = await repository.update(id, {
-        price,
-        // Full net-recompute lands with payments module; until then mark unpaid when no money rows.
-        ...(hasMoney ? {} : { paymentStatus: 'unpaid' as const }),
-      })
+      const updated = await repository.update(id, { price })
       if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
+      if (deps.recomputePaymentStatus) {
+        await deps.recomputePaymentStatus(id)
+        const refreshed = await repository.findById(id)
+        return refreshed ?? updated
+      }
+      const hasMoney = await repository.hasPayments(id)
+      if (!hasMoney) {
+        return (await repository.update(id, { paymentStatus: 'unpaid' })) ?? updated
+      }
       return updated
     },
 
@@ -414,6 +422,9 @@ export function createTasksService(
       }
       if (!task.tutorId) {
         throw validationError('Task has no assigned tutor')
+      }
+      if (deps.hasOpenRevision && (await deps.hasOpenRevision(id))) {
+        throw validationError('Cannot complete task while an open revision exists')
       }
       const updated = await repository.update(id, { status: 'completed' })
       if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')

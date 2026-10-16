@@ -4,24 +4,31 @@ import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/i
 import { getSupabaseAdmin } from '../../database/index.js'
 import type {
   ContactListFilter,
+  ContactMessageInput,
   ContactMessageRecord,
+  LeadInput,
   LeadRecord,
   StayUpdatedRecord,
+  UpdateLeadInput,
+  UpdateMessageInput,
+  UpdateNewsletterInput,
 } from './contact.types.js'
-import type { ContactMessageInput, LeadInput } from './contact.types.js'
 
 export type ContactRepository = {
   createMessage: (input: ContactMessageInput) => Promise<void>
   subscribe: (email: string) => Promise<void>
   createLead: (input: LeadInput) => Promise<void>
+  updateLead: (id: string, input: UpdateLeadInput) => Promise<LeadRecord | null>
   listLeads: (filter: ContactListFilter) => Promise<{ items: LeadRecord[]; total: number }>
   deleteLead: (id: string) => Promise<boolean>
   exportLeads: (search?: string) => Promise<LeadRecord[]>
   listNewsletter: (filter: ContactListFilter) => Promise<{ items: StayUpdatedRecord[]; total: number }>
+  updateNewsletter: (id: string, input: UpdateNewsletterInput) => Promise<StayUpdatedRecord | null>
   deleteNewsletter: (id: string) => Promise<boolean>
   exportNewsletter: (search?: string) => Promise<StayUpdatedRecord[]>
   listMessages: (filter: ContactListFilter) => Promise<{ items: ContactMessageRecord[]; total: number }>
   findMessageById: (id: string) => Promise<ContactMessageRecord | null>
+  updateMessage: (id: string, input: UpdateMessageInput) => Promise<ContactMessageRecord | null>
   deleteMessage: (id: string) => Promise<boolean>
   exportMessages: (search?: string) => Promise<ContactMessageRecord[]>
 }
@@ -124,15 +131,32 @@ function createMemoryContactRepository(): ContactRepository {
       const stamp = nowIso()
       memoryLeads.push({
         id: randomUUID(),
-        firstName: null,
-        lastName: null,
+        firstName: input.firstName ?? null,
+        lastName: input.lastName ?? null,
         phone: input.phone,
-        email: null,
+        email: input.email ?? null,
         country: input.country,
-        zip: null,
+        zip: input.zip ?? null,
         createdAt: stamp,
         updatedAt: stamp,
       })
+    },
+    async updateLead(id, input) {
+      const index = memoryLeads.findIndex((row) => row.id === id)
+      if (index === -1) return null
+      const current = memoryLeads[index]!
+      const updated: LeadRecord = {
+        ...current,
+        country: input.country ?? current.country,
+        phone: input.phone ?? current.phone,
+        firstName: input.firstName !== undefined ? input.firstName : current.firstName,
+        lastName: input.lastName !== undefined ? input.lastName : current.lastName,
+        email: input.email !== undefined ? input.email : current.email,
+        zip: input.zip !== undefined ? input.zip : current.zip,
+        updatedAt: nowIso(),
+      }
+      memoryLeads[index] = updated
+      return updated
     },
     async listLeads(filter) {
       return pageOf(memoryLeads, filter, (lead) => matchesLead(lead, filter.search))
@@ -151,6 +175,14 @@ function createMemoryContactRepository(): ContactRepository {
     async listNewsletter(filter) {
       return pageOf(memorySubscribers, filter, (row) => matchesNewsletter(row, filter.search))
     },
+    async updateNewsletter(id, input) {
+      const index = memorySubscribers.findIndex((row) => row.id === id)
+      if (index === -1) return null
+      const current = memorySubscribers[index]!
+      const updated = { ...current, email: input.email, updatedAt: nowIso() }
+      memorySubscribers[index] = updated
+      return updated
+    },
     async deleteNewsletter(id) {
       const index = memorySubscribers.findIndex((row) => row.id === id)
       if (index === -1) return false
@@ -167,6 +199,21 @@ function createMemoryContactRepository(): ContactRepository {
     },
     async findMessageById(id) {
       return memoryMessages.find((row) => row.id === id) ?? null
+    },
+    async updateMessage(id, input) {
+      const index = memoryMessages.findIndex((row) => row.id === id)
+      if (index === -1) return null
+      const current = memoryMessages[index]!
+      const updated: ContactMessageRecord = {
+        ...current,
+        name: input.name ?? current.name,
+        email: input.email ?? current.email,
+        subject: input.subject !== undefined ? input.subject : current.subject,
+        message: input.message ?? current.message,
+        updatedAt: nowIso(),
+      }
+      memoryMessages[index] = updated
+      return updated
     },
     async deleteMessage(id) {
       const index = memoryMessages.findIndex((row) => row.id === id)
@@ -270,8 +317,29 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       const { error } = await client.from('leads').insert({
         country: input.country,
         phone: input.phone,
+        first_name: input.firstName ?? null,
+        last_name: input.lastName ?? null,
+        email: input.email ?? null,
+        zip: input.zip ?? null,
       })
       if (error) throw error
+    },
+    async updateLead(id, input) {
+      const patch: Record<string, unknown> = {}
+      if (input.country !== undefined) patch.country = input.country
+      if (input.phone !== undefined) patch.phone = input.phone
+      if (input.firstName !== undefined) patch.first_name = input.firstName
+      if (input.lastName !== undefined) patch.last_name = input.lastName
+      if (input.email !== undefined) patch.email = input.email
+      if (input.zip !== undefined) patch.zip = input.zip
+      const { data, error } = await client
+        .from('leads')
+        .update(patch)
+        .eq('id', id)
+        .select('*')
+        .maybeSingle()
+      if (error) throw error
+      return data ? toLead(data as LeadRow) : null
     },
     async listLeads(filter) {
       const from = (filter.page - 1) * filter.limit
@@ -330,6 +398,16 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
         total: count ?? 0,
       }
     },
+    async updateNewsletter(id, input) {
+      const { data, error } = await client
+        .from('stay_updated')
+        .update({ email: input.email })
+        .eq('id', id)
+        .select('*')
+        .maybeSingle()
+      if (error) throw error
+      return data ? toNewsletter(data as StayUpdatedRow) : null
+    },
     async deleteNewsletter(id) {
       const { error, count } = await client
         .from('stay_updated')
@@ -371,6 +449,21 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
         .from('contact_messages')
         .select('*')
         .eq('id', id)
+        .maybeSingle()
+      if (error) throw error
+      return data ? toMessage(data as MessageRow) : null
+    },
+    async updateMessage(id, input) {
+      const patch: Record<string, unknown> = {}
+      if (input.name !== undefined) patch.name = input.name
+      if (input.email !== undefined) patch.email = input.email
+      if (input.subject !== undefined) patch.subject = input.subject
+      if (input.message !== undefined) patch.message = input.message
+      const { data, error } = await client
+        .from('contact_messages')
+        .update(patch)
+        .eq('id', id)
+        .select('*')
         .maybeSingle()
       if (error) throw error
       return data ? toMessage(data as MessageRow) : null

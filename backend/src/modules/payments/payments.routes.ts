@@ -9,6 +9,8 @@ import {
   createRefundBodySchema,
   taskPaymentParamsSchema,
   taskPaymentsParamsSchema,
+  taskRefundParamsSchema,
+  updateRefundStatusBodySchema,
 } from './payments.schema.js'
 
 export function createTaskPaymentsRoutes(controller: PaymentsController): Router {
@@ -44,6 +46,16 @@ export function createTaskRefundsRoutes(controller: PaymentsController): Router 
     '/',
     validate({ params: taskPaymentsParamsSchema, body: createRefundBodySchema }),
     controller.createRefund,
+  )
+  router.patch(
+    '/:refundId',
+    validate({ params: taskRefundParamsSchema, body: updateRefundStatusBodySchema }),
+    controller.updateRefundStatus,
+  )
+  router.delete(
+    '/:refundId',
+    validate({ params: taskRefundParamsSchema }),
+    controller.deleteRefund,
   )
 
   return router

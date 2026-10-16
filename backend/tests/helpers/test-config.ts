@@ -9,6 +9,11 @@ export function ensureTestJwtEnv(): void {
   process.env.JWT_REFRESH_SECRET ??= TEST_JWT_REFRESH_SECRET
 }
 
+/**
+ * Build AppConfig for unit/integration tests.
+ * Uses an isolated env object (not process.env) and always clears SUPABASE_*
+ * so repository factories use in-memory stores only.
+ */
 export function loadTestConfig(overrides: Partial<NodeJS.ProcessEnv> = {}): AppConfig {
   ensureTestJwtEnv()
   return loadConfig({
@@ -21,5 +26,8 @@ export function loadTestConfig(overrides: Partial<NodeJS.ProcessEnv> = {}): AppC
     JWT_ACCESS_EXPIRES_IN: '15m',
     JWT_REFRESH_EXPIRES_IN: '7d',
     ...overrides,
+    SUPABASE_URL: undefined,
+    SUPABASE_SERVICE_ROLE_KEY: undefined,
+    SUPABASE_ANON_KEY: undefined,
   })
 }

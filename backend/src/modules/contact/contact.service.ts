@@ -1,7 +1,15 @@
 import { rowsToCsv } from '../_shared/csv.js'
 import { notFound } from '../../errors/app-error.js'
 import type { ContactRepository } from './contact.repository.js'
-import type { ContactMessageBody, LeadBody, ListContactQuery, NewsletterBody } from './contact.schema.js'
+import type {
+  ContactMessageBody,
+  LeadBody,
+  ListContactQuery,
+  NewsletterBody,
+  UpdateLeadBody,
+  UpdateMessageBody,
+  UpdateNewsletterBody,
+} from './contact.schema.js'
 import type {
   ContactListResult,
   ContactMessageRecord,
@@ -14,14 +22,17 @@ export type ContactService = {
   createMessage: (input: ContactMessageBody) => Promise<ContactResult>
   subscribe: (input: NewsletterBody) => Promise<ContactResult>
   createLead: (input: LeadBody) => Promise<ContactResult>
+  updateLead: (id: string, input: UpdateLeadBody) => Promise<LeadRecord>
   listLeads: (query: ListContactQuery) => Promise<ContactListResult<LeadRecord>>
   deleteLead: (id: string) => Promise<void>
   exportLeadsCsv: (search?: string) => Promise<string>
   listNewsletter: (query: ListContactQuery) => Promise<ContactListResult<StayUpdatedRecord>>
+  updateNewsletter: (id: string, input: UpdateNewsletterBody) => Promise<StayUpdatedRecord>
   deleteNewsletter: (id: string) => Promise<void>
   exportNewsletterCsv: (search?: string) => Promise<string>
   listMessages: (query: ListContactQuery) => Promise<ContactListResult<ContactMessageRecord>>
   getMessage: (id: string) => Promise<ContactMessageRecord>
+  updateMessage: (id: string, input: UpdateMessageBody) => Promise<ContactMessageRecord>
   deleteMessage: (id: string) => Promise<void>
   exportMessagesCsv: (search?: string) => Promise<string>
 }
@@ -70,6 +81,11 @@ export function createContactService(repository: ContactRepository): ContactServ
       const page = await repository.listLeads(query)
       return toListResult(query, page)
     },
+    async updateLead(id, input) {
+      const updated = await repository.updateLead(id, input)
+      if (!updated) throw notFound('Lead not found')
+      return updated
+    },
     async deleteLead(id) {
       await deleteOrThrow(await repository.deleteLead(id))
     },
@@ -93,6 +109,11 @@ export function createContactService(repository: ContactRepository): ContactServ
       const page = await repository.listNewsletter(query)
       return toListResult(query, page)
     },
+    async updateNewsletter(id, input) {
+      const updated = await repository.updateNewsletter(id, input)
+      if (!updated) throw notFound('Subscriber not found')
+      return updated
+    },
     async deleteNewsletter(id) {
       await deleteOrThrow(await repository.deleteNewsletter(id))
     },
@@ -113,6 +134,11 @@ export function createContactService(repository: ContactRepository): ContactServ
         throw notFound('Message not found')
       }
       return message
+    },
+    async updateMessage(id, input) {
+      const updated = await repository.updateMessage(id, input)
+      if (!updated) throw notFound('Message not found')
+      return updated
     },
     async deleteMessage(id) {
       await deleteOrThrow(await repository.deleteMessage(id))

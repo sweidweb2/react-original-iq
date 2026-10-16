@@ -96,6 +96,23 @@ export function deleteLead(id: string) {
   return apiRequest<void>(`/contact/leads/${id}`, { method: 'DELETE' })
 }
 
+export function updateLead(
+  id: string,
+  input: {
+    country?: string
+    phone?: string
+    firstName?: string | null
+    lastName?: string | null
+    email?: string | null
+    zip?: string | null
+  },
+) {
+  return apiRequest<LeadRecord>(`/contact/leads/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
 export function exportLeads(search?: string) {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
@@ -111,6 +128,13 @@ export function listNewsletter(query: ContactListQuery) {
 
 export function deleteNewsletterSubscriber(id: string) {
   return apiRequest<void>(`/contact/newsletter/${id}`, { method: 'DELETE' })
+}
+
+export function updateNewsletterSubscriber(id: string, email: string) {
+  return apiRequest<StayUpdatedRecord>(`/contact/newsletter/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ email }),
+  })
 }
 
 export function exportNewsletter(search?: string) {
@@ -132,6 +156,16 @@ export function getContactMessage(id: string) {
 
 export function deleteContactMessage(id: string) {
   return apiRequest<void>(`/contact/messages/${id}`, { method: 'DELETE' })
+}
+
+export function updateContactMessage(
+  id: string,
+  input: { name?: string; email?: string; subject?: string | null; message?: string },
+) {
+  return apiRequest<ContactMessageRecord>(`/contact/messages/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
 }
 
 export function exportContactMessages(search?: string) {

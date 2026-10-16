@@ -20,6 +20,7 @@ export type UsersRepository = {
   findByEmail: (email: string) => Promise<AccountRecord | null>
   createAccount: (input: CreateAccountInput) => Promise<AccountRecord>
   updateAccount: (id: string, input: UpdateAccountInput) => Promise<AccountRecord | null>
+  deleteAccount: (id: string) => Promise<boolean>
   incrementNbDone: (id: string) => Promise<void>
 }
 
@@ -30,11 +31,13 @@ type UserRow = {
   role: UserRole
   is_active: boolean
   name: string
+  phone: string | null
   created_at: string
   updated_at: string
 }
 
-const USER_COLUMNS = 'id, email, password_hash, role, is_active, name, created_at, updated_at'
+const USER_COLUMNS =
+  'id, email, password_hash, role, is_active, name, phone, created_at, updated_at'
 
 function splitName(name: string): {
   firstName: string | null
@@ -102,6 +105,7 @@ function applyUpdate(user: AccountRecord, input: UpdateAccountInput): AccountRec
     role: input.role ?? user.role,
     status: input.status ?? user.status,
     passwordHash: input.passwordHash ?? user.passwordHash,
+    phone: input.phone !== undefined ? input.phone : user.phone,
     profile: name ? splitName(name) : user.profile,
     updatedAt: new Date().toISOString(),
   }
@@ -132,6 +136,7 @@ function toRecord(row: UserRow): AccountRecord {
     passwordHash: row.password_hash,
     role: row.role,
     status: row.is_active ? 'ACTIVE' : 'INACTIVE',
+    phone: row.phone ?? null,
     profile: splitName(row.name),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -173,6 +178,7 @@ function createMemoryUsersRepository(): UsersRepository {
         passwordHash: input.passwordHash,
         role: input.role,
         status: 'ACTIVE',
+        phone: null,
         profile: profileFor(input),
         createdAt: now,
         updatedAt: now,
@@ -188,6 +194,14 @@ function createMemoryUsersRepository(): UsersRepository {
       const updated = applyUpdate(current, input)
       memoryUsersById.set(id, updated)
       return updated
+    },
+
+    async deleteAccount(id) {
+      const current = memoryUsersById.get(id)
+      if (!current) return false
+      memoryUsersById.delete(id)
+      memoryIdsByEmail.delete(current.email)
+      return true
     },
 
     async incrementNbDone(_id) {
@@ -298,11 +312,13 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
         role?: UserRole
         is_active?: boolean
         password_hash?: string
+        phone?: string | null
       } = {}
       if (input.name !== undefined) patch.name = input.name.trim()
       if (input.role !== undefined) patch.role = input.role
       if (input.status !== undefined) patch.is_active = input.status === 'ACTIVE'
       if (input.passwordHash !== undefined) patch.password_hash = input.passwordHash
+      if (input.phone !== undefined) patch.phone = input.phone
 
       const { data, error } = await client
         .from('users')
@@ -313,6 +329,12 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
 
       if (error) throw error
       return data ? toRecord(data as UserRow) : null
+    },
+
+    async deleteAccount(id) {
+      const { error, count } = await client.from('users').delete({ count: 'exact' }).eq('id', id)
+      if (error) throw error
+      return (count ?? 0) > 0
     },
 
     async incrementNbDone(id) {

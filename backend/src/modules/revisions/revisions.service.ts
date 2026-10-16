@@ -1,7 +1,6 @@
 import type { AuthActor } from '../../authz/index.js'
-import { isAdmin, isOps, isSuper } from '../../authz/index.js'
+import { assertTaskRelated, isAdmin, isOps, isSuper, isTutor } from '../../authz/index.js'
 import { forbidden, notFound, validationError } from '../../errors/app-error.js'
-import { hasAnyRole } from '../../authz/roles.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task } from '../tasks/tasks.types.js'
 import type { RevisionsRepository } from './revisions.repository.js'
@@ -26,22 +25,6 @@ export type RevisionsService = {
     actor: AuthActor,
   ) => Promise<RevisionDetail>
   tutorCancelSubmit: (id: string, actor: AuthActor) => Promise<RevisionSession>
-}
-
-function isTutor(roles: readonly string[]): boolean {
-  return hasAnyRole(roles, ['tutor'])
-}
-
-function isClient(roles: readonly string[]): boolean {
-  return hasAnyRole(roles, ['client'])
-}
-
-function assertTaskRelated(actor: AuthActor, task: Task): void {
-  if (isSuper(actor.roles) || isAdmin(actor.roles)) return
-  if (isOps(actor.roles) && task.coordinatorId === actor.id) return
-  if (isTutor(actor.roles) && task.tutorId === actor.id) return
-  if (isClient(actor.roles) && task.clientId === actor.id) return
-  throw forbidden('You cannot access this task')
 }
 
 function canManageRevisions(actor: AuthActor, task: Task): boolean {

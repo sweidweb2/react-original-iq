@@ -33,6 +33,7 @@ export function ProfilePage() {
   const [loadError, setLoadError] = useState<unknown>(null)
   const [values, setValues] = useState<ProfileUpdateValues>({
     name: '',
+    phone: '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -55,6 +56,7 @@ export function ProfilePage() {
         setValues((prev) => ({
           ...prev,
           name: displayNameFromStore(fresh),
+          phone: fresh?.phone ?? '',
           currentPassword: '',
           newPassword: '',
           confirmPassword: '',
@@ -82,7 +84,10 @@ export function ProfilePage() {
     setFieldErrors({})
     setIsSaving(true)
     try {
-      const payload: Parameters<typeof updateProfile>[0] = { name: parsed.data.name }
+      const payload: Parameters<typeof updateProfile>[0] = {
+        name: parsed.data.name,
+        phone: parsed.data.phone || null,
+      }
       if (parsed.data.newPassword) {
         payload.currentPassword = parsed.data.currentPassword
         payload.newPassword = parsed.data.newPassword
@@ -151,6 +156,15 @@ export function ProfilePage() {
               <span className="font-medium">Email</span>
               <Input defaultValue={user?.email ?? ''} type="email" readOnly disabled />
             </label>
+            <Field>
+              <FieldLabel htmlFor="phone">Phone</FieldLabel>
+              <Input
+                id="phone"
+                value={values.phone}
+                placeholder="Optional"
+                onChange={(e) => setValues((prev) => ({ ...prev, phone: e.target.value }))}
+              />
+            </Field>
             <label className="grid gap-1.5 text-sm">
               <span className="font-medium">Role</span>
               <Input defaultValue={user?.role ?? ''} readOnly disabled />

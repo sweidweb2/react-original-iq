@@ -8,6 +8,7 @@ export type ManagedUser = {
   email: string
   role: AuthRole
   status: UserStatus
+  phone?: string | null
   profile: {
     firstName: string | null
     lastName: string | null
@@ -96,4 +97,8 @@ export function deactivateUser(id: string) {
   return apiRequest<ManagedUser>(`/users/${id}/deactivate`, {
     method: 'POST',
   })
+}
+
+export function deleteUser(id: string) {
+  return apiRequest<void>(`/users/${id}`, { method: 'DELETE' })
 }

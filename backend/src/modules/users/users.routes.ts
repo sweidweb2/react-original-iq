@@ -42,6 +42,12 @@ export function createUsersRoutes(controller: UsersController): Router {
     validate({ params: userIdParamsSchema }),
     controller.deactivate,
   )
+  router.delete(
+    '/:id',
+    authorize('admin', 'coordinator'),
+    validate({ params: userIdParamsSchema }),
+    controller.remove,
+  )
 
   return router
 }

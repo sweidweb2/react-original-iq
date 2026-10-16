@@ -1,18 +1,11 @@
 import type { NextFunction, Request, Response } from 'express'
 
-import { unauthorized } from '../../errors/app-error.js'
+import { requireActor } from '../../middleware/respond.js'
 import type { ExportResourceParams } from './exports.schema.js'
 import type { ExportsService } from './exports.service.js'
 
 export type ExportsController = {
   exportResource: (req: Request, res: Response, next: NextFunction) => Promise<void>
-}
-
-function requireActor(req: Request) {
-  if (!req.user) {
-    throw unauthorized()
-  }
-  return { id: req.user.id, roles: req.user.roles }
 }
 
 export function createExportsController(service: ExportsService): ExportsController {

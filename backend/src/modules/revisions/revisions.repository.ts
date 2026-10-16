@@ -11,10 +11,13 @@ import type {
   UpdateRevisionInput,
 } from './revisions.types.js'
 
+const OPEN_REVISION_STATUSES: RevisionStatus[] = ['in-revision', 'waiting_coordinator_approval']
+
 export type RevisionsRepository = {
   create: (input: CreateRevisionInput) => Promise<RevisionSession>
   findById: (id: string) => Promise<RevisionDetail | null>
   listByTaskId: (taskId: string) => Promise<RevisionSession[]>
+  hasOpenForTask: (taskId: string) => Promise<boolean>
   update: (id: string, input: UpdateRevisionInput) => Promise<RevisionSession | null>
   setStatus: (
     id: string,
@@ -126,6 +129,11 @@ function createMemoryRevisionsRepository(): RevisionsRepository {
         .filter((row) => row.taskId === taskId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     },
+    async hasOpenForTask(taskId) {
+      return memorySessions.some(
+        (row) => row.taskId === taskId && OPEN_REVISION_STATUSES.includes(row.status),
+      )
+    },
     async update(id, input) {
       const index = memorySessions.findIndex((row) => row.id === id)
       if (index === -1) return null
@@ -218,6 +226,15 @@ function createSupabaseRevisionsRepository(config: AppConfig): RevisionsReposito
         .order('created_at', { ascending: false })
       if (error) throw error
       return (data as RevisionRow[]).map(fromRow)
+    },
+    async hasOpenForTask(taskId) {
+      const { count, error } = await client
+        .from('revision_sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('task_id', taskId)
+        .in('status', OPEN_REVISION_STATUSES)
+      if (error) throw error
+      return (count ?? 0) > 0
     },
     async update(id, input) {
       const patch: Record<string, unknown> = {}

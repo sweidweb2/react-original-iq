@@ -48,6 +48,7 @@ function makeAccount(overrides: Partial<AccountRecord> = {}): AccountRecord {
     passwordHash: 'hash',
     role: 'client',
     status: 'ACTIVE',
+    phone: null,
     profile: { firstName: 'C', lastName: 'Lient', displayName: 'Client' },
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -201,6 +202,33 @@ describe('tasks.service', () => {
     })
   })
 
+  it('blocks approve when an open revision exists', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(
+      makeTask({ status: 'waiting_coordinator_approval', tutorId: 'tutor-1' }),
+    )
+    const hasOpenRevision = vi.fn().mockResolvedValue(true)
+    const service = createTasksService(repository, users, usersRepository, { hasOpenRevision })
+
+    await expect(service.approveTask(makeTask().id, coordinator)).rejects.toMatchObject({
+      status: 400,
+    })
+    expect(hasOpenRevision).toHaveBeenCalled()
+    expect(repository.update).not.toHaveBeenCalled()
+  })
+
+  it('blocks update to completed when an open revision exists', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(
+      makeTask({ status: 'in-progress', tutorId: 'tutor-1' }),
+    )
+    const hasOpenRevision = vi.fn().mockResolvedValue(true)
+    const service = createTasksService(repository, users, usersRepository, { hasOpenRevision })
+
+    await expect(
+      service.updateTask(makeTask().id, { status: 'completed' }, coordinator),
+    ).rejects.toMatchObject({ status: 400 })
+    expect(repository.update).not.toHaveBeenCalled()
+  })
+
   it('rejects client approve', async () => {
     vi.mocked(repository.findById).mockResolvedValue(
       makeTask({ status: 'waiting_coordinator_approval', tutorId: 'tutor-1' }),
@@ -255,10 +283,8 @@ describe('tasks.service', () => {
     const service = createTasksService(repository, users, usersRepository)
 
     await service.updatePrice(makeTask().id, 50, coordinator)
-    expect(repository.update).toHaveBeenCalledWith(makeTask().id, {
-      price: 50,
-      paymentStatus: 'unpaid',
-    })
+    expect(repository.update).toHaveBeenCalledWith(makeTask().id, { price: 50 })
+    expect(repository.update).toHaveBeenCalledWith(makeTask().id, { paymentStatus: 'unpaid' })
   })
 
   it('hides solutions from client when allow_view is false', async () => {

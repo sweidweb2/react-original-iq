@@ -1,9 +1,16 @@
 import { forbidden } from '../errors/app-error.js'
-import { hasAnyRole, isAdmin } from './roles.js'
+import { hasAnyRole, isAdmin, isClient, isSuper, isTutor } from './roles.js'
 
 export type AuthActor = {
   id: string
   roles: readonly string[]
+}
+
+/** Task party fields used for horizontal access checks. */
+export type TaskParties = {
+  clientId: string
+  tutorId: string | null
+  coordinatorId: string | null
 }
 
 /** Admin or coordinator — ops user management. */
@@ -11,6 +18,22 @@ const OPS_ROLES = ['admin', 'coordinator'] as const
 
 export function isOps(roles: readonly string[] | undefined): boolean {
   return hasAnyRole(roles, OPS_ROLES)
+}
+
+/**
+ * Actor may access a task if they are super/admin, or a related party
+ * (assigned coordinator, tutor, or client).
+ */
+export function assertTaskRelated(
+  actor: AuthActor,
+  task: TaskParties,
+  message = 'You cannot access this task',
+): void {
+  if (isSuper(actor.roles) || isAdmin(actor.roles)) return
+  if (isOps(actor.roles) && task.coordinatorId === actor.id) return
+  if (isTutor(actor.roles) && task.tutorId === actor.id) return
+  if (isClient(actor.roles) && task.clientId === actor.id) return
+  throw forbidden(message)
 }
 
 /**

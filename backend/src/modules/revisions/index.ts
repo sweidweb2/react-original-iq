@@ -12,6 +12,7 @@ import { createRevisionsService } from './revisions.service.js'
 export type RevisionsModule = {
   taskRoutes: ReturnType<typeof createTaskRevisionsRoutes>
   detailRoutes: ReturnType<typeof createRevisionDetailRoutes>
+  hasOpenForTask: (taskId: string) => Promise<boolean>
 }
 
 export function createRevisionsModule(
@@ -24,5 +25,6 @@ export function createRevisionsModule(
   return {
     taskRoutes: createTaskRevisionsRoutes(controller),
     detailRoutes: createRevisionDetailRoutes(controller),
+    hasOpenForTask: (taskId) => repository.hasOpenForTask(taskId),
   }
 }

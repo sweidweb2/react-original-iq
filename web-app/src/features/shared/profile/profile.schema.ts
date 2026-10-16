@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const profileUpdateSchema = z
   .object({
     name: z.string().trim().min(1, 'Display name is required').max(120),
+    phone: z.string().trim().max(40),
     currentPassword: z.string().max(128),
     newPassword: z
       .string()

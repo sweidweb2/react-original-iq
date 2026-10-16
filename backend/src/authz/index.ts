@@ -11,15 +11,21 @@ export {
   assertOwnerOrAdmin,
   assertSelfOrAdmin,
   assertSelfOrOps,
+  assertTaskRelated,
   isOps,
   type AuthActor,
+  type TaskParties,
 } from './ownership.js'
 export {
   ADMIN_ROLES,
+  CLIENT_ROLES,
   hasAnyRole,
   isAdmin,
+  isClient,
   isStaff,
   isSuper,
+  isTutor,
   STAFF_ROLES,
   SUPER_ROLES,
+  TUTOR_ROLES,
 } from './roles.js'

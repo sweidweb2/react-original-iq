@@ -1,7 +1,6 @@
 import type { AuthActor } from '../../authz/index.js'
-import { isAdmin, isOps, isSuper } from '../../authz/index.js'
+import { assertTaskRelated, isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
 import { forbidden, notFound, validationError } from '../../errors/app-error.js'
-import { hasAnyRole } from '../../authz/roles.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task, TaskPaymentStatus } from '../tasks/tasks.types.js'
 import type { PaymentsRepository } from './payments.repository.js'
@@ -28,18 +27,14 @@ export type PaymentsService = {
   checkout: (taskId: string, body: CheckoutPaymentBody, actor: AuthActor) => Promise<PaymentRecord>
   deletePayment: (taskId: string, paymentId: string, actor: AuthActor) => Promise<void>
   createRefund: (taskId: string, body: CreateRefundBody, actor: AuthActor) => Promise<RefundRecord>
-}
-
-function isClient(roles: readonly string[]): boolean {
-  return hasAnyRole(roles, ['client'])
-}
-
-function assertTaskRelated(actor: AuthActor, task: Task): void {
-  if (isSuper(actor.roles) || isAdmin(actor.roles)) return
-  if (isOps(actor.roles) && task.coordinatorId === actor.id) return
-  if (hasAnyRole(actor.roles, ['tutor']) && task.tutorId === actor.id) return
-  if (isClient(actor.roles) && task.clientId === actor.id) return
-  throw forbidden('You cannot access this task')
+  updateRefundStatus: (
+    taskId: string,
+    refundId: string,
+    status: 'paid' | 'canceled',
+    actor: AuthActor,
+  ) => Promise<RefundRecord>
+  deleteRefund: (taskId: string, refundId: string, actor: AuthActor) => Promise<void>
+  recomputeForTask: (taskId: string) => Promise<TaskPaymentStatus>
 }
 
 function canManagePayments(actor: AuthActor, task: Task): boolean {
@@ -47,19 +42,25 @@ function canManagePayments(actor: AuthActor, task: Task): boolean {
   return isOps(actor.roles) && task.coordinatorId === actor.id
 }
 
-async function recomputeTaskPaymentStatus(
+/** Doc 06: net = paid payments − paid refunds. */
+export async function recomputeTaskPaymentStatus(
   tasksRepository: TasksRepository,
   paymentsRepository: PaymentsRepository,
   task: Task,
 ): Promise<TaskPaymentStatus> {
-  const paidTotal = await paymentsRepository.sumPaidByTask(task.id)
-  const pendingRefunds = (await paymentsRepository.listRefundsByTask(task.id)).some(
-    (row) => row.status === 'pending',
-  )
+  const [paidTotal, refundedTotal, refunds] = await Promise.all([
+    paymentsRepository.sumPaidByTask(task.id),
+    paymentsRepository.sumRefundedByTask(task.id),
+    paymentsRepository.listRefundsByTask(task.id),
+  ])
+  const net = paidTotal - refundedTotal
+  const hasPendingRefund = refunds.some((row) => row.status === 'pending')
   let paymentStatus: TaskPaymentStatus = 'unpaid'
-  if (pendingRefunds) {
+  if (hasPendingRefund || (task.price > 0 && net > task.price)) {
     paymentStatus = 'refund_pending'
-  } else if (paidTotal >= task.price && task.price > 0) {
+  } else if (task.price > 0 && net === task.price) {
+    paymentStatus = 'paid'
+  } else if (task.price === 0 && net === 0) {
     paymentStatus = 'paid'
   }
   await tasksRepository.update(task.id, { paymentStatus })
@@ -175,6 +176,50 @@ export function createPaymentsService(
       })
       await recomputeTaskPaymentStatus(tasksRepository, repository, task)
       return refund
+    },
+
+    async updateRefundStatus(taskId, refundId, status, actor) {
+      const task = await loadTask(taskId)
+      if (!canManagePayments(actor, task)) {
+        throw forbidden('Only coordinators or admins can update refunds')
+      }
+      const existing = await repository.findRefundById(refundId)
+      if (!existing || existing.taskId !== taskId) {
+        throw notFound('Refund not found', 'REFUND_NOT_FOUND')
+      }
+      if (existing.status !== 'pending') {
+        throw validationError('Only pending refunds can change status')
+      }
+      const updated = await repository.updateRefundStatus(refundId, status)
+      if (!updated) {
+        throw notFound('Refund not found', 'REFUND_NOT_FOUND')
+      }
+      await recomputeTaskPaymentStatus(tasksRepository, repository, task)
+      return updated
+    },
+
+    async deleteRefund(taskId, refundId, actor) {
+      const task = await loadTask(taskId)
+      if (!canManagePayments(actor, task)) {
+        throw forbidden('Only coordinators or admins can delete refunds')
+      }
+      const existing = await repository.findRefundById(refundId)
+      if (!existing || existing.taskId !== taskId) {
+        throw notFound('Refund not found', 'REFUND_NOT_FOUND')
+      }
+      if (existing.status !== 'pending') {
+        throw validationError('Only pending refunds can be deleted')
+      }
+      const deleted = await repository.deleteRefund(refundId)
+      if (!deleted) {
+        throw notFound('Refund not found', 'REFUND_NOT_FOUND')
+      }
+      await recomputeTaskPaymentStatus(tasksRepository, repository, task)
+    },
+
+    async recomputeForTask(taskId) {
+      const task = await loadTask(taskId)
+      return recomputeTaskPaymentStatus(tasksRepository, repository, task)
     },
   }
 }

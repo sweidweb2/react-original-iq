@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect, useState } from 'react'
-import { Download, Trash2 } from 'lucide-react'
+import { type FormEvent, useState } from 'react'
+import { Download, Pencil, Plus, Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -7,158 +7,102 @@ import { PageHeader } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
 import { toast } from '@/components/ui/toast'
-import { Tooltip } from '@/components/ui/tooltip'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
   deleteNewsletterSubscriber,
   exportNewsletter,
   listNewsletter,
-  type ContactListMeta,
+  subscribeNewsletter,
   type StayUpdatedRecord,
+  updateNewsletterSubscriber,
 } from '@/services/contact'
 import { toastApiError } from '@/services/toast'
 
-const PAGE_SIZE = 10
-
-function formatDate(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
-}
-
-function IconAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip content={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-muted"
-      >
-        {children}
-      </button>
-    </Tooltip>
-  )
-}
+import { AdminListPagination } from '../_shared/AdminListPagination'
+import { formatAdminDate, IconAction } from '../_shared/adminListUtils'
+import { usePagedAdminList } from '../_shared/usePagedAdminList'
 
 export function StayUpdatedPage() {
   useDocumentTitle('Stay updated')
 
-  const [page, setPage] = useState(1)
-  const [searchInput, setSearchInput] = useState('')
-  const [search, setSearch] = useState('')
-  const [reloadKey, setReloadKey] = useState(0)
-  const [rows, setRows] = useState<StayUpdatedRecord[]>([])
-  const [meta, setMeta] = useState<ContactListMeta | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<unknown>(null)
-  const [pendingDelete, setPendingDelete] = useState<StayUpdatedRecord | null>(null)
-  const [isActing, setIsActing] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
+  const list = usePagedAdminList<StayUpdatedRecord>({
+    fetchPage: listNewsletter,
+    deleteRow: deleteNewsletterSubscriber,
+    exportRows: exportNewsletter,
+    deleteSuccessMessage: 'Subscriber removed',
+    deleteErrorMessage: 'Could not remove subscriber',
+    exportErrorMessage: 'Could not export subscribers',
+  })
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300)
-    return () => window.clearTimeout(timer)
-  }, [searchInput])
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<StayUpdatedRecord | null>(null)
+  const [email, setEmail] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    setPage(1)
-  }, [search])
-
-  useEffect(() => {
-    let cancelled = false
-    setIsLoading(true)
-    setError(null)
-
-    listNewsletter({ page, limit: PAGE_SIZE, search: search || undefined })
-      .then((result) => {
-        if (cancelled) return
-        const totalPages = Math.max(1, Math.ceil(result.meta.total / result.meta.limit))
-        if (page > totalPages) {
-          setPage(totalPages)
-          return
-        }
-        setRows(result.data)
-        setMeta(result.meta)
-        setIsLoading(false)
-      })
-      .catch((loadError: unknown) => {
-        if (cancelled) return
-        setError(loadError)
-        setIsLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [page, search, reloadKey])
-
-  function refresh() {
-    setReloadKey((value) => value + 1)
+  function openCreate() {
+    setEditing(null)
+    setEmail('')
+    setFormOpen(true)
   }
 
-  async function confirmDelete() {
-    if (!pendingDelete) return
-    setIsActing(true)
+  function openEdit(row: StayUpdatedRecord) {
+    setEditing(row)
+    setEmail(row.email)
+    setFormOpen(true)
+  }
+
+  async function onSave(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
     try {
-      await deleteNewsletterSubscriber(pendingDelete.id)
-      toast.success('Subscriber removed')
-      setPendingDelete(null)
-      refresh()
-    } catch (actionError) {
-      toastApiError(actionError, 'Could not remove subscriber')
+      if (editing) {
+        await updateNewsletterSubscriber(editing.id, email.trim())
+        toast.success('Subscriber updated')
+      } else {
+        await subscribeNewsletter(email.trim())
+        toast.success('Subscriber added')
+      }
+      setFormOpen(false)
+      list.refresh()
+    } catch (err) {
+      toastApiError(err, 'Could not save subscriber')
     } finally {
-      setIsActing(false)
+      setSaving(false)
     }
   }
-
-  async function handleExport() {
-    setIsExporting(true)
-    try {
-      await exportNewsletter(search || undefined)
-      toast.success('Export started')
-    } catch (exportError) {
-      toastApiError(exportError, 'Could not export subscribers')
-    } finally {
-      setIsExporting(false)
-    }
-  }
-
-  const totalPages = Math.max(1, Math.ceil((meta?.total ?? 0) / PAGE_SIZE))
-  const rangeStart = meta && meta.total > 0 ? (meta.page - 1) * meta.limit + 1 : 0
-  const rangeEnd = meta ? Math.min(meta.page * meta.limit, meta.total) : 0
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="Stay updated"
-        description="Newsletter sign-ups from the public site."
+        description="Newsletter sign-ups — create, edit, remove, export."
         actions={
-          <Button type="button" variant="outline" size="sm" disabled={isExporting} onClick={handleExport}>
-            <Download className="size-4" />
-            Export CSV
-          </Button>
+          <>
+            <Button type="button" size="sm" onClick={openCreate}>
+              <Plus className="size-4" />
+              Add email
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={list.isExporting}
+              onClick={list.handleExport}
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Button>
+          </>
         }
       />
 
-      <button type="button" className="rounded-lg border border-border bg-card p-4 text-left shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
         <p className="text-sm text-muted-foreground">Total subscribers</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">{meta?.total ?? 0}</p>
-      </button>
+        <p className="mt-1 text-2xl font-semibold tracking-tight">{list.meta?.total ?? 0}</p>
+      </div>
 
       <Card>
         <CardContent className="flex flex-col gap-4">
@@ -166,16 +110,16 @@ export function StayUpdatedPage() {
             <FieldLabel htmlFor="newsletter-search">Search</FieldLabel>
             <SearchField
               id="newsletter-search"
-              value={searchInput}
-              onValueChange={setSearchInput}
+              value={list.searchInput}
+              onValueChange={list.setSearchInput}
               placeholder="Email address…"
               label="Search subscribers"
               className="max-w-md"
             />
           </Field>
 
-          <AsyncState isLoading={isLoading} error={error} onRetry={refresh}>
-            {rows.length === 0 ? (
+          <AsyncState isLoading={list.isLoading} error={list.error} onRetry={list.refresh}>
+            {list.rows.length === 0 ? (
               <EmptyState
                 title="No subscribers yet"
                 description="Stay-updated signups will appear here."
@@ -192,13 +136,21 @@ export function StayUpdatedPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((row) => (
+                      {list.rows.map((row) => (
                         <tr key={row.id} className="border-b border-border last:border-0">
                           <td className="px-3 py-2">{row.email}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{formatDate(row.createdAt)}</td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {formatAdminDate(row.createdAt)}
+                          </td>
                           <td className="px-3 py-2">
-                            <div className="flex justify-end">
-                              <IconAction label="Remove subscriber" onClick={() => setPendingDelete(row)}>
+                            <div className="flex justify-end gap-1">
+                              <IconAction label="Edit subscriber" onClick={() => openEdit(row)}>
+                                <Pencil className="size-4" />
+                              </IconAction>
+                              <IconAction
+                                label="Remove subscriber"
+                                onClick={() => list.setPendingDelete(row)}
+                              >
                                 <Trash2 className="size-4" />
                               </IconAction>
                             </div>
@@ -209,36 +161,14 @@ export function StayUpdatedPage() {
                   </table>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    {meta && meta.total > 0
-                      ? `Showing ${rangeStart}–${rangeEnd} of ${meta.total}`
-                      : 'No results'}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={page <= 1}
-                      onClick={() => setPage((value) => Math.max(1, value - 1))}
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      Page {meta?.page ?? page} of {totalPages}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= totalPages}
-                      onClick={() => setPage((value) => value + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
+                <AdminListPagination
+                  page={list.page}
+                  meta={list.meta}
+                  totalPages={list.totalPages}
+                  rangeStart={list.rangeStart}
+                  rangeEnd={list.rangeEnd}
+                  onPageChange={list.setPage}
+                />
               </>
             )}
           </AsyncState>
@@ -246,22 +176,56 @@ export function StayUpdatedPage() {
       </Card>
 
       <Dialog
-        open={pendingDelete !== null}
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        title={editing ? 'Edit subscriber' : 'Add subscriber'}
+        description="Admin write for stay-updated emails."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" form="newsletter-form" disabled={saving}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <form id="newsletter-form" onSubmit={onSave} className="grid gap-3">
+          <Field>
+            <FieldLabel htmlFor="newsletter-email">Email</FieldLabel>
+            <Input
+              id="newsletter-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </Field>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={list.pendingDelete !== null}
         onClose={() => {
-          if (!isActing) setPendingDelete(null)
+          if (!list.isActing) list.setPendingDelete(null)
         }}
         title="Remove subscriber"
         description={
-          pendingDelete
-            ? `Remove ${pendingDelete.email} from the stay-updated list? This cannot be undone.`
+          list.pendingDelete
+            ? `Remove ${list.pendingDelete.email} from the stay-updated list? This cannot be undone.`
             : undefined
         }
         footer={
           <>
-            <Button variant="outline" onClick={() => setPendingDelete(null)} disabled={isActing}>
+            <Button
+              variant="outline"
+              onClick={() => list.setPendingDelete(null)}
+              disabled={list.isActing}
+            >
               Cancel
             </Button>
-            <Button variant="danger" onClick={confirmDelete} disabled={isActing}>
+            <Button variant="danger" onClick={list.confirmDelete} disabled={list.isActing}>
               Remove
             </Button>
           </>

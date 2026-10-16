@@ -23,6 +23,7 @@ type AuthState = {
   refreshProfile: () => Promise<void>
   updateProfile: (input: {
     name?: string
+    phone?: string | null
     currentPassword?: string
     newPassword?: string
     confirmPassword?: string

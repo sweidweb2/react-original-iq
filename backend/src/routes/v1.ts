@@ -2,6 +2,7 @@ import { Router } from 'express'
 
 import type { AppConfig } from '../config/index.js'
 import { loadConfig } from '../config/index.js'
+import { conflict } from '../errors/app-error.js'
 import { createAuthModule } from '../modules/auth/index.js'
 import { createContactModule } from '../modules/contact/index.js'
 import { createExportsModule } from '../modules/exports/index.js'
@@ -15,6 +16,7 @@ import { createPaymentsModule } from '../modules/payments/index.js'
 import type { PaymentsRepository } from '../modules/payments/payments.repository.js'
 import { createRbacModule } from '../modules/rbac/index.js'
 import { createRevisionsModule } from '../modules/revisions/index.js'
+import { createSpecializationsModule } from '../modules/specializations/index.js'
 import { createTasksModule } from '../modules/tasks/index.js'
 import { createTasksRepository } from '../modules/tasks/tasks.repository.js'
 import { createUsersModule } from '../modules/users/index.js'
@@ -34,7 +36,6 @@ export function createV1Router(deps: V1Deps = {}): Router {
   const healthController = createHealthController(healthService)
 
   const usersRepository = createUsersRepository(config)
-  const users = createUsersService(usersRepository)
 
   const paymentsRepositoryRef: { current?: PaymentsRepository } = {}
   const tasksRepository = createTasksRepository(config, {
@@ -48,12 +49,28 @@ export function createV1Router(deps: V1Deps = {}): Router {
   paymentsRepositoryRef.current = paymentsModule.repository
   const revisionsModule = createRevisionsModule(config, tasksRepository)
 
+  const users = createUsersService(usersRepository, {
+    assertDeletable: async (userId) => {
+      const active = await tasksRepository.countActiveInvolvingUser(userId)
+      if (active > 0) {
+        throw conflict('User still has active tasks and cannot be deleted')
+      }
+      const clientTaskIds = await tasksRepository.listTaskIdsForClient(userId)
+      for (const taskId of clientTaskIds) {
+        if (await tasksRepository.hasPayments(taskId)) {
+          throw conflict('User has tasks with payments or refunds and cannot be deleted')
+        }
+      }
+    },
+  })
+
   router.use('/health', createHealthRoutes(healthController))
   router.use('/contact', createContactModule(config))
   router.use('/feedback', createFeedbackModule(config))
   router.use('/auth', createAuthModule(config, users))
   router.use(createLoggingModule())
   router.use('/users', createUsersModule(config, users))
+  router.use('/specializations', createSpecializationsModule(config, users))
   router.use(
     '/tasks',
     createTasksModule(config, users, {

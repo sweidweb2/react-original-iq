@@ -25,7 +25,14 @@ export function createTasksModule(
   }
   const usersRepository = createUsersRepository(config)
   const repository = deps.tasksRepository ?? createTasksRepository(config)
-  const service = createTasksService(repository, users, usersRepository)
+  const service = createTasksService(repository, users, usersRepository, {
+    hasOpenRevision: deps.revisionsModule
+      ? (taskId) => deps.revisionsModule!.hasOpenForTask(taskId)
+      : undefined,
+    recomputePaymentStatus: deps.paymentsModule
+      ? (taskId) => deps.paymentsModule!.recomputeForTask(taskId)
+      : undefined,
+  })
   const controller = createTasksController(service)
   return createTasksRoutes(controller, {
     revisions: deps.revisionsModule?.taskRoutes,
