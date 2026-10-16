@@ -4,6 +4,7 @@ import { homePathForRole } from '@/lib/homePath'
 
 describe('homePathForRole', () => {
   it('maps each role to its portal', () => {
+    expect(homePathForRole('super')).toBe('/super')
     expect(homePathForRole('admin')).toBe('/admin')
     expect(homePathForRole('coordinator')).toBe('/coordinator')
     expect(homePathForRole('tutor')).toBe('/tutor')

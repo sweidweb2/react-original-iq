@@ -1,6 +1,6 @@
 export type UserStatus = 'ACTIVE' | 'INACTIVE'
 
-export type UserRole = 'admin' | 'coordinator' | 'tutor' | 'client'
+export type UserRole = 'super' | 'admin' | 'coordinator' | 'tutor' | 'client'
 
 export type UserProfile = {
   firstName: string | null
@@ -30,6 +30,28 @@ export type CreateAccountInput = {
   firstName?: string
   lastName?: string
   name?: string
+}
+
+export type UpdateAccountInput = {
+  name?: string
+  role?: UserRole
+  status?: UserStatus
+  passwordHash?: string
+}
+
+export type UserListFilter = {
+  page: number
+  limit: number
+  search?: string
+  role?: UserRole
+  status?: UserStatus
+}
+
+export type UserStats = {
+  total: number
+  active: number
+  inactive: number
+  byRole: Record<UserRole, number>
 }
 
 export function toPublicUser(account: AccountRecord): User {

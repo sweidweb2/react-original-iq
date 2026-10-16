@@ -51,6 +51,7 @@ describe('logging.service', () => {
       createActivity: vi.fn(),
       createError: vi.fn(),
       listActivity: vi.fn(),
+      countActivityStats: vi.fn(),
       listErrors: vi.fn(),
     }
   })
@@ -104,7 +105,7 @@ describe('logging.service', () => {
 
     const page = await service.listActivity({ page: 2, limit: 10 })
 
-    expect(repository.listActivity).toHaveBeenCalledWith(2, 10)
+    expect(repository.listActivity).toHaveBeenCalledWith({ page: 2, limit: 10 })
     expect(page).toEqual({
       data: [
         {

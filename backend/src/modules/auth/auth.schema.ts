@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 /** Domain roles — public register defaults to `client`. */
-export const roleSchema = z.enum(['admin', 'coordinator', 'tutor', 'client'])
+export const roleSchema = z.enum(['super', 'admin', 'coordinator', 'tutor', 'client'])
 
 export type RoleName = z.infer<typeof roleSchema>
 

@@ -2,23 +2,35 @@ import { z } from 'zod'
 
 import { paginationQuerySchema } from '../_shared/pagination.schema.js'
 
+const roleSchema = z.enum(['super', 'admin', 'coordinator', 'tutor', 'client'])
+const statusSchema = z.enum(['ACTIVE', 'INACTIVE'])
+
 export const userIdParamsSchema = z.object({
   id: z.string().trim().min(1),
 })
 
-export const listUsersQuerySchema = paginationQuerySchema
+export const listUsersQuerySchema = paginationQuerySchema.extend({
+  search: z.string().trim().max(120).optional(),
+  role: roleSchema.optional(),
+  status: statusSchema.optional(),
+})
 
 export const createUserBodySchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1).max(120),
-  roles: z.array(z.string().min(1)).default([]),
+  email: z
+    .string()
+    .email()
+    .transform((value) => value.trim().toLowerCase()),
+  name: z.string().trim().min(1).max(120),
+  password: z.string().min(8).max(128),
+  role: roleSchema,
 })
 
 export const updateUserBodySchema = z
   .object({
-    name: z.string().min(1).max(120).optional(),
-    roles: z.array(z.string().min(1)).optional(),
-    status: z.enum(['active', 'inactive']).optional(),
+    name: z.string().trim().min(1).max(120).optional(),
+    role: roleSchema.optional(),
+    status: statusSchema.optional(),
+    password: z.string().min(8).max(128).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field is required',

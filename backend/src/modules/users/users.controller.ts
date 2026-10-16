@@ -1,10 +1,12 @@
 import type { NextFunction, Request, Response } from 'express'
 
 import { unauthorized } from '../../errors/app-error.js'
+import type { ListUsersQuery } from './users.schema.js'
 import type { UsersService } from './users.service.js'
 
 export type UsersController = {
   list: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  stats: (req: Request, res: Response, next: NextFunction) => Promise<void>
   getById: (req: Request, res: Response, next: NextFunction) => Promise<void>
   create: (req: Request, res: Response, next: NextFunction) => Promise<void>
   update: (req: Request, res: Response, next: NextFunction) => Promise<void>
@@ -20,10 +22,18 @@ function requireActor(req: Request) {
 
 export function createUsersController(service: UsersService): UsersController {
   return {
-    async list(_req, res, next) {
+    async list(req, res, next) {
       try {
-        const data = await service.listUsers()
-        res.status(200).json({ data })
+        const result = await service.listUsers(req.query as unknown as ListUsersQuery)
+        res.status(200).json(result)
+      } catch (error) {
+        next(error)
+      }
+    },
+    async stats(_req, res, next) {
+      try {
+        const stats = await service.getStats()
+        res.status(200).json(stats)
       } catch (error) {
         next(error)
       }

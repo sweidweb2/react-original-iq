@@ -23,6 +23,7 @@ export function createUsersRoutes(controller: UsersController): Router {
     validate({ query: listUsersQuerySchema }),
     controller.list,
   )
+  router.get('/stats', authorize(...ADMIN_ROLES), controller.stats)
   router.get('/:id', validate({ params: userIdParamsSchema }), controller.getById)
   router.post(
     '/',

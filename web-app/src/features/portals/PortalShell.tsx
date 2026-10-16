@@ -22,6 +22,7 @@ export type PortalNavItem = {
 type PortalShellProps = {
   title: string
   nav: PortalNavItem[]
+  profilePath: string
   children?: ReactNode
 }
 
@@ -43,7 +44,13 @@ function userInitials(user: AuthUser | null): string {
   return letters.slice(0, 2).join('').toUpperCase() || '?'
 }
 
-function AccountMenu({ onLogout }: { onLogout: () => void }) {
+function AccountMenu({
+  profilePath,
+  onLogout,
+}: {
+  profilePath: string
+  onLogout: () => void
+}) {
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -76,6 +83,11 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
     navigate('/')
   }
 
+  function goProfile() {
+    setOpen(false)
+    navigate(profilePath)
+  }
+
   return (
     <div className="relative ml-auto shrink-0" ref={rootRef}>
       <button
@@ -94,6 +106,14 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
           aria-label="Account"
           className="absolute right-0 top-full z-50 mt-2 w-44 rounded-md border border-sidebar-border bg-sidebar py-1 text-sm text-sidebar-foreground shadow-md"
         >
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full px-3 py-2 text-left hover:bg-sidebar-accent"
+            onClick={goProfile}
+          >
+            Profile
+          </button>
           <button
             type="button"
             role="menuitem"
@@ -134,7 +154,7 @@ function SidebarLabel({ collapsed, children }: { collapsed: boolean; children: R
   )
 }
 
-export function PortalShell({ title, nav, children }: PortalShellProps) {
+export function PortalShell({ title, nav, profilePath, children }: PortalShellProps) {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
@@ -148,9 +168,17 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
+      <div
+        aria-hidden
+        className={cn(
+          'hidden shrink-0 transition-[width] duration-300 ease-in-out motion-reduce:transition-none md:block',
+          collapsed ? 'w-16' : 'w-64',
+        )}
+      />
+
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-30 flex w-64 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width,translate] duration-300 ease-in-out motion-reduce:transition-none md:static md:translate-x-0',
+          'fixed inset-y-0 left-0 z-30 flex h-svh w-64 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width,translate] duration-300 ease-in-out motion-reduce:transition-none md:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
           collapsed && 'md:w-16',
         )}
@@ -159,7 +187,7 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
           data-shell-bar="sidebar"
           className={cn(
             shellBarHeight,
-            'flex items-center border-b border-sidebar-border bg-sidebar px-3',
+            'flex shrink-0 items-center border-b border-sidebar-border bg-sidebar px-3',
             collapsed ? 'md:justify-center md:px-2' : 'justify-between gap-2',
           )}
         >
@@ -184,7 +212,12 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
             )}
           </button>
         </div>
-        <nav className={cn('flex flex-1 flex-col gap-1 p-3', collapsed && 'md:px-2')}>
+        <nav
+          className={cn(
+            'flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3',
+            collapsed && 'md:px-2',
+          )}
+        >
           {nav.map((item) => (
             <NavLink
               key={item.to}
@@ -194,7 +227,7 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
               onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  'flex h-9 items-center overflow-hidden rounded-lg text-sm',
+                  'flex h-9 shrink-0 items-center overflow-hidden rounded-lg text-sm',
                   collapsed ? 'md:justify-center md:gap-0 md:px-0' : 'gap-2 px-3',
                   isActive
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
@@ -207,7 +240,7 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
             </NavLink>
           ))}
         </nav>
-        <div className={cn('border-t border-sidebar-border p-3', collapsed && 'md:px-2')}>
+        <div className={cn('shrink-0 border-t border-sidebar-border p-3', collapsed && 'md:px-2')}>
           <div
             className={cn(
               'overflow-hidden transition-[max-height,opacity,margin] duration-300 ease-in-out motion-reduce:transition-none',
@@ -244,11 +277,11 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
         />
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-svh min-w-0 flex-1 flex-col">
         <header
           className={cn(
             shellBarHeight,
-            'flex items-center gap-2 border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground',
+            'sticky top-0 z-10 flex shrink-0 items-center gap-2 border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground',
           )}
         >
           <button
@@ -261,7 +294,7 @@ export function PortalShell({ title, nav, children }: PortalShellProps) {
           </button>
           <BrandLogo className="size-8 shrink-0 md:hidden" />
           <span className="min-w-0 truncate text-sm font-medium">{title}</span>
-          <AccountMenu onLogout={() => void onLogout()} />
+          <AccountMenu profilePath={profilePath} onLogout={() => void onLogout()} />
         </header>
         <main className="flex-1 p-4 md:p-6">{children ?? <Outlet />}</main>
       </div>

@@ -17,6 +17,8 @@ export function hasAnyRole(role: AuthRole | null | undefined, allowed: AuthRole[
   return hasRole(role, allowed)
 }
 
-export const STAFF_ROLES: AuthRole[] = ['admin', 'coordinator', 'tutor']
+export const STAFF_ROLES: AuthRole[] = ['super', 'admin', 'coordinator', 'tutor']
+
+export const SUPER_ROLES: AuthRole[] = ['super']
 
 export const ADMIN_ROLES: AuthRole[] = ['admin']

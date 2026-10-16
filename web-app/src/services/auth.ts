@@ -1,6 +1,6 @@
 import { apiRequest, type AuthTokens, refreshTokens } from './api'
 
-export type AuthRole = 'admin' | 'coordinator' | 'tutor' | 'client'
+export type AuthRole = 'super' | 'admin' | 'coordinator' | 'tutor' | 'client'
 
 export type AuthUser = {
   id: string

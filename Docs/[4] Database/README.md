@@ -2,7 +2,9 @@
 
 **Provider:** remote Supabase (PostgreSQL)  
 **ER diagram:** [`schema.dbml`](./schema.dbml) → open in [dbdiagram.io](https://dbdiagram.io)  
-**Migrations:** [`migrations/`](./migrations/) (run in order)
+**Migrations (SQL):** [`backend/migrations/`](../../backend/migrations/) — run in order
+
+This folder holds the **DBML reflection** of the schema. Executable migrations live under `backend/migrations/`.
 
 ## Migration order
 
@@ -18,13 +20,16 @@
 | `008_leads_and_contact.sql`            | `leads`, `stay_updated`, `contact_messages`       |
 | `009_login_security.sql`               | `login_attempts`, `login_verifications`           |
 | `010_legacy_optional.sql`              | `messages`, `assignment_transactions` (optional)  |
+| `011_rbac.sql`                         | `roles`, `permissions`, `role_permissions`, `user_permissions` |
+| `012_activity_logs_and_super.sql`      | `activity_logs`, `error_logs`, `user_role.super` |
+| `013_file_metadata.sql`                | `files`/`solutions` original_name, content_type, size_bytes |
 
 ## Apply on Supabase
 
 **Option A — SQL Editor (simplest)**
 
 1. Open Supabase → **SQL Editor**
-2. Paste [`migrations/APPLY_ALL.sql`](./migrations/APPLY_ALL.sql) (or run `001`…`010` one by one)
+2. Paste [`backend/migrations/APPLY_ALL.sql`](../../backend/migrations/APPLY_ALL.sql) (or run `001`…`010` one by one)
 3. Run
 
 **Option B — script (from repo)**
@@ -47,7 +52,7 @@ Requires `DATABASE_URL` in `backend/.env`. Use the **pooler** URI from Dashboard
 | task status `in-progress` | enum value `in-progress` |
 | revision `in-revision`    | enum value `in-revision` |
 
-Roles: `admin` \| `coordinator` \| `tutor` \| `client` (no `user_type`).
+Roles: `super` \| `admin` \| `coordinator` \| `tutor` \| `client` (no `user_type`).
 
 ## API access
 

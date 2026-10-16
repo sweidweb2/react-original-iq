@@ -36,3 +36,4 @@ modules/<domain>/
 - REST paths: `/api/v1/...`
 - Auth: JWT access + refresh; protect routes with middleware.
 - Database: remote Supabase when `SUPABASE_*` env vars are set.
+- SQL migrations: `backend/migrations/` (DBML reflection only in `Docs/[4] Database/`).

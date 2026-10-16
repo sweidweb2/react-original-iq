@@ -5,5 +5,7 @@ import { PortalShell } from './PortalShell'
 
 export function PortalLayout({ portal }: { portal: PortalDefinition }) {
   useDocumentTitle(portal.title)
-  return <PortalShell title={portal.title} nav={portal.nav} />
+  return (
+    <PortalShell title={portal.title} nav={portal.nav} profilePath={`${portal.path}/profile`} />
+  )
 }

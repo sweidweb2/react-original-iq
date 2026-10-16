@@ -14,6 +14,11 @@ const DEFAULT_PASSWORD = 'password'
 
 const SEED_USERS = [
   {
+    name: 'Super User',
+    email: 'super@original-iq.com',
+    role: 'super',
+  },
+  {
     name: 'Admin User',
     email: 'admin@original-iq.com',
     role: 'admin',

@@ -58,10 +58,12 @@ describe('users and logs HTTP', () => {
         expect.objectContaining({ email: 'access-client@originaliq.test', role: 'client' }),
       ]),
     )
+    expect(admin.body.meta).toMatchObject({ page: 1, limit: 20 })
+    expect(admin.body.meta.total).toBeGreaterThanOrEqual(2)
     expect(JSON.stringify(admin.body)).not.toContain('passwordHash')
   })
 
-  it('returns 404 for an unknown user and 501 when an admin creates one', async () => {
+  it('returns 404 for an unknown user and lets an admin create one', async () => {
     const missing = await request(app)
       .get('/api/v1/users/missing-user')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -77,12 +79,42 @@ describe('users and logs HTTP', () => {
     const created = await request(app)
       .post('/api/v1/users')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: 'new@originaliq.test', name: 'New User', roles: ['client'] })
-    expect(created.status).toBe(501)
-    expect(created.body).toMatchObject({ code: 'NOT_IMPLEMENTED' })
+      .send({
+        email: 'new@originaliq.test',
+        name: 'New User',
+        password: 'password1',
+        role: 'tutor',
+      })
+    expect(created.status).toBe(201)
+    expect(created.body).toMatchObject({
+      email: 'new@originaliq.test',
+      role: 'tutor',
+      status: 'ACTIVE',
+    })
+    expect(created.body).not.toHaveProperty('passwordHash')
+
+    const stats = await request(app)
+      .get('/api/v1/users/stats')
+      .set('Authorization', `Bearer ${adminToken}`)
+    expect(stats.status).toBe(200)
+    expect(stats.body.total).toBeGreaterThanOrEqual(3)
+    expect(stats.body.byRole.tutor).toBeGreaterThanOrEqual(1)
+
+    const updated = await request(app)
+      .patch(`/api/v1/users/${created.body.id as string}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Updated Tutor', role: 'tutor' })
+    expect(updated.status).toBe(200)
+    expect(updated.body.profile.displayName).toBe('Updated Tutor')
+
+    const deactivated = await request(app)
+      .post(`/api/v1/users/${created.body.id as string}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+    expect(deactivated.status).toBe(200)
+    expect(deactivated.body.status).toBe('INACTIVE')
   })
 
-  it('blocks update and deactivate until persistence exists', async () => {
+  it('returns 404 when update or deactivate targets a missing user', async () => {
     const update = await request(app)
       .patch('/api/v1/users/missing-user')
       .set('Authorization', `Bearer ${adminToken}`)

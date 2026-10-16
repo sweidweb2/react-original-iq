@@ -1,10 +1,12 @@
 import { getLogger } from '../../logging/index.js'
 import type { PaginationQuery } from '../_shared/pagination.schema.js'
 import type {
+  ActivityLogStats,
   CreateActivityInput,
   CreateErrorInput,
   LoggingRepository,
 } from './logging.repository.js'
+import type { ListActivityQuery } from './logging.schema.js'
 import type { ActivityLogDto, ErrorLogDto, PaginatedLogs } from './logging.types.js'
 
 const MAX_STACK_LENGTH = 4000
@@ -15,7 +17,8 @@ export type LoggingService = {
   /** Fire-and-forget; never throws to callers. */
   recordActivitySafe: (input: CreateActivityInput) => void
   recordErrorSafe: (input: CreateErrorInput) => void
-  listActivity: (query: PaginationQuery) => Promise<PaginatedLogs<ActivityLogDto>>
+  listActivity: (query: ListActivityQuery) => Promise<PaginatedLogs<ActivityLogDto>>
+  getActivityStats: () => Promise<ActivityLogStats>
   listErrors: (query: PaginationQuery) => Promise<PaginatedLogs<ErrorLogDto>>
 }
 
@@ -50,7 +53,14 @@ export function createLoggingService(repository: LoggingRepository): LoggingServ
     },
 
     async listActivity(query) {
-      const { items, total } = await repository.listActivity(query.page, query.limit)
+      const { items, total } = await repository.listActivity({
+        page: query.page,
+        limit: query.limit,
+        search: query.search,
+        actionPrefix: query.actionPrefix,
+        entity: query.entity,
+        since: query.since,
+      })
       return {
         data: items.map((row) => ({
           id: row.id,
@@ -76,6 +86,10 @@ export function createLoggingService(repository: LoggingRepository): LoggingServ
           total,
         },
       }
+    },
+
+    getActivityStats() {
+      return repository.countActivityStats()
     },
 
     async listErrors(query) {

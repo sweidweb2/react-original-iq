@@ -9,6 +9,33 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ')
 
+let scrollLockCount = 0
+let savedBodyOverflow = ''
+let savedBodyPaddingRight = ''
+
+/** Hide page scroll while keeping the scrollbar's width so the layout does not jump. */
+function lockPageScroll(): () => void {
+  if (scrollLockCount === 0) {
+    const body = document.body
+    const gap = window.innerWidth - document.documentElement.clientWidth
+    savedBodyOverflow = body.style.overflow
+    savedBodyPaddingRight = body.style.paddingRight
+    body.style.overflow = 'hidden'
+    if (gap > 0) {
+      const current = Number.parseFloat(getComputedStyle(body).paddingRight) || 0
+      body.style.paddingRight = `${current + gap}px`
+    }
+  }
+  scrollLockCount += 1
+
+  return () => {
+    scrollLockCount = Math.max(0, scrollLockCount - 1)
+    if (scrollLockCount > 0) return
+    document.body.style.overflow = savedBodyOverflow
+    document.body.style.paddingRight = savedBodyPaddingRight
+  }
+}
+
 /** Scroll lock, Escape to close, and a tab cycle inside the panel. */
 export function useOverlay(
   open: boolean,
@@ -26,8 +53,7 @@ export function useOverlay(
 
     const panel = panelRef.current
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const overflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlockScroll = lockPageScroll()
 
     function focusable() {
       if (!panel) return []
@@ -65,7 +91,7 @@ export function useOverlay(
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = overflow
+      unlockScroll()
       previous?.focus()
     }
   }, [open, panelRef])

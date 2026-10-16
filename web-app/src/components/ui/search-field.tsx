@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { Input } from './input'
 
 type SearchFieldProps = {
+  id?: string
   value: string
   onValueChange: (value: string) => void
   placeholder?: string
@@ -13,6 +14,7 @@ type SearchFieldProps = {
 }
 
 export function SearchField({
+  id,
   value,
   onValueChange,
   placeholder = 'Search',
@@ -26,6 +28,7 @@ export function SearchField({
         aria-hidden
       />
       <Input
+        id={id}
         type="search"
         value={value}
         placeholder={placeholder}

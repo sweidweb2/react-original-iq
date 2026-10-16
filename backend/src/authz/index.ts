@@ -7,4 +7,12 @@
  */
 
 export { assertOwner, assertOwnerOrAdmin, assertSelfOrAdmin, type AuthActor } from './ownership.js'
-export { ADMIN_ROLES, hasAnyRole, isAdmin, isStaff, STAFF_ROLES } from './roles.js'
+export {
+  ADMIN_ROLES,
+  hasAnyRole,
+  isAdmin,
+  isStaff,
+  isSuper,
+  STAFF_ROLES,
+  SUPER_ROLES,
+} from './roles.js'

@@ -6,6 +6,7 @@ export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 export { Dialog } from './dialog'
 export { Input } from './input'
 export { SearchField } from './search-field'
+export { Select } from './select'
 export { Sheet } from './sheet'
 export { StarRating } from './star-rating'
 export { Textarea } from './textarea'

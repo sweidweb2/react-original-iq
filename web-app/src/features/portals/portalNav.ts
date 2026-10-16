@@ -1,4 +1,14 @@
-import { Home } from 'lucide-react'
+import {
+  ClipboardList,
+  Contact,
+  Home,
+  Mail,
+  MessageSquare,
+  Newspaper,
+  ScrollText,
+  UserCircle,
+  Users,
+} from 'lucide-react'
 
 import type { AuthRole } from '@/services/auth'
 
@@ -13,18 +23,31 @@ export type PortalDefinition = {
   nav: PortalNavItem[]
 }
 
-function homeNav(path: string): PortalNavItem[] {
-  return [{ to: path, label: 'Home', icon: Home, end: true }]
-}
-
 export const PORTALS: readonly PortalDefinition[] = [
+  {
+    role: 'super',
+    path: '/super',
+    title: 'Super portal',
+    homeTitle: 'Activity log',
+    description: 'Platform activity and audit trail.',
+    nav: [{ to: '/super', label: 'Activity log', icon: ScrollText, end: true }],
+  },
   {
     role: 'admin',
     path: '/admin',
     title: 'Admin portal',
     homeTitle: 'Admin home',
     description: 'Admin portal landing — tools will land here.',
-    nav: homeNav('/admin'),
+    nav: [
+      { to: '/admin', label: 'Home', icon: Home, end: true },
+      { to: '/admin/users', label: 'Users', icon: Users },
+      { to: '/admin/tasks', label: 'Tasks', icon: ClipboardList },
+      { to: '/admin/feedback', label: 'Feedback', icon: MessageSquare },
+      { to: '/admin/leads', label: 'Leads', icon: Newspaper },
+      { to: '/admin/contact', label: 'Contact', icon: Contact },
+      { to: '/admin/stay-updated', label: 'Stay updated', icon: Mail },
+      { to: '/admin/profile', label: 'Profile', icon: UserCircle },
+    ],
   },
   {
     role: 'coordinator',
@@ -32,7 +55,11 @@ export const PORTALS: readonly PortalDefinition[] = [
     title: 'Coordinator portal',
     homeTitle: 'Coordinator home',
     description: 'Coordinator portal landing — tools will land here.',
-    nav: homeNav('/coordinator'),
+    nav: [
+      { to: '/coordinator', label: 'Home', icon: Home, end: true },
+      { to: '/coordinator/tasks', label: 'Tasks', icon: ClipboardList },
+      { to: '/coordinator/profile', label: 'Profile', icon: UserCircle },
+    ],
   },
   {
     role: 'tutor',
@@ -40,7 +67,12 @@ export const PORTALS: readonly PortalDefinition[] = [
     title: 'Tutor portal',
     homeTitle: 'Tutor home',
     description: 'Tutor portal landing — tools will land here.',
-    nav: homeNav('/tutor'),
+    nav: [
+      { to: '/tutor', label: 'Home', icon: Home, end: true },
+      { to: '/tutor/tasks', label: 'Tasks', icon: ClipboardList },
+      { to: '/tutor/feedback', label: 'Feedback', icon: MessageSquare },
+      { to: '/tutor/profile', label: 'Profile', icon: UserCircle },
+    ],
   },
   {
     role: 'client',
@@ -48,6 +80,11 @@ export const PORTALS: readonly PortalDefinition[] = [
     title: 'Client portal',
     homeTitle: 'Client home',
     description: 'Client portal landing — tools will land here.',
-    nav: homeNav('/client'),
+    nav: [
+      { to: '/client', label: 'Home', icon: Home, end: true },
+      { to: '/client/tasks', label: 'Tasks', icon: ClipboardList },
+      { to: '/client/feedback', label: 'Feedback', icon: MessageSquare },
+      { to: '/client/profile', label: 'Profile', icon: UserCircle },
+    ],
   },
 ]

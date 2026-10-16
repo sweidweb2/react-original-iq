@@ -46,6 +46,12 @@ const baseEnvSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((value) => (value === undefined ? undefined : value === 'true')),
+  /** Max bytes per single object upload (default 25 MiB). */
+  STORAGE_MAX_FILE_BYTES: z.coerce.number().int().positive().default(25 * 1024 * 1024),
+  /** Soft cap for total bytes under one task (default 100 MiB). */
+  STORAGE_MAX_TASK_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  /** Signed URL lifetime in seconds (default 15 minutes). */
+  STORAGE_SIGNED_URL_TTL_SEC: z.coerce.number().int().positive().default(900),
 
   MONTYPAY_API_URL: z.string().url().optional(),
   MONTYPAY_MERCHANT_KEY: z.string().min(1).optional(),
@@ -76,6 +82,9 @@ export type StorageConfig = {
   endpoint: string
   publicUrl?: string
   usePathStyleEndpoint: boolean
+  maxFileBytes: number
+  maxTaskBytes: number
+  signedUrlTtlSec: number
 }
 
 export type MontyPayConfig = {
@@ -171,6 +180,9 @@ function parseStorage(data: z.infer<typeof baseEnvSchema>): StorageConfig | unde
     endpoint: data.AWS_ENDPOINT,
     publicUrl: data.AWS_URL,
     usePathStyleEndpoint: data.AWS_USE_PATH_STYLE_ENDPOINT ?? true,
+    maxFileBytes: data.STORAGE_MAX_FILE_BYTES,
+    maxTaskBytes: data.STORAGE_MAX_TASK_BYTES,
+    signedUrlTtlSec: data.STORAGE_SIGNED_URL_TTL_SEC,
   }
 }
 
@@ -272,6 +284,10 @@ export function requireJwtSecrets(config: AppConfig): {
 
 export function isSupabaseConfigured(config: AppConfig): boolean {
   return Boolean(config.supabaseUrl && config.supabaseServiceRoleKey)
+}
+
+export function isStorageConfigured(config: AppConfig): boolean {
+  return Boolean(config.storage)
 }
 
 export function requireStorageConfig(config: AppConfig): StorageConfig {

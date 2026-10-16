@@ -9,6 +9,7 @@ import { createHealthRepository } from '../modules/health/health.repository.js'
 import { createHealthRoutes } from '../modules/health/health.routes.js'
 import { createHealthService } from '../modules/health/health.service.js'
 import { createLoggingModule } from '../modules/logging/index.js'
+import { createRbacModule } from '../modules/rbac/index.js'
 import { createUsersModule } from '../modules/users/index.js'
 import { createUsersRepository } from '../modules/users/users.repository.js'
 import { createUsersService } from '../modules/users/users.service.js'
@@ -32,6 +33,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
   router.use('/auth', createAuthModule(config, users))
   router.use(createLoggingModule())
   router.use('/users', createUsersModule(config, users))
+  router.use('/rbac', createRbacModule(config))
 
   return router
 }
