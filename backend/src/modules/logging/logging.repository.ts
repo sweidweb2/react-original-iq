@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import { ilikeAny } from '../_shared/query.js'
 import type { ErrorLevel, ErrorLogStats } from './logging.types.js'
 
 export type CreateActivityInput = {
@@ -152,22 +153,8 @@ function weekAgoIso(): string {
   return new Date(Date.now() - WEEK_MS).toISOString()
 }
 
-function safeSearchTerm(search: string): string | null {
-  const safe = search.replace(/[%_\\,()]/g, '').trim()
-  return safe || null
-}
-
-function searchClause(search: string): string | null {
-  const safe = safeSearchTerm(search)
-  if (!safe) return null
-  return `action.ilike.%${safe}%,entity.ilike.%${safe}%,entity_id.ilike.%${safe}%,request_id.ilike.%${safe}%,ip.ilike.%${safe}%`
-}
-
-function errorSearchClause(search: string): string | null {
-  const safe = safeSearchTerm(search)
-  if (!safe) return null
-  return `message.ilike.%${safe}%,code.ilike.%${safe}%,path.ilike.%${safe}%,request_id.ilike.%${safe}%,source.ilike.%${safe}%`
-}
+const ACTIVITY_SEARCH_FIELDS = ['action', 'entity', 'entity_id', 'request_id', 'ip']
+const ERROR_SEARCH_FIELDS = ['message', 'code', 'path', 'request_id', 'source']
 
 function matchesErrorFilter(row: ErrorLogRecord, filter: ErrorListFilter): boolean {
   if (filter.source && !row.source?.startsWith(filter.source)) return false
@@ -379,7 +366,7 @@ function createSupabaseLoggingRepository(config: AppConfig): LoggingRepository {
       if (filter.entity) query = query.eq('entity', filter.entity)
       if (filter.since) query = query.gte('created_at', filter.since)
       if (filter.search) {
-        const clause = searchClause(filter.search)
+        const clause = ilikeAny(ACTIVITY_SEARCH_FIELDS, filter.search)
         if (clause) query = query.or(clause)
       }
 
@@ -428,7 +415,7 @@ function createSupabaseLoggingRepository(config: AppConfig): LoggingRepository {
       if (filter.level) query = query.eq('level', filter.level)
       if (filter.since) query = query.gte('created_at', filter.since)
       if (filter.search) {
-        const clause = errorSearchClause(filter.search)
+        const clause = ilikeAny(ERROR_SEARCH_FIELDS, filter.search)
         if (clause) query = query.or(clause)
       }
 

@@ -7,7 +7,10 @@ import type { RefundRecord } from '../../src/modules/payments/payments.types.js'
 import type { TasksRepository } from '../../src/modules/tasks/tasks.repository.js'
 import type { Task } from '../../src/modules/tasks/tasks.types.js'
 
-vi.mock('../../src/errors/report-error.js', () => ({ reportError: vi.fn() }))
+vi.mock('../../src/errors/report-error.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/errors/report-error.js')>()),
+  reportError: vi.fn(),
+}))
 
 function makeTask(overrides: Partial<Task> = {}): Task {
   return {

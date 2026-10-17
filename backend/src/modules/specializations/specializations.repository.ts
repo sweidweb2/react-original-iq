@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import { nowIso } from '../_shared/query.js'
 import type { CreateSpecializationInput, Specialization } from './specializations.types.js'
 
 export type SpecializationsRepository = {
@@ -15,10 +16,6 @@ const memoryRows: Specialization[] = []
 
 export function resetSpecializationsRepositoryForTests(): void {
   memoryRows.length = 0
-}
-
-function nowIso(): string {
-  return new Date().toISOString()
 }
 
 type SpecRow = {

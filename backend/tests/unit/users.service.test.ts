@@ -55,12 +55,12 @@ describe('users.service', () => {
   })
 
   it('lists a page of users without password hashes', async () => {
-    const account = makeAccount()
-    vi.mocked(repository.findPage).mockResolvedValue({ items: [account], total: 1 })
+    const user = toPublicUser(makeAccount())
+    vi.mocked(repository.findPage).mockResolvedValue({ items: [user], total: 1 })
     const service = createUsersService(repository)
 
     await expect(service.listUsers(listQuery)).resolves.toEqual({
-      data: [toPublicUser(account)],
+      data: [user],
       meta: { page: 1, limit: 20, total: 1 },
     })
   })

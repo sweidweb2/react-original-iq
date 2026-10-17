@@ -10,7 +10,7 @@ import type { PaymentRecord } from '../payments/payments.types.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task } from '../tasks/tasks.types.js'
 import type { UsersRepository } from '../users/users.repository.js'
-import type { AccountRecord } from '../users/users.types.js'
+import type { User } from '../users/users.types.js'
 import type { ExportsRepository, RevisionSessionExportRow } from './exports.repository.js'
 import type { ExportResource } from './exports.schema.js'
 
@@ -44,7 +44,7 @@ function toCell(value: Cell): string | number | null | undefined {
 
 /** Memoized lookups for doc 13 label columns (names, task labels). */
 function createLabels(deps: ExportsServiceDeps) {
-  let users: Promise<Map<string, AccountRecord>> | null = null
+  let users: Promise<Map<string, User>> | null = null
   let tasks: Promise<Map<string, Task>> | null = null
   let payments: Promise<Map<string, PaymentRecord>> | null = null
   let revisions: Promise<Map<string, RevisionSessionExportRow>> | null = null
@@ -77,7 +77,7 @@ function createLabels(deps: ExportsServiceDeps) {
   }
 }
 
-function nameOf(users: Map<string, AccountRecord>, id: string | null | undefined): string {
+function nameOf(users: Map<string, User>, id: string | null | undefined): string {
   if (!id) return ''
   const user = users.get(id)
   return user?.profile?.displayName?.trim() || user?.email || ''

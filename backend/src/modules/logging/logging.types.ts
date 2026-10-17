@@ -15,8 +15,10 @@ export type ActivityLogDto = {
   } | null
 }
 
-export const ERROR_LEVELS = ['error', 'warning'] as const
-export type ErrorLevel = (typeof ERROR_LEVELS)[number]
+import type { ErrorLevel } from '../../errors/report-error.js'
+import type { ListResult } from '../_shared/list-result.js'
+
+export { ERROR_LEVELS, type ErrorLevel } from '../../errors/report-error.js'
 
 export type ErrorLogDto = {
   id: string
@@ -47,11 +49,4 @@ export type ErrorLogStats = {
   warnings: number
 }
 
-export type PaginatedLogs<T> = {
-  data: T[]
-  meta: {
-    page: number
-    limit: number
-    total: number
-  }
-}
+export type PaginatedLogs<T> = ListResult<T>

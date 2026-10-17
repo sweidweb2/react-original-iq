@@ -410,14 +410,16 @@ export function TaskPaymentsPage() {
                             >
                               <Pencil className="size-4" />
                             </IconAction>
-                            <IconAction
-                              label="Delete payment"
-                              tone="danger"
-                              disabled={isActing}
-                              onClick={() => setPendingDelete(payment)}
-                            >
-                              <Trash2 className="size-4" />
-                            </IconAction>
+                            {!payment.invoice && payment.voidedInvoices.length === 0 ? (
+                              <IconAction
+                                label="Delete payment"
+                                tone="danger"
+                                disabled={isActing}
+                                onClick={() => setPendingDelete(payment)}
+                              >
+                                <Trash2 className="size-4" />
+                              </IconAction>
+                            ) : null}
                           </>
                         ) : null}
                       </div>
@@ -521,9 +523,7 @@ export function TaskPaymentsPage() {
         title="Delete payment"
         description={
           pendingDelete
-            ? `Delete the ${formatMoney(pendingDelete.amount, pendingDelete.currency)} payment${
-                pendingDelete.invoice ? ` and invoice ${pendingDelete.invoice.invoiceNumber}` : ''
-              }? The task balance will be recalculated.`
+            ? `Delete the ${formatMoney(pendingDelete.amount, pendingDelete.currency)} payment? The task balance will be recalculated.`
             : undefined
         }
         footer={

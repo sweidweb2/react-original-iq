@@ -1,3 +1,5 @@
+import type { ListResult } from '../_shared/list-result.js'
+
 export type ContactMessageInput = {
   name: string
   email: string
@@ -73,11 +75,4 @@ export type ContactMessageRecord = {
   updatedAt: string
 }
 
-export type ContactListResult<T> = {
-  data: T[]
-  meta: {
-    page: number
-    limit: number
-    total: number
-  }
-}
+export type ContactListResult<T> = ListResult<T>

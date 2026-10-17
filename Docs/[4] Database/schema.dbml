@@ -304,16 +304,24 @@ Table refunds {
 
 Table invoices {
   id uuid [pk, default: `gen_random_uuid()`]
-  payment_id uuid [not null, unique, ref: - payments.id]
+  payment_id uuid [not null, ref: > payments.id, note: 'ON DELETE RESTRICT; one non-voided invoice per payment']
   invoice_seq bigint [not null, unique, note: 'nextval(invoice_number_seq)']
-  invoice_number varchar(32) [unique, note: 'INV- + lpad(invoice_seq, 6)']
+  invoice_number varchar(32) [not null, unique, note: 'GENERATED: INV- + invoice_seq zero-padded to at least 6 digits']
   invoice_date timestamptz
-  invoice_status invoice_status [note: 'sent | failed (resend allowed)']
+  invoice_status invoice_status [note: 'sent | failed (resend allowed unless voided)']
+  amount numeric(10,2) [not null, note: 'billed amount, snapshot at issue time']
+  currency varchar(3) [not null, default: 'USD', note: 'CHECK = USD']
   pdf_path text [note: 'R2 key under invoices/']
   sent_at timestamptz
   last_error text
+  voided_at timestamptz [note: 'set when the payment is edited/canceled; row and PDF are kept']
+  void_reason text
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    payment_id [unique, note: 'partial: WHERE voided_at IS NULL']
+  }
 }
 
 // ─── Feedback ────────────────────────────────────────────────────────

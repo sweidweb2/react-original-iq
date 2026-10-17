@@ -1,4 +1,5 @@
 import { getLogger } from '../../logging/index.js'
+import { toListResult } from '../_shared/list-result.js'
 import type {
   ActivityLogStats,
   CreateActivityInput,
@@ -79,8 +80,8 @@ export function createLoggingService(
         entity: query.entity,
         since: query.since,
       })
-      return {
-        data: items.map((row) => ({
+      return toListResult(
+        items.map((row) => ({
           id: row.id,
           userId: row.userId,
           action: row.action,
@@ -98,12 +99,9 @@ export function createLoggingService(
               }
             : null,
         })),
-        meta: {
-          page: query.page,
-          limit: query.limit,
-          total,
-        },
-      }
+        total,
+        query,
+      )
     },
 
     getActivityStats() {
@@ -119,8 +117,8 @@ export function createLoggingService(
         level: query.level,
         since: query.since,
       })
-      return {
-        data: items.map((row) => ({
+      return toListResult(
+        items.map((row) => ({
           id: row.id,
           source: row.source,
           level: row.level,
@@ -142,12 +140,9 @@ export function createLoggingService(
               }
             : null,
         })),
-        meta: {
-          page: query.page,
-          limit: query.limit,
-          total,
-        },
-      }
+        total,
+        query,
+      )
     },
 
     getErrorStats() {

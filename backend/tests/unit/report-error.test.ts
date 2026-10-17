@@ -4,17 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { AppError, internalError, notFound, validationError } from '../../src/errors/app-error.js'
-import { isExpectedError, reportError } from '../../src/errors/report-error.js'
+import { isExpectedError, reportError, setErrorSink } from '../../src/errors/report-error.js'
 import { requestContext, setRequestUserId } from '../../src/middleware/request-context.js'
 
 const { recordErrorSafe, logError, logWarn } = vi.hoisted(() => ({
   recordErrorSafe: vi.fn(),
   logError: vi.fn(),
   logWarn: vi.fn(),
-}))
-
-vi.mock('../../src/modules/logging/index.js', () => ({
-  getLoggingService: () => ({ recordErrorSafe }),
 }))
 
 vi.mock('../../src/logging/index.js', () => ({
@@ -26,6 +22,16 @@ describe('reportError', () => {
     recordErrorSafe.mockReset()
     logError.mockReset()
     logWarn.mockReset()
+    setErrorSink(recordErrorSafe)
+  })
+
+  it('only logs to stdout when no sink is wired', () => {
+    setErrorSink(null)
+
+    reportError(new Error('early failure'), { source: 'startup' })
+
+    expect(logError).toHaveBeenCalledTimes(1)
+    expect(recordErrorSafe).not.toHaveBeenCalled()
   })
 
   it('ignores handled business failures', () => {

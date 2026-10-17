@@ -126,7 +126,7 @@ export function PaymentFormDialog({
       description={
         mode === 'create'
           ? `Manual payment (No Gateway). Cannot exceed the balance due ($${due.toFixed(2)}). Paid entries generate an invoice.`
-          : 'Changing amount or status of a paid payment replaces its invoice.'
+          : 'Changing amount or status of a paid payment voids its invoice and issues a new one.'
       }
       footer={
         <>
@@ -180,8 +180,8 @@ export function PaymentFormDialog({
         </Field>
         {willReissue ? (
           <p className="text-xs text-muted-foreground">
-            The current invoice ({payment?.invoice?.invoiceNumber}) will be removed and a new one
-            issued if the payment stays paid.
+            The current invoice ({payment?.invoice?.invoiceNumber}) will be voided and kept on
+            record; a new one is issued if the payment stays paid.
           </p>
         ) : null}
       </Form>

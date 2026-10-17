@@ -25,7 +25,10 @@ export type PaymentRecord = {
   paymentMethod: string | null
   createdAt: string
   updatedAt: string
+  /** Current (non-voided) invoice. */
   invoice: InvoiceSummary | null
+  /** Invoices replaced by edits or cancellation, oldest first. */
+  voidedInvoices: InvoiceSummary[]
 }
 
 export type PaymentLog = {

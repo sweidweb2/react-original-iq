@@ -1,19 +1,13 @@
 import type { AuthActor } from '../../authz/index.js'
 import { hasAnyRole, isAdmin, isSuper } from '../../authz/index.js'
 import { conflict, forbidden, notFound } from '../../errors/app-error.js'
+import { type ListResult, toListResult } from '../_shared/list-result.js'
 import type { Task } from '../tasks/tasks.types.js'
 import type { FeedbackRepository } from './feedback.repository.js'
 import type { CreateFeedbackBody, ListFeedbackQuery } from './feedback.schema.js'
 import type { FeedbackRecord } from './feedback.types.js'
 
-export type FeedbackListResult = {
-  data: FeedbackRecord[]
-  meta: {
-    page: number
-    limit: number
-    total: number
-  }
-}
+export type FeedbackListResult = ListResult<FeedbackRecord>
 
 export type FeedbackService = {
   createFeedback: (input: CreateFeedbackBody, actor: AuthActor) => Promise<FeedbackRecord>
@@ -81,14 +75,7 @@ export function createFeedbackService(
       }
 
       const page = await repository.findPage(filter)
-      return {
-        data: page.items,
-        meta: {
-          page: query.page,
-          limit: query.limit,
-          total: page.total,
-        },
-      }
+      return toListResult(page.items, page.total, query)
     },
 
     async deleteFeedback(id, actor) {

@@ -4,9 +4,11 @@ import helmet from 'helmet'
 
 import { type AppConfig, loadConfig } from './config/index.js'
 import { errorHandler, notFoundHandler } from './errors/error.middleware.js'
+import { setErrorSink } from './errors/report-error.js'
 import { createApiRateLimiter } from './middleware/rate-limit.js'
 import { requestContext } from './middleware/request-context.js'
 import { createRequestLogger } from './middleware/request-logger.js'
+import { getLoggingService } from './modules/logging/index.js'
 import type { SettingsService } from './modules/settings/index.js'
 import { createV1Router } from './routes/v1.js'
 
@@ -18,6 +20,9 @@ export type AppDeps = {
 export function createApp(deps: AppDeps = {}) {
   const config = deps.config ?? loadConfig()
   const app = express()
+
+  const logging = getLoggingService()
+  setErrorSink((record) => logging.recordErrorSafe(record))
 
   if (config.trustProxy) {
     app.set('trust proxy', 1)

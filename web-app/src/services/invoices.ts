@@ -8,9 +8,14 @@ export type InvoiceSummary = {
   invoiceNumber: string
   invoiceDate: string | null
   invoiceStatus: InvoiceStatus | null
+  /** What the invoice billed; can differ from the payment after an edit voided it. */
+  amount: number
+  currency: string
   hasPdf: boolean
   sentAt: string | null
   lastError: string | null
+  voidedAt: string | null
+  voidReason: string | null
 }
 
 export type InvoiceDownload = {

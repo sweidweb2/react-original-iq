@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import { ilikeAny } from '../_shared/query.js'
 import type {
   AddFileInput,
   AddSolutionInput,
@@ -441,10 +442,8 @@ function scopeQuery(query: any, filter: TaskListFilter) {
   else if (scope.kind === 'coordinator') q = q.eq('coordinator_id', scope.coordinatorId)
   if (filter.status) q = q.eq('status', filter.status)
   if (filter.search) {
-    const safe = filter.search.replace(/[%_\\,()]/g, '').trim()
-    if (safe) {
-      q = q.or(`topic.ilike.%${safe}%,description.ilike.%${safe}%,category.ilike.%${safe}%`)
-    }
+    const clause = ilikeAny(['topic', 'description', 'category'], filter.search)
+    if (clause) q = q.or(clause)
   }
   return q
 }

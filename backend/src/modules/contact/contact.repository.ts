@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import { ilikeAny, isUniqueViolation, nowIso } from '../_shared/query.js'
 import type {
   ContactListFilter,
   ContactMessageInput,
@@ -47,20 +48,13 @@ export function resetContactRepositoryForTests(): void {
   memoryLeads.length = 0
 }
 
-function isUniqueViolation(error: { code?: string }): boolean {
-  return error.code === '23505'
-}
+const LEAD_COLUMNS = 'id, first_name, last_name, phone, email, country, zip, created_at, updated_at'
+const NEWSLETTER_COLUMNS = 'id, email, created_at, updated_at'
+const MESSAGE_COLUMNS = 'id, name, email, subject, message, created_at, updated_at'
 
-function nowIso(): string {
-  return new Date().toISOString()
-}
-
-function searchOr(fields: string[], search: string): string | null {
-  const safe = search.replace(/[%_\\,()]/g, '').trim()
-  if (!safe) return null
-  const pattern = `%${safe}%`
-  return fields.map((field) => `${field}.ilike.${pattern}`).join(',')
-}
+const LEAD_SEARCH_FIELDS = ['phone', 'email', 'country', 'first_name', 'last_name', 'zip']
+const NEWSLETTER_SEARCH_FIELDS = ['email']
+const MESSAGE_SEARCH_FIELDS = ['name', 'email', 'subject', 'message']
 
 function matchesLead(lead: LeadRecord, search?: string): boolean {
   if (!search) return true
@@ -333,7 +327,7 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
         .from('leads')
         .update(patch)
         .eq('id', id)
-        .select('*')
+        .select(LEAD_COLUMNS)
         .maybeSingle()
       if (error) throw error
       return data ? toLead(data as LeadRow) : null
@@ -343,13 +337,10 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       const to = from + filter.limit - 1
       let query = client
         .from('leads')
-        .select('*', { count: 'exact' })
+        .select(LEAD_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false })
       if (filter.search) {
-        const clause = searchOr(
-          ['phone', 'email', 'country', 'first_name', 'last_name', 'zip'],
-          filter.search,
-        )
+        const clause = ilikeAny(LEAD_SEARCH_FIELDS, filter.search)
         if (clause) query = query.or(clause)
       }
       const { data, error, count } = await query.range(from, to)
@@ -365,12 +356,12 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       return (count ?? 0) > 0
     },
     async exportLeads(search) {
-      let query = client.from('leads').select('*').order('created_at', { ascending: false })
+      let query = client
+        .from('leads')
+        .select(LEAD_COLUMNS)
+        .order('created_at', { ascending: false })
       if (search) {
-        const clause = searchOr(
-          ['phone', 'email', 'country', 'first_name', 'last_name', 'zip'],
-          search,
-        )
+        const clause = ilikeAny(LEAD_SEARCH_FIELDS, search)
         if (clause) query = query.or(clause)
       }
       const { data, error } = await query
@@ -382,10 +373,10 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       const to = from + filter.limit - 1
       let query = client
         .from('stay_updated')
-        .select('*', { count: 'exact' })
+        .select(NEWSLETTER_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false })
       if (filter.search) {
-        const clause = searchOr(['email'], filter.search)
+        const clause = ilikeAny(NEWSLETTER_SEARCH_FIELDS, filter.search)
         if (clause) query = query.or(clause)
       }
       const { data, error, count } = await query.range(from, to)
@@ -400,7 +391,7 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
         .from('stay_updated')
         .update({ email: input.email })
         .eq('id', id)
-        .select('*')
+        .select(NEWSLETTER_COLUMNS)
         .maybeSingle()
       if (error) throw error
       return data ? toNewsletter(data as StayUpdatedRow) : null
@@ -414,9 +405,12 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       return (count ?? 0) > 0
     },
     async exportNewsletter(search) {
-      let query = client.from('stay_updated').select('*').order('created_at', { ascending: false })
+      let query = client
+        .from('stay_updated')
+        .select(NEWSLETTER_COLUMNS)
+        .order('created_at', { ascending: false })
       if (search) {
-        const clause = searchOr(['email'], search)
+        const clause = ilikeAny(NEWSLETTER_SEARCH_FIELDS, search)
         if (clause) query = query.or(clause)
       }
       const { data, error } = await query
@@ -428,10 +422,10 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       const to = from + filter.limit - 1
       let query = client
         .from('contact_messages')
-        .select('*', { count: 'exact' })
+        .select(MESSAGE_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false })
       if (filter.search) {
-        const clause = searchOr(['name', 'email', 'subject', 'message'], filter.search)
+        const clause = ilikeAny(MESSAGE_SEARCH_FIELDS, filter.search)
         if (clause) query = query.or(clause)
       }
       const { data, error, count } = await query.range(from, to)
@@ -444,7 +438,7 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
     async findMessageById(id) {
       const { data, error } = await client
         .from('contact_messages')
-        .select('*')
+        .select(MESSAGE_COLUMNS)
         .eq('id', id)
         .maybeSingle()
       if (error) throw error
@@ -460,7 +454,7 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
         .from('contact_messages')
         .update(patch)
         .eq('id', id)
-        .select('*')
+        .select(MESSAGE_COLUMNS)
         .maybeSingle()
       if (error) throw error
       return data ? toMessage(data as MessageRow) : null
@@ -476,10 +470,10 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
     async exportMessages(search) {
       let query = client
         .from('contact_messages')
-        .select('*')
+        .select(MESSAGE_COLUMNS)
         .order('created_at', { ascending: false })
       if (search) {
-        const clause = searchOr(['name', 'email', 'subject', 'message'], search)
+        const clause = ilikeAny(MESSAGE_SEARCH_FIELDS, search)
         if (clause) query = query.or(clause)
       }
       const { data, error } = await query

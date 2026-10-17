@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
 import { conflict } from '../../errors/app-error.js'
+import { isUniqueViolation, nowIso } from '../_shared/query.js'
 import type {
   CreateRevisionInput,
   RevisionDetail,
@@ -52,10 +53,6 @@ const memorySessionSolutions: RevisionSessionSolution[] = []
 export function resetRevisionsRepositoryForTests(): void {
   memorySessions.length = 0
   memorySessionSolutions.length = 0
-}
-
-function nowIso(): string {
-  return new Date().toISOString()
 }
 
 function toSession(input: CreateRevisionInput, id: string, stamp: string): RevisionSession {
@@ -236,7 +233,7 @@ function createSupabaseRevisionsRepository(config: AppConfig): RevisionsReposito
         })
         .select(columns)
         .single()
-      if (error?.code === '23505') throw conflict(OPEN_SESSION_CONFLICT)
+      if (isUniqueViolation(error)) throw conflict(OPEN_SESSION_CONFLICT)
       if (error) throw error
       return fromRow(data as RevisionRow)
     },

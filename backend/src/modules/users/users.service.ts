@@ -98,7 +98,7 @@ export function createUsersService(
     async listUsers(query) {
       const { items, total } = await repository.findPage(query)
       return {
-        data: items.map(toPublicUser),
+        data: items,
         meta: {
           page: query.page,
           limit: query.limit,

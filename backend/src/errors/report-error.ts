@@ -2,10 +2,36 @@ import { ZodError } from 'zod'
 
 import { getLogger } from '../logging/index.js'
 import { getRequestScope, type RequestScope } from '../middleware/request-context.js'
-import { getLoggingService } from '../modules/logging/index.js'
-import type { ErrorLevel } from '../modules/logging/logging.types.js'
 import { AppError } from './app-error.js'
 import { ErrorCodes } from './error-codes.js'
+
+export const ERROR_LEVELS = ['error', 'warning'] as const
+export type ErrorLevel = (typeof ERROR_LEVELS)[number]
+
+/** One reported failure, as handed to the persistent sink (`error_logs`). */
+export type ErrorRecord = {
+  source: string
+  level: ErrorLevel
+  requestId: string | null
+  userId: string | null
+  code: string | null
+  message: string
+  stack: string | null
+  path: string | null
+  method: string | null
+  status: number | null
+  meta: Record<string, unknown> | null
+}
+
+/** Fire-and-forget: synchronous throws are caught, but a returned promise is not awaited. */
+export type ErrorSink = (record: ErrorRecord) => void
+
+let errorSink: ErrorSink | null = null
+
+/** Where reported errors are persisted. `createApp` wires this; until then reports go to stdout only. */
+export function setErrorSink(sink: ErrorSink | null): void {
+  errorSink = sink
+}
 
 export type ReportErrorOptions = {
   /** Where it failed, e.g. `http`, `invoices.issue`, `process.unhandledRejection`. */
@@ -143,7 +169,7 @@ export function reportError(error: unknown, options: ReportErrorOptions): void {
       getLogger().error(logPayload, `[${options.source}] ${described.message}`)
     }
 
-    getLoggingService().recordErrorSafe({
+    errorSink?.({
       source: options.source,
       level,
       requestId: scope.requestId ?? null,

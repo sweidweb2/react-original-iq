@@ -2,6 +2,7 @@ import { notFound } from '../../errors/app-error.js'
 import { renderTablePdf, type TableColumn } from '../../pdf/index.js'
 import { rowsToCsv } from '../_shared/csv.js'
 import { csvExport, type ExportFile, pdfExport } from '../_shared/export-file.js'
+import { toListResult } from '../_shared/list-result.js'
 import { getLoggingService } from '../logging/index.js'
 import type { ContactRepository } from './contact.repository.js'
 import type {
@@ -85,20 +86,6 @@ function auditExport(resource: string, format: ExportFormat, rows: number, optio
   })
 }
 
-function toListResult<T>(
-  query: ListContactQuery,
-  page: { items: T[]; total: number },
-): ContactListResult<T> {
-  return {
-    data: page.items,
-    meta: {
-      page: query.page,
-      limit: query.limit,
-      total: page.total,
-    },
-  }
-}
-
 export function createContactService(repository: ContactRepository): ContactService {
   async function deleteOrThrow(deleted: boolean): Promise<void> {
     if (!deleted) {
@@ -127,7 +114,7 @@ export function createContactService(repository: ContactRepository): ContactServ
     },
     async listLeads(query) {
       const page = await repository.listLeads(query)
-      return toListResult(query, page)
+      return toListResult(page.items, page.total, query)
     },
     async updateLead(id, input) {
       const updated = await repository.updateLead(id, input)
@@ -159,7 +146,7 @@ export function createContactService(repository: ContactRepository): ContactServ
     },
     async listNewsletter(query) {
       const page = await repository.listNewsletter(query)
-      return toListResult(query, page)
+      return toListResult(page.items, page.total, query)
     },
     async updateNewsletter(id, input) {
       const updated = await repository.updateNewsletter(id, input)
@@ -193,7 +180,7 @@ export function createContactService(repository: ContactRepository): ContactServ
     },
     async listMessages(query) {
       const page = await repository.listMessages(query)
-      return toListResult(query, page)
+      return toListResult(page.items, page.total, query)
     },
     async getMessage(id) {
       const message = await repository.findMessageById(id)

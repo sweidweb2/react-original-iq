@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import { ilikeAny } from '../_shared/query.js'
 import type {
   AccountRecord,
   CreateAccountInput,
@@ -14,11 +15,12 @@ import type {
 } from './users.types.js'
 import { toPublicUser } from './users.types.js'
 
+/** List reads never carry the password hash; only single-account lookups (auth) do. */
 export type UsersRepository = {
-  findMany: () => Promise<AccountRecord[]>
+  findMany: () => Promise<User[]>
   /** Active users of one role, oldest first, without credentials. */
   findActiveByRole: (role: UserRole) => Promise<User[]>
-  findPage: (filter: UserListFilter) => Promise<{ items: AccountRecord[]; total: number }>
+  findPage: (filter: UserListFilter) => Promise<{ items: User[]; total: number }>
   countStats: () => Promise<UserStats>
   findById: (id: string) => Promise<AccountRecord | null>
   findByEmail: (email: string) => Promise<AccountRecord | null>
@@ -124,16 +126,9 @@ function pageOf(users: AccountRecord[], filter: UserListFilter) {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const start = (filter.page - 1) * filter.limit
   return {
-    items: sorted.slice(start, start + filter.limit),
+    items: sorted.slice(start, start + filter.limit).map(toPublicUser),
     total: sorted.length,
   }
-}
-
-/** Drop characters that would break a PostgREST `or` filter or act as wildcards. */
-function searchOr(search: string): string | null {
-  const safe = search.replace(/[%_\\,()]/g, '').trim()
-  if (!safe) return null
-  return `email.ilike.%${safe}%,name.ilike.%${safe}%`
 }
 
 function toUser(row: PublicUserRow): User {
@@ -160,7 +155,7 @@ const memoryIdsByEmail = new Map<string, string>()
 function createMemoryUsersRepository(): UsersRepository {
   return {
     async findMany() {
-      return [...memoryUsersById.values()]
+      return [...memoryUsersById.values()].map(toPublicUser)
     },
 
     async findActiveByRole(role) {
@@ -243,11 +238,11 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
     async findMany() {
       const { data, error } = await client
         .from('users')
-        .select(USER_COLUMNS)
+        .select(PUBLIC_USER_COLUMNS)
         .order('created_at', { ascending: true })
 
       if (error) throw error
-      return (data as UserRow[]).map(toRecord)
+      return (data as PublicUserRow[]).map(toUser)
     },
 
     async findActiveByRole(role) {
@@ -266,20 +261,20 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
       const to = from + filter.limit - 1
       let query = client
         .from('users')
-        .select(USER_COLUMNS, { count: 'exact' })
+        .select(PUBLIC_USER_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false })
 
       if (filter.role) query = query.eq('role', filter.role)
       if (filter.status) query = query.eq('is_active', filter.status === 'ACTIVE')
       if (filter.search) {
-        const clause = searchOr(filter.search)
+        const clause = ilikeAny(['email', 'name'], filter.search)
         if (clause) query = query.or(clause)
       }
 
       const { data, error, count } = await query.range(from, to)
       if (error) throw error
       return {
-        items: (data as UserRow[]).map(toRecord),
+        items: (data as PublicUserRow[]).map(toUser),
         total: count ?? 0,
       }
     },

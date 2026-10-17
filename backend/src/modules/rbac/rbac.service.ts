@@ -1,4 +1,5 @@
 import { conflict, forbidden, notFound, validationError } from '../../errors/app-error.js'
+import { isUniqueViolation } from '../_shared/query.js'
 import { getLoggingService } from '../logging/index.js'
 import type { RbacRepository } from './rbac.repository.js'
 import type {
@@ -10,13 +11,6 @@ import type {
   UpdateRoleBody,
 } from './rbac.schema.js'
 import type { RbacPermission, RbacRole } from './rbac.types.js'
-
-function isUniqueViolation(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  const code = 'code' in error ? String(error.code) : ''
-  const message = 'message' in error ? String(error.message).toLowerCase() : ''
-  return code === '23505' || message.includes('duplicate') || message.includes('unique')
-}
 
 export type RbacService = {
   listRoles: () => Promise<RbacRole[]>

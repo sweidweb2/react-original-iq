@@ -104,6 +104,26 @@ export function PaymentDetailsDialog({
                 ) : null}
               </>
             ) : null}
+            {detail.voidedInvoices.length > 0 ? (
+              <Field>
+                <FieldLabel>Voided invoices</FieldLabel>
+                <ul className="space-y-1 rounded-md border border-border bg-muted/40 p-3 text-xs">
+                  {detail.voidedInvoices.map((voided) => (
+                    <li key={voided.id} className="space-y-0.5">
+                      <div className="flex justify-between gap-3">
+                        <span className="font-mono">
+                          {voided.invoiceNumber} · {voided.amount.toFixed(2)} {voided.currency}
+                        </span>
+                        <span className="text-muted-foreground">{formatWhen(voided.voidedAt)}</span>
+                      </div>
+                      {voided.voidReason ? (
+                        <p className="text-muted-foreground">{voided.voidReason}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </Field>
+            ) : null}
             {detail.logs.length > 0 ? (
               <Field>
                 <FieldLabel>History</FieldLabel>

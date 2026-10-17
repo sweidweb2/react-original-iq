@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
 import { conflict } from '../../errors/app-error.js'
+import { ilikeAny, isUniqueViolation, nowIso } from '../_shared/query.js'
 import type { CreateFeedbackInput, FeedbackListFilter, FeedbackRecord } from './feedback.types.js'
 
 export type FeedbackRepository = {
@@ -23,9 +24,8 @@ export function resetFeedbackRepositoryForTests(): void {
   memoryFeedbacks.length = 0
 }
 
-function nowIso(): string {
-  return new Date().toISOString()
-}
+const FEEDBACK_COLUMNS =
+  'id, task_id, tutor_id, client_id, rating, comments, suggestions, created_at, updated_at'
 
 function matchesSearch(row: FeedbackRecord, search?: string): boolean {
   if (!search) return true
@@ -85,12 +85,11 @@ function fromRow(row: FeedbackRow): FeedbackRecord {
 }
 
 function searchOr(search: string): string | null {
-  const safe = search.replace(/[%_\\,()]/g, '').trim()
-  if (!safe) return null
-  const pattern = `%${safe}%`
-  const textClause = `comments.ilike.${pattern},suggestions.ilike.${pattern}`
+  const textClause = ilikeAny(['comments', 'suggestions'], search)
+  if (!textClause) return null
   // task_id is a uuid column, so ilike is rejected by Postgres; only exact matches are possible.
-  return UUID_PATTERN.test(safe) ? `${textClause},task_id.eq.${safe}` : textClause
+  const term = search.trim()
+  return UUID_PATTERN.test(term) ? `${textClause},task_id.eq.${term}` : textClause
 }
 
 function createMemoryFeedbackRepository(): FeedbackRepository {
@@ -148,9 +147,9 @@ function createSupabaseFeedbackRepository(config: AppConfig): FeedbackRepository
           comments: input.comments?.trim() || null,
           suggestions: input.suggestions?.trim() || null,
         })
-        .select('*')
+        .select(FEEDBACK_COLUMNS)
         .single()
-      if (error?.code === '23505') throw conflict(DUPLICATE_FEEDBACK_MESSAGE)
+      if (isUniqueViolation(error)) throw conflict(DUPLICATE_FEEDBACK_MESSAGE)
       if (error) throw error
       return fromRow(data as FeedbackRow)
     },
@@ -168,7 +167,7 @@ function createSupabaseFeedbackRepository(config: AppConfig): FeedbackRepository
       const to = from + filter.limit - 1
       let query = client
         .from('feedbacks')
-        .select('*', { count: 'exact' })
+        .select(FEEDBACK_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false })
 
       if (filter.tutorId) query = query.eq('tutor_id', filter.tutorId)
