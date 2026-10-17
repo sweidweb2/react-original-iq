@@ -50,6 +50,13 @@ export function serviceUnavailable(code: ErrorCode | string, message: string): A
   return new AppError(code, message, 503)
 }
 
+export function maintenanceError(): AppError {
+  return serviceUnavailable(
+    ErrorCodes.MAINTENANCE_MODE,
+    'The platform is under maintenance. Please try again later.',
+  )
+}
+
 export function notImplemented(feature: string): AppError {
   return new AppError(ErrorCodes.NOT_IMPLEMENTED, `${feature} is not implemented yet`, 501)
 }

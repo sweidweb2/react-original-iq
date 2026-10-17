@@ -2,14 +2,34 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
-import type {
-  CreatePaymentInput,
-  CreateRefundInput,
-  PaymentRecord,
-  PaymentStatus,
-  RefundRecord,
-  UpdatePaymentInput,
+import { notFound } from '../../errors/app-error.js'
+import {
+  type CreatePaymentInput,
+  type CreateRefundInput,
+  LEDGER_CURRENCY,
+  type PaymentRecord,
+  type PaymentStatus,
+  type RefundRecord,
+  type UpdatePaymentInput,
 } from './payments.types.js'
+
+/** Why a guarded write was refused (raised atomically by the DB functions in migration 020). */
+export type PaymentCapReason = 'overpay' | 'refund_cap' | 'refund_uncovered'
+
+export class PaymentCapError extends Error {
+  readonly reason: PaymentCapReason
+
+  constructor(reason: PaymentCapReason) {
+    super(reason)
+    this.name = 'PaymentCapError'
+    this.reason = reason
+  }
+}
+
+/** Task price: paid payments − paid refunds may never exceed this. */
+export type PaymentGuard = { maxNet: number }
+
+const CAP_TOLERANCE = 0.005
 
 export type PaymentLogRecord = {
   id: string
@@ -24,8 +44,17 @@ export type PaymentsRepository = {
   listPaymentsByTask: (taskId: string) => Promise<PaymentRecord[]>
   listRefundsByTask: (taskId: string) => Promise<RefundRecord[]>
   findPaymentById: (id: string) => Promise<PaymentRecord | null>
-  createPayment: (input: CreatePaymentInput) => Promise<PaymentRecord>
-  updatePayment: (id: string, input: UpdatePaymentInput) => Promise<PaymentRecord | null>
+  /** Locks the task; throws PaymentCapError('overpay') if a paid insert would exceed `maxNet`. */
+  createPayment: (input: CreatePaymentInput, guard: PaymentGuard) => Promise<PaymentRecord>
+  /**
+   * Locks the task; throws PaymentCapError('overpay') or ('refund_uncovered') when the change would
+   * overpay the task or leave committed refunds larger than the remaining paid total.
+   */
+  updatePayment: (
+    id: string,
+    input: UpdatePaymentInput,
+    guard: PaymentGuard,
+  ) => Promise<PaymentRecord | null>
   deletePayment: (id: string) => Promise<boolean>
   addPaymentLog: (
     paymentId: string,
@@ -33,6 +62,7 @@ export type PaymentsRepository = {
     payload?: Record<string, unknown>,
   ) => Promise<void>
   listPaymentLogs: (paymentId: string) => Promise<PaymentLogRecord[]>
+  /** Locks the task; throws PaymentCapError('refund_cap') above paid − (paid + pending refunds). */
   createRefund: (input: CreateRefundInput) => Promise<RefundRecord>
   findRefundById: (id: string) => Promise<RefundRecord | null>
   updateRefundStatus: (id: string, status: PaymentStatus) => Promise<RefundRecord | null>
@@ -146,6 +176,17 @@ function fromLogRow(row: PaymentLogRow): PaymentLogRecord {
   }
 }
 
+function memoryTotals(taskId: string) {
+  const sum = (rows: { amount: number }[]) => rows.reduce((total, row) => total + row.amount, 0)
+  const payments = memoryPayments.filter((row) => row.taskId === taskId && row.status === 'paid')
+  const refunds = memoryRefunds.filter((row) => row.taskId === taskId)
+  return {
+    paidPayments: sum(payments),
+    paidRefunds: sum(refunds.filter((row) => row.status === 'paid')),
+    pendingRefunds: sum(refunds.filter((row) => row.status === 'pending')),
+  }
+}
+
 function createMemoryPaymentsRepository(): PaymentsRepository {
   return {
     async hasAnyForTask(taskId) {
@@ -167,14 +208,23 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
     async findPaymentById(id) {
       return memoryPayments.find((row) => row.id === id) ?? null
     },
-    async createPayment(input) {
+    async createPayment(input, guard) {
+      if (input.status === 'paid') {
+        const totals = memoryTotals(input.taskId)
+        if (
+          totals.paidPayments - totals.paidRefunds + input.amount >
+          guard.maxNet + CAP_TOLERANCE
+        ) {
+          throw new PaymentCapError('overpay')
+        }
+      }
       const stamp = nowIso()
       const payment: PaymentRecord = {
         id: randomUUID(),
         taskId: input.taskId,
         userId: input.userId,
         amount: input.amount,
-        currency: input.currency ?? 'USD',
+        currency: LEDGER_CURRENCY,
         gateway: input.gateway,
         montypayTransactionId: input.montypayTransactionId ?? null,
         status: input.status,
@@ -186,14 +236,28 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
       memoryPayments.push(payment)
       return payment
     },
-    async updatePayment(id, input) {
+    async updatePayment(id, input, guard) {
       const index = memoryPayments.findIndex((row) => row.id === id)
       if (index === -1) return null
       const current = memoryPayments[index]!
+      const nextAmount = input.amount ?? current.amount
+      const nextStatus = input.status ?? current.status
+      const totals = memoryTotals(current.taskId)
+      const others = totals.paidPayments - (current.status === 'paid' ? current.amount : 0)
+      const nextPaid = others + (nextStatus === 'paid' ? nextAmount : 0)
+      if (nextStatus === 'paid' && nextPaid - totals.paidRefunds > guard.maxNet + CAP_TOLERANCE) {
+        throw new PaymentCapError('overpay')
+      }
+      if (
+        nextPaid < totals.paidPayments &&
+        nextPaid < totals.paidRefunds + totals.pendingRefunds - CAP_TOLERANCE
+      ) {
+        throw new PaymentCapError('refund_uncovered')
+      }
       const updated: PaymentRecord = {
         ...current,
-        amount: input.amount ?? current.amount,
-        status: input.status ?? current.status,
+        amount: nextAmount,
+        status: nextStatus,
         paymentMethod:
           input.paymentMethod !== undefined ? input.paymentMethod : current.paymentMethod,
         updatedAt: nowIso(),
@@ -225,6 +289,11 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     },
     async createRefund(input) {
+      const totals = memoryTotals(input.taskId)
+      const refundable = totals.paidPayments - totals.paidRefunds - totals.pendingRefunds
+      if (input.amount > refundable + CAP_TOLERANCE) {
+        throw new PaymentCapError('refund_cap')
+      }
       const stamp = nowIso()
       const refund: RefundRecord = {
         id: randomUUID(),
@@ -232,8 +301,8 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
         refunderId: input.refunderId,
         amount: input.amount,
         refundReason: input.refundReason?.trim() || null,
-        currency: input.currency ?? 'USD',
-        gateway: input.gateway ?? 'manual',
+        currency: LEDGER_CURRENCY,
+        gateway: 'manual',
         montypayTransactionId: null,
         status: 'pending',
         paymentUrl: null,
@@ -287,6 +356,20 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
   }
   const client = supabase
 
+  const CAP_REASONS: Record<string, PaymentCapReason> = {
+    OVERPAY: 'overpay',
+    REFUND_CAP: 'refund_cap',
+    REFUND_UNCOVERED: 'refund_uncovered',
+  }
+
+  function mapRpcError(error: { message?: string }): Error {
+    const message = error.message ?? ''
+    const reason = CAP_REASONS[message]
+    if (reason) return new PaymentCapError(reason)
+    if (message === 'TASK_NOT_FOUND') return notFound('Task not found', 'TASK_NOT_FOUND')
+    return error as Error
+  }
+
   async function sumAmounts(table: 'payments' | 'refunds', taskId: string): Promise<number> {
     const { data, error } = await client
       .from(table)
@@ -339,37 +422,38 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
       if (error) throw error
       return data ? fromPaymentRow(data as PaymentRow) : null
     },
-    async createPayment(input) {
+    async createPayment(input, guard) {
       const { data, error } = await client
-        .from('payments')
-        .insert({
-          task_id: input.taskId,
-          user_id: input.userId,
-          amount: input.amount,
-          currency: input.currency ?? 'USD',
-          gateway: input.gateway,
-          status: input.status,
-          payment_method: input.paymentMethod ?? null,
-          montypay_transaction_id: input.montypayTransactionId ?? null,
+        .rpc('create_task_payment', {
+          p_task_id: input.taskId,
+          p_user_id: input.userId,
+          p_amount: input.amount,
+          p_status: input.status,
+          p_gateway: input.gateway,
+          p_method: input.paymentMethod ?? null,
+          p_txn_id: input.montypayTransactionId ?? null,
+          p_max_net: guard.maxNet,
         })
-        .select(PAYMENT_COLUMNS)
         .single()
-      if (error) throw error
+      if (error) throw mapRpcError(error)
       return fromPaymentRow(data as PaymentRow)
     },
-    async updatePayment(id, input) {
-      const patch: Record<string, unknown> = {}
-      if (input.amount !== undefined) patch.amount = input.amount
-      if (input.status !== undefined) patch.status = input.status
-      if (input.paymentMethod !== undefined) patch.payment_method = input.paymentMethod
+    async updatePayment(id, input, guard) {
       const { data, error } = await client
-        .from('payments')
-        .update(patch)
-        .eq('id', id)
-        .select(PAYMENT_COLUMNS)
-        .maybeSingle()
-      if (error) throw error
-      return data ? fromPaymentRow(data as PaymentRow) : null
+        .rpc('update_task_payment', {
+          p_payment_id: id,
+          p_amount: input.amount ?? null,
+          p_status: input.status ?? null,
+          p_set_method: input.paymentMethod !== undefined,
+          p_method: input.paymentMethod ?? null,
+          p_max_net: guard.maxNet,
+        })
+        .single()
+      if (error) {
+        if (error.message === 'PAYMENT_NOT_FOUND') return null
+        throw mapRpcError(error)
+      }
+      return fromPaymentRow(data as PaymentRow)
     },
     async deletePayment(id) {
       const { error, count } = await client.from('payments').delete({ count: 'exact' }).eq('id', id)
@@ -393,20 +477,14 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
     },
     async createRefund(input) {
       const { data, error } = await client
-        .from('refunds')
-        .insert({
-          task_id: input.taskId,
-          refunder_id: input.refunderId,
-          amount: input.amount,
-          refund_reason: input.refundReason?.trim() || null,
-          currency: input.currency ?? 'USD',
-          gateway: input.gateway ?? 'manual',
-          status: 'pending',
-          payment_method: 'manual',
+        .rpc('create_task_refund', {
+          p_task_id: input.taskId,
+          p_refunder_id: input.refunderId,
+          p_amount: input.amount,
+          p_reason: input.refundReason?.trim() || null,
         })
-        .select(REFUND_COLUMNS)
         .single()
-      if (error) throw error
+      if (error) throw mapRpcError(error)
       return fromRefundRow(data as RefundRow)
     },
     async findRefundById(id) {

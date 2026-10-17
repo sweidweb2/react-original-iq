@@ -26,5 +26,5 @@ export function createExportsModule(
     exportsRepository: deps.exportsRepository ?? createExportsRepository(config),
   })
   const controller = createExportsController(service)
-  return createExportsRoutes(controller)
+  return createExportsRoutes(controller, config)
 }

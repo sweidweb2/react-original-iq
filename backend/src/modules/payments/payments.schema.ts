@@ -1,6 +1,14 @@
 import { z } from 'zod'
 
+import { LEDGER_CURRENCY } from './payments.types.js'
+
 const paymentStatusSchema = z.enum(['pending', 'paid', 'failed', 'canceled', 'refunded'])
+
+const currencySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .pipe(z.literal(LEDGER_CURRENCY, { error: `Only ${LEDGER_CURRENCY} is supported` }))
 
 export const taskPaymentsParamsSchema = z.object({
   id: z.string().trim().uuid(),
@@ -15,7 +23,7 @@ export const createManualPaymentBodySchema = z.object({
   amount: z.coerce.number().positive().max(999999.99),
   status: paymentStatusSchema.optional(),
   paymentMethod: z.string().trim().max(64).optional(),
-  currency: z.string().trim().length(3).optional(),
+  currency: currencySchema.optional(),
 })
 
 export const updatePaymentBodySchema = z
@@ -30,13 +38,13 @@ export const updatePaymentBodySchema = z
 
 export const checkoutPaymentBodySchema = z.object({
   amount: z.coerce.number().min(0.01).max(999999.99).optional(),
-  currency: z.string().trim().length(3).optional(),
+  currency: currencySchema.optional(),
 })
 
 export const createRefundBodySchema = z.object({
   amount: z.coerce.number().positive().max(999999.99),
   refundReason: z.string().trim().max(2000).optional(),
-  currency: z.string().trim().length(3).optional(),
+  currency: currencySchema.optional(),
 })
 
 export const taskRefundParamsSchema = z.object({

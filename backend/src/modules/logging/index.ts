@@ -1,4 +1,4 @@
-import { loadConfig } from '../../config/index.js'
+import { type AppConfig, loadConfig } from '../../config/index.js'
 import { reportError } from '../../errors/report-error.js'
 import { createLoggingController } from './logging.controller.js'
 import { createLoggingRepository } from './logging.repository.js'
@@ -25,10 +25,10 @@ export function resetLoggingServiceForTests(): void {
   sharedService = null
 }
 
-export function createLoggingModule() {
+export function createLoggingModule(config: AppConfig = loadConfig()) {
   const service = getLoggingService()
   const controller = createLoggingController(service)
-  return createLoggingRoutes(controller)
+  return createLoggingRoutes(controller, config)
 }
 
 export type { LoggingService }

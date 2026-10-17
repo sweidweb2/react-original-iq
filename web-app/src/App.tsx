@@ -2,7 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { RequireAuth, RequireRole } from '@/components/auth'
 import { ErrorBoundary } from '@/components/errors/ErrorBoundary'
-import { NavigationLoader } from '@/components/feedback'
+import { NavigationLoader, ScrollToTop } from '@/components/feedback'
+import { MAINTENANCE_PATH, MaintenanceGate } from '@/components/maintenance/MaintenanceGate'
 import { ContactMessagesPage } from '@/features/admin/contact/ContactMessagesPage'
 import { AdminHomePage } from '@/features/admin/home/AdminHomePage'
 import { LeadsPage } from '@/features/admin/leads/LeadsPage'
@@ -13,6 +14,7 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RegisterPage } from '@/features/auth/RegisterPage'
 import { ResetUpdatePage } from '@/features/auth/ResetUpdatePage'
 import { ResetVerifyPage } from '@/features/auth/ResetVerifyPage'
+import { MaintenancePage } from '@/features/errors/MaintenancePage'
 import { NotFoundPage } from '@/features/errors/NotFoundPage'
 import { UnexpectedErrorPage } from '@/features/errors/UnexpectedErrorPage'
 import { PortalLayout } from '@/features/portals/PortalLayouts'
@@ -31,6 +33,7 @@ import { ActivityLogsPage } from '@/features/super/ActivityLogsPage'
 import { BackupPage } from '@/features/super/backup/BackupPage'
 import { ErrorLogsPage } from '@/features/super/ErrorLogsPage'
 import { ManageRbacPage } from '@/features/super/rbac/ManageRbacPage'
+import { SettingsPage } from '@/features/super/settings/SettingsPage'
 import type { AuthRole } from '@/services/auth'
 
 function portalChildRoutes(role: AuthRole) {
@@ -43,6 +46,7 @@ function portalChildRoutes(role: AuthRole) {
         <Route path="users/:userId" element={<ManageUserProfilePage />} />
         <Route path="rbac" element={<ManageRbacPage />} />
         <Route path="backup" element={<BackupPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </>
     )
@@ -84,37 +88,41 @@ function App() {
   return (
     <BrowserRouter>
       <NavigationLoader />
+      <ScrollToTop />
       <ErrorBoundary>
-        <Routes>
-          {localizedPublicRoutes()}
+        <MaintenanceGate>
+          <Routes>
+            {localizedPublicRoutes()}
 
-          <Route element={<PublicLayout />}>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/password-reset/verify" element={<ResetVerifyPage />} />
-            <Route path="/password-reset/update" element={<ResetUpdatePage />} />
-            <Route path="/signup" element={<RegisterPage />} />
-            <Route path="/register" element={<Navigate to="/signup" replace />} />
-            <Route path="/500" element={<UnexpectedErrorPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-
-          {PORTALS.map((portal) => (
-            <Route
-              key={portal.path}
-              path={portal.path}
-              element={
-                <RequireAuth>
-                  <RequireRole roles={[portal.role]}>
-                    <PortalLayout portal={portal} />
-                  </RequireRole>
-                </RequireAuth>
-              }
-            >
-              {portalChildRoutes(portal.role)}
+            <Route element={<PublicLayout />}>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/password-reset/verify" element={<ResetVerifyPage />} />
+              <Route path="/password-reset/update" element={<ResetUpdatePage />} />
+              <Route path="/signup" element={<RegisterPage />} />
+              <Route path="/register" element={<Navigate to="/signup" replace />} />
+              <Route path="/500" element={<UnexpectedErrorPage />} />
+              <Route path={MAINTENANCE_PATH} element={<MaintenancePage />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
-          ))}
-        </Routes>
+
+            {PORTALS.map((portal) => (
+              <Route
+                key={portal.path}
+                path={portal.path}
+                element={
+                  <RequireAuth>
+                    <RequireRole roles={[portal.role]}>
+                      <PortalLayout portal={portal} />
+                    </RequireRole>
+                  </RequireAuth>
+                }
+              >
+                {portalChildRoutes(portal.role)}
+              </Route>
+            ))}
+          </Routes>
+        </MaintenanceGate>
       </ErrorBoundary>
     </BrowserRouter>
   )

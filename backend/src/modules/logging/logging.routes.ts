@@ -1,13 +1,15 @@
 import { Router } from 'express'
 
-import { authenticate } from '../../middleware/authenticate.js'
+import type { AppConfig } from '../../config/index.js'
+import { createAuthenticate } from '../../middleware/authenticate.js'
 import { authorize } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
 import type { LoggingController } from './logging.controller.js'
 import { listActivityQuerySchema, listErrorsQuerySchema } from './logging.schema.js'
 
-export function createLoggingRoutes(controller: LoggingController): Router {
+export function createLoggingRoutes(controller: LoggingController, config: AppConfig): Router {
   const router = Router()
+  const authenticate = createAuthenticate(config)
 
   router.get(
     '/activity-logs',

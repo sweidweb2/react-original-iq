@@ -16,5 +16,5 @@ export function createSpecializationsModule(
   const repository = createSpecializationsRepository(config)
   const service = createSpecializationsService(repository, users)
   const controller = createSpecializationsController(service)
-  return createSpecializationsRoutes(controller)
+  return createSpecializationsRoutes(controller, config)
 }

@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Newspaper,
   ScrollText,
+  Settings,
   UserCircle,
   Users,
 } from 'lucide-react'
@@ -39,6 +40,7 @@ export const PORTALS: readonly PortalDefinition[] = [
       { to: '/super/users', label: 'Users', icon: Users },
       { to: '/super/rbac', label: 'RBAC', icon: KeyRound },
       { to: '/super/backup', label: 'Backup', icon: DatabaseBackup },
+      { to: '/super/settings', label: 'Settings', icon: Settings },
       { to: '/super/profile', label: 'Profile', icon: UserCircle },
     ],
   },

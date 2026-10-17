@@ -106,7 +106,10 @@ describe('supabase storage service', () => {
     ).rejects.toMatchObject({ status: 400 })
   })
 
-  const tree: Record<string, { name: string; id: string | null; metadata: { size: number } | null }[]> = {
+  const tree: Record<
+    string,
+    { name: string; id: string | null; metadata: { size: number } | null }[]
+  > = {
     '': [
       { name: 'solutions', id: null, metadata: null },
       { name: 'student_files', id: null, metadata: null },

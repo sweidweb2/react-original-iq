@@ -42,12 +42,12 @@ Provision these for each environment (local / staging / production). **Never com
 
 Uses the same `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` as the database (backend only).
 
-| Key                          | Purpose                                                        |
-| ---------------------------- | -------------------------------------------------------------- |
-| `SUPABASE_STORAGE_BUCKET`    | Private bucket name (`main_bucket`); unset disables uploads    |
-| `STORAGE_MAX_FILE_BYTES`     | Per-file limit (default 25 MiB)                                |
-| `STORAGE_MAX_TASK_BYTES`     | Total per task (default 100 MiB)                               |
-| `STORAGE_SIGNED_URL_TTL_SEC` | Signed download URL lifetime (default 900)                     |
+| Key                          | Purpose                                                     |
+| ---------------------------- | ----------------------------------------------------------- |
+| `SUPABASE_STORAGE_BUCKET`    | Private bucket name (`main_bucket`); unset disables uploads |
+| `STORAGE_MAX_FILE_BYTES`     | Per-file limit (default 25 MiB)                             |
+| `STORAGE_MAX_TASK_BYTES`     | Total per task (default 100 MiB)                            |
+| `STORAGE_SIGNED_URL_TTL_SEC` | Signed download URL lifetime (default 900)                  |
 
 The old Cloudflare R2 keys (`STORAGE_PROVIDER`, `AWS_*`) are no longer read; they stay commented out in `backend/.env` for reference.
 

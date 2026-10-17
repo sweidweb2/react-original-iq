@@ -1,7 +1,7 @@
 import { Router } from 'express'
 
 import type { AppConfig } from '../../config/index.js'
-import { authenticate } from '../../middleware/authenticate.js'
+import { createAuthenticate } from '../../middleware/authenticate.js'
 import { authorize } from '../../middleware/authorize.js'
 import { createAuthRateLimiter } from '../../middleware/rate-limit.js'
 import { validate } from '../../middleware/validate.js'
@@ -23,6 +23,7 @@ const EXPORT_GATE = ['super'] as const
 export function createContactRoutes(controller: ContactController, config: AppConfig): Router {
   const router = Router()
   const limiter = createAuthRateLimiter(config)
+  const authenticate = createAuthenticate(config)
 
   router.post(
     '/messages',
@@ -102,7 +103,12 @@ export function createContactRoutes(controller: ContactController, config: AppCo
 
   router.post('/leads', limiter, validate({ body: leadBodySchema }), controller.createLead)
   router.get('/leads/export', authenticate, authorize(...EXPORT_GATE), controller.exportLeads)
-  router.get('/leads/export.pdf', authenticate, authorize(...EXPORT_GATE), controller.exportLeadsPdf)
+  router.get(
+    '/leads/export.pdf',
+    authenticate,
+    authorize(...EXPORT_GATE),
+    controller.exportLeadsPdf,
+  )
   router.get(
     '/leads',
     authenticate,

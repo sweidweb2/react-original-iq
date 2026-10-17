@@ -229,6 +229,7 @@ async function pickLeastLoadedCoordinator(
 
 export type TasksServiceDeps = {
   hasOpenRevision?: (taskId: string) => Promise<boolean>
+  cancelOpenRevisions?: (taskId: string) => Promise<unknown>
   recomputePaymentStatus?: (taskId: string) => Promise<unknown>
   storage?: StorageService
   /** Upper bound on the summed size of files in one zip (defaults to the task storage cap). */
@@ -624,6 +625,7 @@ export function createTasksService(
       }
       const updated = await repository.update(id, { status: 'cancelled' })
       if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
+      await deps.cancelOpenRevisions?.(id)
       return updated
     },
 

@@ -31,6 +31,9 @@ export function createTasksModule(
     hasOpenRevision: deps.revisionsModule
       ? (taskId) => deps.revisionsModule!.hasOpenForTask(taskId)
       : undefined,
+    cancelOpenRevisions: deps.revisionsModule
+      ? (taskId) => deps.revisionsModule!.cancelOpenForTask(taskId)
+      : undefined,
     recomputePaymentStatus: deps.paymentsModule
       ? (taskId) => deps.paymentsModule!.recomputeForTask(taskId)
       : undefined,
@@ -38,7 +41,7 @@ export function createTasksModule(
     maxZipBytes: config.storage?.maxTaskBytes,
   })
   const controller = createTasksController(service)
-  return createTasksRoutes(controller, {
+  return createTasksRoutes(controller, config, {
     revisions: deps.revisionsModule?.taskRoutes,
     payments: deps.paymentsModule?.paymentRoutes,
     refunds: deps.paymentsModule?.refundRoutes,

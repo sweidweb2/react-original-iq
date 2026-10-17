@@ -45,7 +45,7 @@ function historyRecord(overrides: Partial<BackupHistoryRecord> = {}): BackupHist
 
 function captureOutput() {
   const chunks: Buffer[] = []
-  const opened: { filename: string; contentType: string }[] = []
+  const opened: Parameters<BackupOutput['open']>[0][] = []
   const output: BackupOutput = {
     open(file) {
       opened.push(file)

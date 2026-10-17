@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
-import { Field, FieldLabel } from '@/components/forms'
+import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { PageHeader } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/select'
 import { StarRating } from '@/components/ui/star-rating'
 import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { type FieldErrors, parseForm } from '@/lib/form'
 import {
   createFeedback,
   deleteFeedback,
@@ -21,8 +22,10 @@ import {
   listFeedback,
 } from '@/services/feedback'
 import { listTasks, type Task } from '@/services/tasks'
-import { toastApiError, toastInvalid, toastSuccess } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
+
+import { feedbackFormSchema, type FeedbackFormValues } from './feedback.schema'
 
 const PAGE_SIZE = 10
 
@@ -62,6 +65,7 @@ export function FeedbackPage() {
   const [rating, setRating] = useState(0)
   const [comments, setComments] = useState('')
   const [suggestions, setSuggestions] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof FeedbackFormValues>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [clientTasks, setClientTasks] = useState<Task[]>([])
   const [tasksLoading, setTasksLoading] = useState(false)
@@ -137,26 +141,24 @@ export function FeedbackPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!taskId) {
-      toastInvalid('Pick a task', 'Choose one of your completed tasks before sending feedback.')
+    const parsed = parseForm(feedbackFormSchema, { taskId, rating, comments, suggestions })
+    if (!parsed.success) {
+      setFieldErrors(parsed.fieldErrors)
       return
     }
-    if (rating < 1 || rating > 5) {
-      toastInvalid('Pick a rating', 'Choose between 1 and 5 stars.')
-      return
-    }
-    const taskTopic = clientTasks.find((task) => task.id === taskId)?.topic
+    setFieldErrors({})
+    const taskTopic = clientTasks.find((task) => task.id === parsed.data.taskId)?.topic
     setIsSubmitting(true)
     try {
       await createFeedback({
-        taskId,
-        rating,
-        comments: comments.trim() || undefined,
-        suggestions: suggestions.trim() || undefined,
+        taskId: parsed.data.taskId,
+        rating: parsed.data.rating,
+        comments: parsed.data.comments || undefined,
+        suggestions: parsed.data.suggestions || undefined,
       })
       toastSuccess(
         'Feedback sent',
-        `${rating}/5 stars${taskTopic ? ` for “${taskTopic}”` : ''}. Thank you!`,
+        `${parsed.data.rating}/5 stars${taskTopic ? ` for “${taskTopic}”` : ''}. Thank you!`,
       )
       setTaskId('')
       setRating(0)
@@ -216,13 +218,12 @@ export function FeedbackPage() {
           <CardContent className="flex flex-col gap-4 pt-6">
             <h2 className="text-lg font-semibold">Submit feedback</h2>
             <form className="grid max-w-lg gap-4" onSubmit={handleSubmit}>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.taskId) || undefined}>
                 <FieldLabel htmlFor="feedback-task-id">Task</FieldLabel>
                 <Select
                   id="feedback-task-id"
                   value={taskId}
                   onChange={(event) => setTaskId(event.target.value)}
-                  required
                   disabled={tasksLoading || reviewableTasks.length === 0}
                 >
                   <option value="">
@@ -238,12 +239,14 @@ export function FeedbackPage() {
                     </option>
                   ))}
                 </Select>
+                <FieldError>{fieldErrors.taskId}</FieldError>
               </Field>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.rating) || undefined}>
                 <FieldLabel>Rating</FieldLabel>
                 <StarRating value={rating} onChange={setRating} label="Session rating" />
+                <FieldError>{fieldErrors.rating}</FieldError>
               </Field>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.comments) || undefined}>
                 <FieldLabel htmlFor="feedback-comments">Comments</FieldLabel>
                 <Textarea
                   id="feedback-comments"
@@ -252,8 +255,9 @@ export function FeedbackPage() {
                   placeholder="Share your experience…"
                   rows={4}
                 />
+                <FieldError>{fieldErrors.comments}</FieldError>
               </Field>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.suggestions) || undefined}>
                 <FieldLabel htmlFor="feedback-suggestions">Suggestions</FieldLabel>
                 <Textarea
                   id="feedback-suggestions"
@@ -262,6 +266,7 @@ export function FeedbackPage() {
                   placeholder="Optional improvements…"
                   rows={3}
                 />
+                <FieldError>{fieldErrors.suggestions}</FieldError>
               </Field>
               <Button type="submit" disabled={isSubmitting}>
                 Submit feedback

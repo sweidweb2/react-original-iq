@@ -38,6 +38,8 @@ const baseEnvSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(200),
   AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  /** Per-account cap on login + password-reset attempts within the auth window. */
+  AUTH_EMAIL_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 
   MAIL_MAILER: z.string().min(1).optional(),
@@ -134,6 +136,7 @@ export type AppConfig = {
   rateLimitMax: number
   authRateLimitWindowMs: number
   authRateLimitMax: number
+  authEmailRateLimitMax: number
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent'
   mail: MailConfig
   storage?: StorageConfig
@@ -167,6 +170,36 @@ function parseCorsOrigins(raw: string | undefined, env: AppConfig['env']): strin
   }
 
   return value
+}
+
+const MIN_JWT_SECRET_LENGTH = 32
+
+/** Deployed environments must not boot with weak auth secrets or proxy-blind rate limits. */
+function assertDeployedSecurity(data: z.infer<typeof baseEnvSchema>): void {
+  if (data.NODE_ENV !== 'production' && data.NODE_ENV !== 'staging') return
+
+  const problems: string[] = []
+  const access = data.JWT_ACCESS_SECRET
+  const refresh = data.JWT_REFRESH_SECRET
+  if (!access || !refresh) {
+    problems.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET are required')
+  } else {
+    if (access.length < MIN_JWT_SECRET_LENGTH || refresh.length < MIN_JWT_SECRET_LENGTH) {
+      problems.push(`JWT secrets must be at least ${MIN_JWT_SECRET_LENGTH} characters`)
+    }
+    if (access === refresh) {
+      problems.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must differ')
+    }
+  }
+  if (!data.TRUST_PROXY) {
+    problems.push(
+      'TRUST_PROXY=true is required behind the Vercel proxy (rate limits key on client IP)',
+    )
+  }
+
+  if (problems.length > 0) {
+    throw new Error(`Invalid ${data.NODE_ENV} configuration: ${problems.join('; ')}`)
+  }
 }
 
 function parseStorage(data: z.infer<typeof baseEnvSchema>): StorageConfig | undefined {
@@ -219,11 +252,18 @@ function parseMontyPay(data: z.infer<typeof baseEnvSchema>): MontyPayConfig | un
   }
 }
 
+/** `KEY=` lines in `.env` arrive as `''`; treat them as unset so optional/default fields apply. */
+function withoutBlankValues(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(env).filter(([, value]) => value !== undefined && value.trim() !== ''),
+  )
+}
+
 /**
  * Load and validate env once. Call from server entry / createApp — not from domain code.
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = baseEnvSchema.safeParse(env)
+  const parsed = baseEnvSchema.safeParse(withoutBlankValues(env))
 
   if (!parsed.success) {
     const details = parsed.error.issues
@@ -233,6 +273,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   const data = parsed.data
+  assertDeployedSecurity(data)
 
   return {
     env: data.NODE_ENV,
@@ -254,6 +295,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     rateLimitMax: data.RATE_LIMIT_MAX,
     authRateLimitWindowMs: data.AUTH_RATE_LIMIT_WINDOW_MS,
     authRateLimitMax: data.AUTH_RATE_LIMIT_MAX,
+    authEmailRateLimitMax: data.AUTH_EMAIL_RATE_LIMIT_MAX,
     logLevel: data.LOG_LEVEL,
     mail: {
       mailer: data.MAIL_MAILER,

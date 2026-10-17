@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
-import { authenticate } from '../../middleware/authenticate.js'
+import type { AppConfig } from '../../config/index.js'
+import { createAuthenticate } from '../../middleware/authenticate.js'
 import { authorize } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
 import type { FeedbackController } from './feedback.controller.js'
@@ -10,10 +11,10 @@ import {
   listFeedbackQuerySchema,
 } from './feedback.schema.js'
 
-export function createFeedbackRoutes(controller: FeedbackController): Router {
+export function createFeedbackRoutes(controller: FeedbackController, config: AppConfig): Router {
   const router = Router()
 
-  router.use(authenticate)
+  router.use(createAuthenticate(config))
 
   router.post(
     '/',

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import type { AuthActor } from '../../authz/index.js'
 import { assertTaskRelated, isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
 import { forbidden, notFound, notImplemented, validationError } from '../../errors/app-error.js'
@@ -6,7 +8,12 @@ import type { InvoicesService } from '../invoices/invoices.service.js'
 import { getLoggingService } from '../logging/index.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task, TaskPaymentStatus } from '../tasks/tasks.types.js'
-import type { PaymentLogRecord, PaymentsRepository } from './payments.repository.js'
+import {
+  PaymentCapError,
+  type PaymentCapReason,
+  type PaymentLogRecord,
+  type PaymentsRepository,
+} from './payments.repository.js'
 import type {
   CheckoutPaymentBody,
   CreateManualPaymentBody,
@@ -79,6 +86,24 @@ function canManagePayments(actor: AuthActor, task: Task): boolean {
   return isOps(actor.roles) && task.coordinatorId === actor.id
 }
 
+const CAP_MESSAGES: Record<PaymentCapReason, string> = {
+  overpay: 'This change would overpay the task price',
+  refund_cap: 'Refund exceeds the refundable amount',
+  refund_uncovered: 'This change would leave refunds larger than the amount paid',
+}
+
+/** Turns an atomic cap violation from the repository into a 400. */
+async function guarded<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write()
+  } catch (error) {
+    if (error instanceof PaymentCapError) {
+      throw validationError(CAP_MESSAGES[error.reason])
+    }
+    throw error
+  }
+}
+
 /** Doc 06: net = paid payments − paid refunds. */
 export async function recomputeTaskPaymentStatus(
   tasksRepository: TasksRepository,
@@ -145,6 +170,24 @@ export function createPaymentsService(
 
   function dueFor(task: Task, paidTotal: number, refundedTotal: number): number {
     return roundMoney(Math.max(0, task.price - paidTotal + refundedTotal))
+  }
+
+  /** Paid + pending refunds: money already promised back to the client. */
+  async function committedRefunds(taskId: string): Promise<number> {
+    const refunds = await repository.listRefundsByTask(taskId)
+    return roundMoney(
+      refunds
+        .filter((row) => row.status === 'paid' || row.status === 'pending')
+        .reduce((sum, row) => sum + row.amount, 0),
+    )
+  }
+
+  /** Rejects a change that lowers the paid total below the committed refunds. */
+  async function assertRefundsStayCovered(taskId: string, nextPaidTotal: number) {
+    const committed = await committedRefunds(taskId)
+    if (nextPaidTotal < committed - CENT) {
+      throw validationError(CAP_MESSAGES.refund_uncovered)
+    }
   }
 
   async function logEvent(paymentId: string, event: string, payload: Record<string, unknown>) {
@@ -222,15 +265,19 @@ export function createPaymentsService(
           throw validationError(`Manual payments cannot exceed the balance due (${due.toFixed(2)})`)
         }
       }
-      const payment = await repository.createPayment({
-        taskId,
-        userId: task.clientId,
-        amount: roundMoney(body.amount),
-        status,
-        gateway: MANUAL_GATEWAY,
-        paymentMethod: body.paymentMethod ?? 'manual',
-        currency: body.currency,
-      })
+      const payment = await guarded(() =>
+        repository.createPayment(
+          {
+            taskId,
+            userId: task.clientId,
+            amount: roundMoney(body.amount),
+            status,
+            gateway: MANUAL_GATEWAY,
+            paymentMethod: body.paymentMethod ?? 'manual',
+          },
+          { maxNet: task.price },
+        ),
+      )
       await logEvent(payment.id, 'payment.created', {
         by: actor.id,
         amount: payment.amount,
@@ -256,20 +303,27 @@ export function createPaymentsService(
       const nextStatus = body.status ?? current.status
       const nextAmount = body.amount !== undefined ? roundMoney(body.amount) : current.amount
 
-      if (nextStatus === 'paid') {
-        const { paidTotal, refundedTotal } = await totals(taskId)
-        const othersPaid = paidTotal - (current.status === 'paid' ? current.amount : 0)
-        const net = roundMoney(othersPaid + nextAmount - refundedTotal)
-        if (net > task.price + CENT) {
-          throw validationError('This change would overpay the task price')
-        }
+      const { paidTotal, refundedTotal } = await totals(taskId)
+      const othersPaid = paidTotal - (current.status === 'paid' ? current.amount : 0)
+      const nextPaidTotal = roundMoney(othersPaid + (nextStatus === 'paid' ? nextAmount : 0))
+      if (nextStatus === 'paid' && roundMoney(nextPaidTotal - refundedTotal) > task.price + CENT) {
+        throw validationError(CAP_MESSAGES.overpay)
+      }
+      if (nextPaidTotal < paidTotal) {
+        await assertRefundsStayCovered(taskId, nextPaidTotal)
       }
 
-      const updated = await repository.updatePayment(paymentId, {
-        amount: body.amount !== undefined ? nextAmount : undefined,
-        status: body.status,
-        paymentMethod: body.paymentMethod,
-      })
+      const updated = await guarded(() =>
+        repository.updatePayment(
+          paymentId,
+          {
+            amount: body.amount !== undefined ? nextAmount : undefined,
+            status: body.status,
+            paymentMethod: body.paymentMethod,
+          },
+          { maxNet: task.price },
+        ),
+      )
       if (!updated) {
         throw notFound('Payment not found', 'PAYMENT_NOT_FOUND')
       }
@@ -314,16 +368,20 @@ export function createPaymentsService(
         throw validationError(`Amount exceeds the balance due (${due.toFixed(2)})`)
       }
 
-      const payment = await repository.createPayment({
-        taskId,
-        userId: actor.id,
-        amount,
-        status: 'paid',
-        gateway: SIMULATED_GATEWAY,
-        paymentMethod: 'card',
-        currency: body.currency ?? 'USD',
-        montypayTransactionId: `SIM_${taskId}_${Date.now()}`,
-      })
+      const payment = await guarded(() =>
+        repository.createPayment(
+          {
+            taskId,
+            userId: actor.id,
+            amount,
+            status: 'paid',
+            gateway: SIMULATED_GATEWAY,
+            paymentMethod: 'card',
+            montypayTransactionId: `SIM_${taskId}_${randomUUID()}`,
+          },
+          { maxNet: task.price },
+        ),
+      )
       await logEvent(payment.id, 'checkout.simulated', {
         amount,
         currency: payment.currency,
@@ -345,6 +403,10 @@ export function createPaymentsService(
         throw forbidden('Only coordinators or admins can delete payments')
       }
       const payment = await loadPayment(taskId, paymentId)
+      if (payment.status === 'paid') {
+        const { paidTotal } = await totals(taskId)
+        await assertRefundsStayCovered(taskId, roundMoney(paidTotal - payment.amount))
+      }
       await invoices.purgeForPayment(paymentId)
       const deleted = await repository.deletePayment(paymentId)
       if (!deleted) {
@@ -365,12 +427,29 @@ export function createPaymentsService(
       if (!canManagePayments(actor, task)) {
         throw forbidden('Only coordinators or admins can create refunds')
       }
-      const refund = await repository.createRefund({
-        taskId,
-        refunderId: actor.id,
-        amount: body.amount,
-        refundReason: body.refundReason,
-        currency: body.currency,
+      const amount = roundMoney(body.amount)
+      const [{ paidTotal }, committed] = await Promise.all([
+        totals(taskId),
+        committedRefunds(taskId),
+      ])
+      const refundable = roundMoney(Math.max(0, paidTotal - committed))
+      if (amount > refundable + CENT) {
+        throw validationError(`Refund exceeds the refundable amount (${refundable.toFixed(2)})`)
+      }
+      const refund = await guarded(() =>
+        repository.createRefund({
+          taskId,
+          refunderId: actor.id,
+          amount,
+          refundReason: body.refundReason,
+        }),
+      )
+      getLoggingService().recordActivitySafe({
+        userId: actor.id,
+        action: 'payments.refund.create',
+        entity: 'refund',
+        entityId: refund.id,
+        meta: { taskId, amount: refund.amount, reason: refund.refundReason },
       })
       await recomputeTaskPaymentStatus(tasksRepository, repository, task)
       return refund
@@ -392,6 +471,13 @@ export function createPaymentsService(
       if (!updated) {
         throw notFound('Refund not found', 'REFUND_NOT_FOUND')
       }
+      getLoggingService().recordActivitySafe({
+        userId: actor.id,
+        action: `payments.refund.${status}`,
+        entity: 'refund',
+        entityId: refundId,
+        meta: { taskId, amount: updated.amount },
+      })
       await recomputeTaskPaymentStatus(tasksRepository, repository, task)
       return updated
     },
@@ -412,6 +498,13 @@ export function createPaymentsService(
       if (!deleted) {
         throw notFound('Refund not found', 'REFUND_NOT_FOUND')
       }
+      getLoggingService().recordActivitySafe({
+        userId: actor.id,
+        action: 'payments.refund.delete',
+        entity: 'refund',
+        entityId: refundId,
+        meta: { taskId, amount: existing.amount, reason: existing.refundReason },
+      })
       await recomputeTaskPaymentStatus(tasksRepository, repository, task)
     },
 

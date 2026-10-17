@@ -1,6 +1,7 @@
 import { type Router as ExpressRouter, Router } from 'express'
 
-import { authenticate } from '../../middleware/authenticate.js'
+import type { AppConfig } from '../../config/index.js'
+import { createAuthenticate } from '../../middleware/authenticate.js'
 import { validate } from '../../middleware/validate.js'
 import type { TasksController } from './tasks.controller.js'
 import {
@@ -26,10 +27,14 @@ export type TasksRouteExtras = {
   refunds?: ExpressRouter
 }
 
-export function createTasksRoutes(controller: TasksController, extras?: TasksRouteExtras): Router {
+export function createTasksRoutes(
+  controller: TasksController,
+  config: AppConfig,
+  extras?: TasksRouteExtras,
+): Router {
   const router = Router()
 
-  router.use(authenticate)
+  router.use(createAuthenticate(config))
 
   router.get('/', validate({ query: listTasksQuerySchema }), controller.list)
   router.get('/stats', controller.stats)

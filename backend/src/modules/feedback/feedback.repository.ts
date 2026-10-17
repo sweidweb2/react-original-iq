@@ -15,6 +15,8 @@ export type FeedbackRepository = {
 
 const DUPLICATE_FEEDBACK_MESSAGE = 'You already left feedback for this task'
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 const memoryFeedbacks: FeedbackRecord[] = []
 
 export function resetFeedbackRepositoryForTests(): void {
@@ -86,7 +88,9 @@ function searchOr(search: string): string | null {
   const safe = search.replace(/[%_\\,()]/g, '').trim()
   if (!safe) return null
   const pattern = `%${safe}%`
-  return `comments.ilike.${pattern},suggestions.ilike.${pattern},task_id.ilike.${pattern}`
+  const textClause = `comments.ilike.${pattern},suggestions.ilike.${pattern}`
+  // task_id is a uuid column, so ilike is rejected by Postgres; only exact matches are possible.
+  return UUID_PATTERN.test(safe) ? `${textClause},task_id.eq.${safe}` : textClause
 }
 
 function createMemoryFeedbackRepository(): FeedbackRepository {

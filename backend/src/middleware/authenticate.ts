@@ -1,27 +1,41 @@
 import type { RequestHandler } from 'express'
+import jwt from 'jsonwebtoken'
 
-import { loadConfig } from '../config/index.js'
+import type { AppConfig } from '../config/index.js'
 import { unauthorized } from '../errors/app-error.js'
 import { verifyAccessToken } from '../modules/auth/auth.tokens.js'
 import { setRequestUserId } from './request-context.js'
 
 /**
  * Require a valid Bearer access JWT. Attaches `req.user`.
+ * Only token problems answer 401; missing secrets or other faults surface as server errors.
  */
-export const authenticate: RequestHandler = (req, _res, next) => {
-  try {
+export function createAuthenticate(config: AppConfig): RequestHandler {
+  return (req, _res, next) => {
     const header = req.headers.authorization
     if (!header?.startsWith('Bearer ')) {
-      throw unauthorized()
+      next(unauthorized())
+      return
     }
 
     const token = header.slice('Bearer '.length).trim()
     if (!token) {
-      throw unauthorized()
+      next(unauthorized())
+      return
     }
 
-    const config = loadConfig()
-    const payload = verifyAccessToken(config, token)
+    let payload
+    try {
+      payload = verifyAccessToken(config, token)
+    } catch (error) {
+      next(
+        error instanceof jwt.JsonWebTokenError
+          ? unauthorized('Invalid or expired access token')
+          : error,
+      )
+      return
+    }
+
     req.user = {
       id: payload.sub,
       roles: [payload.role],
@@ -29,11 +43,5 @@ export const authenticate: RequestHandler = (req, _res, next) => {
     }
     setRequestUserId(payload.sub)
     next()
-  } catch (error) {
-    if (error && typeof error === 'object' && 'status' in error) {
-      next(error)
-      return
-    }
-    next(unauthorized('Invalid or expired access token'))
   }
 }

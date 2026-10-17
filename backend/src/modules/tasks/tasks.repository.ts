@@ -34,7 +34,10 @@ export type TasksRepository = {
   deleteSolution: (taskId: string, solutionId: string) => Promise<TaskSolution | null>
   hasPayments: (taskId: string) => Promise<boolean>
   countActiveInvolvingUser: (userId: string) => Promise<number>
-  listTaskIdsForClient: (clientId: string) => Promise<string[]>
+  /** True if any task owned by the client has a payment or refund row. */
+  hasPaymentsForClient: (clientId: string) => Promise<boolean>
+  /** Deletes every task of the client; fails with a FK violation if any task has payments/refunds. */
+  deleteForClient: (clientId: string) => Promise<number>
 }
 
 export type TasksRepositoryDeps = {
@@ -221,6 +224,14 @@ const memoryPaymentsByTaskId = new Map<string, unknown[]>()
 
 function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepository {
   const externalHasPayments = deps.hasPayments
+  async function hasPayments(taskId: string): Promise<boolean> {
+    if (externalHasPayments) {
+      return externalHasPayments(taskId)
+    }
+    const payments = memoryPaymentsByTaskId.get(taskId) ?? []
+    return payments.length > 0
+  }
+
   return {
     async findPage(filter) {
       return pageOf([...memoryTasksById.values()], filter)
@@ -366,13 +377,7 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
       return removed
     },
 
-    async hasPayments(taskId) {
-      if (externalHasPayments) {
-        return externalHasPayments(taskId)
-      }
-      const payments = memoryPaymentsByTaskId.get(taskId) ?? []
-      return payments.length > 0
-    },
+    hasPayments,
 
     async countActiveInvolvingUser(userId) {
       const active: TaskStatus[] = ['pending', 'in-progress', 'waiting_coordinator_approval']
@@ -386,10 +391,24 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
       return count
     },
 
-    async listTaskIdsForClient(clientId) {
-      return [...memoryTasksById.values()]
+    async hasPaymentsForClient(clientId) {
+      for (const task of memoryTasksById.values()) {
+        if (task.clientId === clientId && (await this.hasPayments(task.id))) return true
+      }
+      return false
+    },
+
+    async deleteForClient(clientId) {
+      const ids = [...memoryTasksById.values()]
         .filter((task) => task.clientId === clientId)
         .map((task) => task.id)
+      for (const id of ids) {
+        memoryTasksById.delete(id)
+        memoryFilesByTaskId.delete(id)
+        memorySolutionsByTaskId.delete(id)
+        memoryPaymentsByTaskId.delete(id)
+      }
+      return ids.length
     },
   }
 }
@@ -645,10 +664,25 @@ function createSupabaseTasksRepository(
       return count ?? 0
     },
 
-    async listTaskIdsForClient(clientId) {
-      const { data, error } = await client.from('tasks').select('id').eq('client_id', clientId)
+    async hasPaymentsForClient(clientId) {
+      for (const table of ['payments', 'refunds'] as const) {
+        const { count, error } = await client
+          .from(table)
+          .select('id, tasks!inner(client_id)', { count: 'exact', head: true })
+          .eq('tasks.client_id', clientId)
+        if (error) throw error
+        if ((count ?? 0) > 0) return true
+      }
+      return false
+    },
+
+    async deleteForClient(clientId) {
+      const { error, count } = await client
+        .from('tasks')
+        .delete({ count: 'exact' })
+        .eq('client_id', clientId)
       if (error) throw error
-      return ((data as { id: string }[]) ?? []).map((row) => row.id)
+      return count ?? 0
     },
   }
 }

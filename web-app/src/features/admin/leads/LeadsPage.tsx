@@ -10,13 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import {
-  createLead,
-  deleteLead,
-  type LeadRecord,
-  listLeads,
-  updateLead,
-} from '@/services/contact'
+import { createLead, deleteLead, type LeadRecord, listLeads, updateLead } from '@/services/contact'
 import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { formatAdminDate } from '../_shared/adminListFormat'

@@ -1,5 +1,13 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
+
+import { isSuper } from '../../authz/roles.js'
 import { type AppConfig, isSupabaseConfigured } from '../../config/index.js'
-import { conflict, unauthorized, validationError } from '../../errors/app-error.js'
+import {
+  conflict,
+  maintenanceError,
+  unauthorized,
+  validationError,
+} from '../../errors/app-error.js'
 import { reportError } from '../../errors/report-error.js'
 import { getLogger } from '../../logging/index.js'
 import type { LoggingService } from '../logging/index.js'
@@ -36,6 +44,8 @@ import {
   generateSixDigitCode,
   type LoginVerificationsRepository,
   PASSWORD_RESET_CODE_TTL_MS,
+  PASSWORD_RESET_MAX_ATTEMPTS,
+  rememberPlainCodeForTests,
 } from './login-verifications.repository.js'
 
 export const PASSWORD_RESET_ACK_MESSAGE =
@@ -85,8 +95,22 @@ function issueTokens(config: AppConfig, user: AccountRecord, session: SessionCla
   }
 }
 
+function hashResetCode(code: string): string {
+  return createHash('sha256').update(code).digest('hex')
+}
+
+function resetCodeMatches(storedHash: string, code: string): boolean {
+  const expected = Buffer.from(storedHash, 'hex')
+  const actual = Buffer.from(hashResetCode(code), 'hex')
+  return expected.length === actual.length && timingSafeEqual(expected, actual)
+}
+
 function shouldLogResetCode(config: AppConfig): boolean {
   return !isSupabaseConfigured(config) || config.env === 'development'
+}
+
+export type MaintenanceCheck = {
+  isMaintenance: () => Promise<boolean>
 }
 
 export function createAuthService(
@@ -95,7 +119,16 @@ export function createAuthService(
   logging?: LoggingService,
   verifications: LoginVerificationsRepository = createLoginVerificationsRepository(config),
   sessions: AuthSessionsRepository = createAuthSessionsRepository(config),
+  maintenance?: MaintenanceCheck,
 ): AuthService {
+  /** Only SUPER may hold a session while maintenance is on. */
+  async function assertAllowedDuringMaintenance(user: AccountRecord): Promise<void> {
+    if (isSuper([user.role]) || !maintenance) return
+    if (await maintenance.isMaintenance()) {
+      throw maintenanceError()
+    }
+  }
+
   async function startSession(user: AccountRecord): Promise<AuthTokens> {
     const session = await sessions.create({
       userId: user.id,
@@ -112,12 +145,15 @@ export function createAuthService(
 
     const code = generateSixDigitCode()
     await verifications.invalidateUnusedForUser(user.id, 'password_reset')
-    await verifications.create({
+    const record = await verifications.create({
       userId: user.id,
-      code,
+      codeHash: hashResetCode(code),
       type: 'password_reset',
       expiresAt: new Date(Date.now() + PASSWORD_RESET_CODE_TTL_MS),
     })
+    if (!isSupabaseConfigured(config)) {
+      rememberPlainCodeForTests(record.id, code)
+    }
 
     if (shouldLogResetCode(config)) {
       getLogger().info({ email, code, type: 'password_reset' }, 'password reset verification code')
@@ -129,12 +165,21 @@ export function createAuthService(
     if (!user || user.status !== 'ACTIVE') {
       throw unauthorized('Invalid or expired reset code')
     }
-    const record = await verifications.findActive({
+    const record = await verifications.findLatestActive({
       userId: user.id,
-      code,
       type: 'password_reset',
     })
     if (!record) {
+      throw unauthorized('Invalid or expired reset code')
+    }
+    if (!resetCodeMatches(record.codeHash, code)) {
+      const attempts = await verifications.registerFailedAttempt(
+        record.id,
+        PASSWORD_RESET_MAX_ATTEMPTS,
+      )
+      if (attempts >= PASSWORD_RESET_MAX_ATTEMPTS) {
+        throw unauthorized('Too many wrong codes. Request a new reset code.')
+      }
       throw unauthorized('Invalid or expired reset code')
     }
     return { user, record }
@@ -184,6 +229,8 @@ export function createAuthService(
         throw unauthorized('Invalid email or password')
       }
 
+      await assertAllowedDuringMaintenance(user)
+
       try {
         await logging?.recordActivity({
           userId: user.id,
@@ -218,6 +265,8 @@ export function createAuthService(
       if (!user || user.status !== 'ACTIVE') {
         throw unauthorized('Invalid or expired refresh token')
       }
+
+      await assertAllowedDuringMaintenance(user)
 
       return issueTokens(config, user, toSessionClaims(session))
     },

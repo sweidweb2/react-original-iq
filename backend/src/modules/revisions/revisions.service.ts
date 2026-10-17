@@ -1,9 +1,9 @@
 import type { AuthActor } from '../../authz/index.js'
 import { assertTaskRelated, isAdmin, isOps, isSuper, isTutor } from '../../authz/index.js'
-import { forbidden, notFound, validationError } from '../../errors/app-error.js'
+import { conflict, forbidden, notFound, validationError } from '../../errors/app-error.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task } from '../tasks/tasks.types.js'
-import type { RevisionsRepository } from './revisions.repository.js'
+import { OPEN_REVISION_STATUSES, type RevisionsRepository } from './revisions.repository.js'
 import type {
   CreateRevisionBody,
   TutorSubmitRevisionBody,
@@ -36,6 +36,15 @@ function canManageRevisions(actor: AuthActor, task: Task): boolean {
   return isOps(actor.roles) && task.coordinatorId === actor.id
 }
 
+function isOpen(revision: RevisionSession): boolean {
+  return OPEN_REVISION_STATUSES.includes(revision.status)
+}
+
+/** A guarded write matched no row: another request moved the revision first. */
+function statusChanged(): never {
+  throw conflict('Revision status changed; reload and try again')
+}
+
 export function createRevisionsService(
   repository: RevisionsRepository,
   tasksRepository: TasksRepository,
@@ -58,8 +67,15 @@ export function createRevisionsService(
 
   return {
     async createForTask(taskId, body, actor) {
-      if (!canManageRevisions(actor, await loadTask(taskId))) {
+      const task = await loadTask(taskId)
+      if (!canManageRevisions(actor, task)) {
         throw forbidden('Only coordinators or admins can create revisions')
+      }
+      if (task.status === 'cancelled') {
+        throw validationError('Cannot open a revision on a cancelled task')
+      }
+      if (await repository.hasOpenForTask(taskId)) {
+        throw conflict('This task already has an open revision')
       }
       return repository.create({
         taskId,
@@ -89,9 +105,11 @@ export function createRevisionsService(
       if (!canManageRevisions(actor, task)) {
         throw forbidden('You cannot edit this revision')
       }
-      const updated = await repository.update(id, body)
-      if (!updated) throw notFound('Revision not found', 'REVISION_NOT_FOUND')
-      return updated
+      if (!isOpen(revision)) {
+        throw validationError('Only open revisions can be edited')
+      }
+      const updated = await repository.update(id, body, OPEN_REVISION_STATUSES)
+      return updated ?? statusChanged()
     },
 
     async cancel(id, actor) {
@@ -100,9 +118,13 @@ export function createRevisionsService(
       if (!canManageRevisions(actor, task)) {
         throw forbidden('You cannot cancel this revision')
       }
-      const updated = await repository.setStatus(id, 'cancelled')
-      if (!updated) throw notFound('Revision not found', 'REVISION_NOT_FOUND')
-      return updated
+      if (!isOpen(revision)) {
+        throw validationError('Only open revisions can be cancelled')
+      }
+      const updated = await repository.setStatus(id, 'cancelled', {
+        expectedFrom: OPEN_REVISION_STATUSES,
+      })
+      return updated ?? statusChanged()
     },
 
     async approve(id, actor) {
@@ -114,9 +136,10 @@ export function createRevisionsService(
       if (revision.status !== 'waiting_coordinator_approval') {
         throw validationError('Revision must be waiting for coordinator approval')
       }
-      const updated = await repository.setStatus(id, 'completed')
-      if (!updated) throw notFound('Revision not found', 'REVISION_NOT_FOUND')
-      return updated
+      const updated = await repository.setStatus(id, 'completed', {
+        expectedFrom: ['waiting_coordinator_approval'],
+      })
+      return updated ?? statusChanged()
     },
 
     async reject(id, actor) {
@@ -128,9 +151,11 @@ export function createRevisionsService(
       if (revision.status !== 'waiting_coordinator_approval') {
         throw validationError('Revision must be waiting for coordinator approval')
       }
-      const updated = await repository.setStatus(id, 'in-revision', { submitDate: null })
-      if (!updated) throw notFound('Revision not found', 'REVISION_NOT_FOUND')
-      return updated
+      const updated = await repository.setStatus(id, 'in-revision', {
+        expectedFrom: ['waiting_coordinator_approval'],
+        submitDate: null,
+      })
+      return updated ?? statusChanged()
     },
 
     async tutorSubmit(id, body, actor) {
@@ -156,9 +181,10 @@ export function createRevisionsService(
       }
       const submitDate = new Date().toISOString()
       const updated = await repository.setStatus(id, 'waiting_coordinator_approval', {
+        expectedFrom: ['in-revision'],
         submitDate,
       })
-      if (!updated) throw notFound('Revision not found', 'REVISION_NOT_FOUND')
+      if (!updated) statusChanged()
       return loadRevision(id)
     },
 
@@ -174,9 +200,11 @@ export function createRevisionsService(
       if (revision.status !== 'waiting_coordinator_approval') {
         throw validationError('Revision is not awaiting approval')
       }
-      const updated = await repository.setStatus(id, 'in-revision', { submitDate: null })
-      if (!updated) throw notFound('Revision not found', 'REVISION_NOT_FOUND')
-      return updated
+      const updated = await repository.setStatus(id, 'in-revision', {
+        expectedFrom: ['waiting_coordinator_approval'],
+        submitDate: null,
+      })
+      return updated ?? statusChanged()
     },
   }
 }

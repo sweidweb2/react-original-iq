@@ -1,13 +1,14 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { EmptyState } from '@/components/feedback'
+import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useAsyncData } from '@/hooks'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import type { AuthRole } from '@/services/auth'
 import {
@@ -57,6 +58,16 @@ function deadlineToApi(value: string): string {
   return parsed.toISOString()
 }
 
+async function loadStatsAndRecent(): Promise<{ stats: TaskStats; recent: Task[] }> {
+  const [stats, tasksPage] = await Promise.all([getTaskStats(), listTasks({ page: 1, limit: 5 })])
+  return { stats, recent: tasksPage.data }
+}
+
+async function loadRecent(): Promise<Task[]> {
+  const page = await listTasks({ page: 1, limit: 5 })
+  return page.data
+}
+
 const emptyRequest: CreateTaskFormValues = {
   topic: '',
   type: 'assignment',
@@ -97,23 +108,12 @@ function RecentTasksList({ base, tasks }: { base: string; tasks: Task[] }) {
 }
 
 function CoordinatorSections({ base }: { base: string }) {
-  const [stats, setStats] = useState<TaskStats | null>(null)
-  const [recent, setRecent] = useState<Task[]>([])
+  const { data, isLoading, error, reload } = useAsyncData(loadStatsAndRecent)
+  const stats = data?.stats
   const [createOpen, setCreateOpen] = useState(false)
   const [values, setValues] = useState(emptyRequest)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof CreateTaskFormValues>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  useEffect(() => {
-    void (async () => {
-      const [taskStats, tasksPage] = await Promise.all([
-        getTaskStats(),
-        listTasks({ page: 1, limit: 5 }),
-      ])
-      setStats(taskStats)
-      setRecent(tasksPage.data)
-    })()
-  }, [])
 
   async function onCreate(event: FormEvent) {
     event.preventDefault()
@@ -130,9 +130,9 @@ function CoordinatorSections({ base }: { base: string }) {
       })
       toastSuccess('Task created', `“${parsed.data.topic}” was added to the task list.`)
       setValues(emptyRequest)
+      setFieldErrors({})
       setCreateOpen(false)
-      const tasksPage = await listTasks({ page: 1, limit: 5 })
-      setRecent(tasksPage.data)
+      reload()
     } catch (err) {
       toastApiError(err, `Couldn't create “${parsed.data.topic}”`)
     } finally {
@@ -142,12 +142,14 @@ function CoordinatorSections({ base }: { base: string }) {
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Assigned tasks" value={stats?.total ?? '—'} />
-        <Kpi label="Pending review" value={stats?.waiting_coordinator_approval ?? '—'} />
-        <Kpi label="In progress" value={stats?.['in-progress'] ?? '—'} />
-        <Kpi label="Pending" value={stats?.pending ?? '—'} />
-      </div>
+      <AsyncState isLoading={isLoading} error={error} onRetry={reload}>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Kpi label="Assigned tasks" value={stats?.total ?? '—'} />
+          <Kpi label="Pending review" value={stats?.waiting_coordinator_approval ?? '—'} />
+          <Kpi label="In progress" value={stats?.['in-progress'] ?? '—'} />
+          <Kpi label="Pending" value={stats?.pending ?? '—'} />
+        </div>
+      </AsyncState>
       <SectionCard
         title="Requests & tasks"
         description="Recent tasks in your queue."
@@ -210,34 +212,27 @@ function CoordinatorSections({ base }: { base: string }) {
             </div>
           </form>
         ) : null}
-        <RecentTasksList base={base} tasks={recent} />
+        <AsyncState isLoading={isLoading} error={error} onRetry={reload}>
+          <RecentTasksList base={base} tasks={data?.recent ?? []} />
+        </AsyncState>
       </SectionCard>
     </>
   )
 }
 
 function TutorSections({ base }: { base: string }) {
-  const [stats, setStats] = useState<TaskStats | null>(null)
-  const [recent, setRecent] = useState<Task[]>([])
-
-  useEffect(() => {
-    void (async () => {
-      const [taskStats, tasksPage] = await Promise.all([
-        getTaskStats(),
-        listTasks({ page: 1, limit: 5 }),
-      ])
-      setStats(taskStats)
-      setRecent(tasksPage.data)
-    })()
-  }, [])
+  const { data, isLoading, error, reload } = useAsyncData(loadStatsAndRecent)
+  const stats = data?.stats
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Assigned" value={stats?.total ?? '—'} />
-        <Kpi label="In progress" value={stats?.['in-progress'] ?? '—'} />
-        <Kpi label="Awaiting approval" value={stats?.waiting_coordinator_approval ?? '—'} />
-      </div>
+      <AsyncState isLoading={isLoading} error={error} onRetry={reload}>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Kpi label="Assigned" value={stats?.total ?? '—'} />
+          <Kpi label="In progress" value={stats?.['in-progress'] ?? '—'} />
+          <Kpi label="Awaiting approval" value={stats?.waiting_coordinator_approval ?? '—'} />
+        </div>
+      </AsyncState>
       <SectionCard
         title="Assigned tasks"
         description="Work ready to deliver or revise."
@@ -247,21 +242,19 @@ function TutorSections({ base }: { base: string }) {
           </Link>
         }
       >
-        <RecentTasksList base={base} tasks={recent} />
+        <AsyncState isLoading={isLoading} error={error} onRetry={reload}>
+          <RecentTasksList base={base} tasks={data?.recent ?? []} />
+        </AsyncState>
       </SectionCard>
     </>
   )
 }
 
 function ClientSections({ base }: { base: string }) {
-  const [recent, setRecent] = useState<Task[]>([])
+  const { data: recent, isLoading, error, reload } = useAsyncData(loadRecent)
   const [values, setValues] = useState(emptyRequest)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof CreateTaskFormValues>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  useEffect(() => {
-    void listTasks({ page: 1, limit: 5 }).then((page) => setRecent(page.data))
-  }, [])
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -281,8 +274,8 @@ function ClientSections({ base }: { base: string }) {
         `“${parsed.data.topic}” was sent. A coordinator will review it and assign a tutor.`,
       )
       setValues(emptyRequest)
-      const page = await listTasks({ page: 1, limit: 5 })
-      setRecent(page.data)
+      setFieldErrors({})
+      reload()
     } catch (err) {
       toastApiError(err, `Couldn't submit “${parsed.data.topic}”`)
     } finally {
@@ -368,7 +361,9 @@ function ClientSections({ base }: { base: string }) {
           </Link>
         }
       >
-        <RecentTasksList base={base} tasks={recent} />
+        <AsyncState isLoading={isLoading} error={error} onRetry={reload}>
+          <RecentTasksList base={base} tasks={recent ?? []} />
+        </AsyncState>
       </SectionCard>
     </>
   )

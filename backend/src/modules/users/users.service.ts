@@ -40,8 +40,15 @@ export type UsersService = {
   updateSelfPassword: (id: string, passwordHash: string) => Promise<AccountRecord | null>
 }
 
+/** Task-side lookups the hard-delete rule needs; structurally satisfied by the tasks repository. */
+export type UserTasksPort = {
+  countActiveInvolvingUser: (userId: string) => Promise<number>
+  hasPaymentsForClient: (clientId: string) => Promise<boolean>
+  deleteForClient: (clientId: string) => Promise<number>
+}
+
 export type UsersServiceDeps = {
-  assertDeletable?: (userId: string) => Promise<void>
+  tasks?: UserTasksPort
   /** Sign the user out everywhere (password reset by an admin, deactivation). */
   revokeSessions?: (userId: string) => Promise<void>
 }
@@ -62,6 +69,19 @@ export function createUsersService(
     const user = await loadOrThrow(id)
     assertSelfOrOps(actor, user.id)
     return user
+  }
+
+  async function prepareTasksForDelete(userId: string): Promise<void> {
+    const tasks = deps.tasks
+    if (!tasks) return
+    if ((await tasks.countActiveInvolvingUser(userId)) > 0) {
+      throw conflict('User still has active tasks and cannot be deleted')
+    }
+    if (await tasks.hasPaymentsForClient(userId)) {
+      throw conflict('User has tasks with payments or refunds and cannot be deleted')
+    }
+    // tasks.client_id is ON DELETE RESTRICT, so the account delete needs these gone first.
+    await tasks.deleteForClient(userId)
   }
 
   return {
@@ -211,9 +231,7 @@ export function createUsersService(
       ) {
         throw forbidden('Coordinators can only delete tutors or clients')
       }
-      if (deps.assertDeletable) {
-        await deps.assertDeletable(id)
-      }
+      await prepareTasksForDelete(id)
       const deleted = await repository.deleteAccount(id)
       if (!deleted) {
         throw notFound('User not found', 'USER_NOT_FOUND')

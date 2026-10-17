@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import { conflict } from '../../errors/app-error.js'
 import type {
   CreateRevisionInput,
   RevisionDetail,
@@ -11,19 +12,33 @@ import type {
   UpdateRevisionInput,
 } from './revisions.types.js'
 
-const OPEN_REVISION_STATUSES: RevisionStatus[] = ['in-revision', 'waiting_coordinator_approval']
+export const OPEN_REVISION_STATUSES: RevisionStatus[] = [
+  'in-revision',
+  'waiting_coordinator_approval',
+]
+
+const OPEN_SESSION_CONFLICT = 'This task already has an open revision'
 
 export type RevisionsRepository = {
+  /** Throws 409 if the task already has an open session (partial unique index in migration 021). */
   create: (input: CreateRevisionInput) => Promise<RevisionSession>
   findById: (id: string) => Promise<RevisionDetail | null>
   listByTaskId: (taskId: string) => Promise<RevisionSession[]>
   hasOpenForTask: (taskId: string) => Promise<boolean>
-  update: (id: string, input: UpdateRevisionInput) => Promise<RevisionSession | null>
+  /** Returns null when the row is missing or its status is no longer in `expectedFrom`. */
+  update: (
+    id: string,
+    input: UpdateRevisionInput,
+    expectedFrom: RevisionStatus[],
+  ) => Promise<RevisionSession | null>
+  /** Returns null when the row is missing or its status is no longer in `expectedFrom`. */
   setStatus: (
     id: string,
     status: RevisionStatus,
-    extra?: { submitDate?: string | null },
+    options: { expectedFrom: RevisionStatus[]; submitDate?: string | null },
   ) => Promise<RevisionSession | null>
+  /** Cancels every open session of the task; returns how many were cancelled. */
+  cancelOpenForTask: (taskId: string) => Promise<number>
   linkSolutions: (
     revisionSessionId: string,
     solutionIds: string[],
@@ -109,6 +124,10 @@ function fromSolutionRow(row: RevisionSolutionRow): RevisionSessionSolution {
 function createMemoryRevisionsRepository(): RevisionsRepository {
   return {
     async create(input) {
+      const hasOpen = memorySessions.some(
+        (row) => row.taskId === input.taskId && OPEN_REVISION_STATUSES.includes(row.status),
+      )
+      if (hasOpen) throw conflict(OPEN_SESSION_CONFLICT)
       const stamp = nowIso()
       const session = toSession(input, randomUUID(), stamp)
       memorySessions.push(session)
@@ -130,10 +149,11 @@ function createMemoryRevisionsRepository(): RevisionsRepository {
         (row) => row.taskId === taskId && OPEN_REVISION_STATUSES.includes(row.status),
       )
     },
-    async update(id, input) {
+    async update(id, input, expectedFrom) {
       const index = memorySessions.findIndex((row) => row.id === id)
       if (index === -1) return null
       const current = memorySessions[index]!
+      if (!expectedFrom.includes(current.status)) return null
       const updated: RevisionSession = {
         ...current,
         title: input.title !== undefined ? input.title?.trim() || null : current.title,
@@ -146,18 +166,30 @@ function createMemoryRevisionsRepository(): RevisionsRepository {
       memorySessions[index] = updated
       return updated
     },
-    async setStatus(id, status, extra) {
+    async setStatus(id, status, options) {
       const index = memorySessions.findIndex((row) => row.id === id)
       if (index === -1) return null
       const current = memorySessions[index]!
+      if (!options.expectedFrom.includes(current.status)) return null
       const updated: RevisionSession = {
         ...current,
         status,
-        submitDate: extra?.submitDate !== undefined ? extra.submitDate : current.submitDate,
+        submitDate: options.submitDate !== undefined ? options.submitDate : current.submitDate,
         updatedAt: nowIso(),
       }
       memorySessions[index] = updated
       return updated
+    },
+    async cancelOpenForTask(taskId) {
+      let cancelled = 0
+      const stamp = nowIso()
+      memorySessions.forEach((row, index) => {
+        if (row.taskId === taskId && OPEN_REVISION_STATUSES.includes(row.status)) {
+          memorySessions[index] = { ...row, status: 'cancelled', updatedAt: stamp }
+          cancelled += 1
+        }
+      })
+      return cancelled
     },
     async linkSolutions(revisionSessionId, solutionIds) {
       const stamp = nowIso()
@@ -204,6 +236,7 @@ function createSupabaseRevisionsRepository(config: AppConfig): RevisionsReposito
         })
         .select(columns)
         .single()
+      if (error?.code === '23505') throw conflict(OPEN_SESSION_CONFLICT)
       if (error) throw error
       return fromRow(data as RevisionRow)
     },
@@ -236,7 +269,7 @@ function createSupabaseRevisionsRepository(config: AppConfig): RevisionsReposito
       if (error) throw error
       return (count ?? 0) > 0
     },
-    async update(id, input) {
+    async update(id, input, expectedFrom) {
       const patch: Record<string, unknown> = {}
       if (input.title !== undefined) patch.title = input.title?.trim() || null
       if (input.description !== undefined) patch.description = input.description?.trim() || null
@@ -246,22 +279,34 @@ function createSupabaseRevisionsRepository(config: AppConfig): RevisionsReposito
         .from('revision_sessions')
         .update(patch)
         .eq('id', id)
+        .in('status', expectedFrom)
         .select(columns)
         .maybeSingle()
       if (error) throw error
       return data ? fromRow(data as RevisionRow) : null
     },
-    async setStatus(id, status, extra) {
+    async setStatus(id, status, options) {
       const patch: Record<string, unknown> = { status }
-      if (extra?.submitDate !== undefined) patch.submit_date = extra.submitDate
+      if (options.submitDate !== undefined) patch.submit_date = options.submitDate
       const { data, error } = await client
         .from('revision_sessions')
         .update(patch)
         .eq('id', id)
+        .in('status', options.expectedFrom)
         .select(columns)
         .maybeSingle()
       if (error) throw error
       return data ? fromRow(data as RevisionRow) : null
+    },
+    async cancelOpenForTask(taskId) {
+      const { data, error } = await client
+        .from('revision_sessions')
+        .update({ status: 'cancelled' })
+        .eq('task_id', taskId)
+        .in('status', OPEN_REVISION_STATUSES)
+        .select('id')
+      if (error) throw error
+      return (data ?? []).length
     },
     async linkSolutions(revisionSessionId, solutionIds) {
       if (solutionIds.length === 0) return []

@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 
-import { InlineSpinner } from '@/components/feedback'
+import { AsyncState, InlineSpinner } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { getPayment, type PaymentDetail } from '@/services/payments'
-import { toastApiError } from '@/services/toast'
 
 type PaymentDetailsDialogProps = {
   open: boolean
@@ -41,18 +40,21 @@ export function PaymentDetailsDialog({
 }: PaymentDetailsDialogProps) {
   const [detail, setDetail] = useState<PaymentDetail | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!open || !paymentId) return
     let cancelled = false
     setIsLoading(true)
+    setError(null)
     setDetail(null)
     getPayment(taskId, paymentId)
       .then((data) => {
         if (!cancelled) setDetail(data)
       })
-      .catch((error: unknown) => {
-        if (!cancelled) toastApiError(error, "Couldn't load the payment details")
+      .catch((loadError: unknown) => {
+        if (!cancelled) setError(loadError)
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -60,7 +62,7 @@ export function PaymentDetailsDialog({
     return () => {
       cancelled = true
     }
-  }, [open, taskId, paymentId])
+  }, [open, taskId, paymentId, reloadKey])
 
   const invoice = detail?.invoice
 
@@ -78,41 +80,46 @@ export function PaymentDetailsDialog({
         </Button>
       }
     >
-      {isLoading || !detail ? (
-        <InlineSpinner label="Loading payment…" />
-      ) : (
-        <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
-          <DetailRow label="Created" value={formatWhen(detail.createdAt)} />
-          <DetailRow label="Updated" value={formatWhen(detail.updatedAt)} />
-          <DetailRow label="Amount" value={`${detail.amount.toFixed(2)} ${detail.currency}`} />
-          <DetailRow label="Status" value={detail.status} />
-          <DetailRow label="Gateway" value={detail.gateway} />
-          <DetailRow label="Method" value={detail.paymentMethod ?? '—'} />
-          <DetailRow label="Invoice" value={invoice ? invoice.invoiceNumber : 'None'} />
-          {invoice ? (
-            <>
-              <DetailRow label="Invoice status" value={invoice.invoiceStatus ?? 'pending'} />
-              <DetailRow label="Emailed at" value={formatWhen(invoice.sentAt)} />
-              {invoice.lastError ? (
-                <DetailRow label="Invoice error" value={invoice.lastError} />
-              ) : null}
-            </>
-          ) : null}
-          {detail.logs.length > 0 ? (
-            <Field>
-              <FieldLabel>History</FieldLabel>
-              <ul className="space-y-1 rounded-md border border-border bg-muted/40 p-3 text-xs">
-                {detail.logs.map((entry) => (
-                  <li key={entry.id} className="flex justify-between gap-3">
-                    <span className="font-mono">{entry.event}</span>
-                    <span className="text-muted-foreground">{formatWhen(entry.createdAt)}</span>
-                  </li>
-                ))}
-              </ul>
-            </Field>
-          ) : null}
-        </div>
-      )}
+      <AsyncState
+        isLoading={isLoading || (!detail && !error)}
+        error={error}
+        onRetry={() => setReloadKey((k) => k + 1)}
+        loadingFallback={<InlineSpinner label="Loading payment…" />}
+      >
+        {detail ? (
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+            <DetailRow label="Created" value={formatWhen(detail.createdAt)} />
+            <DetailRow label="Updated" value={formatWhen(detail.updatedAt)} />
+            <DetailRow label="Amount" value={`${detail.amount.toFixed(2)} ${detail.currency}`} />
+            <DetailRow label="Status" value={detail.status} />
+            <DetailRow label="Gateway" value={detail.gateway} />
+            <DetailRow label="Method" value={detail.paymentMethod ?? '—'} />
+            <DetailRow label="Invoice" value={invoice ? invoice.invoiceNumber : 'None'} />
+            {invoice ? (
+              <>
+                <DetailRow label="Invoice status" value={invoice.invoiceStatus ?? 'pending'} />
+                <DetailRow label="Emailed at" value={formatWhen(invoice.sentAt)} />
+                {invoice.lastError ? (
+                  <DetailRow label="Invoice error" value={invoice.lastError} />
+                ) : null}
+              </>
+            ) : null}
+            {detail.logs.length > 0 ? (
+              <Field>
+                <FieldLabel>History</FieldLabel>
+                <ul className="space-y-1 rounded-md border border-border bg-muted/40 p-3 text-xs">
+                  {detail.logs.map((entry) => (
+                    <li key={entry.id} className="flex justify-between gap-3">
+                      <span className="font-mono">{entry.event}</span>
+                      <span className="text-muted-foreground">{formatWhen(entry.createdAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Field>
+            ) : null}
+          </div>
+        ) : null}
+      </AsyncState>
     </Dialog>
   )
 }

@@ -5,6 +5,7 @@ import { getRequestScope, type RequestScope } from '../middleware/request-contex
 import { getLoggingService } from '../modules/logging/index.js'
 import type { ErrorLevel } from '../modules/logging/logging.types.js'
 import { AppError } from './app-error.js'
+import { ErrorCodes } from './error-codes.js'
 
 export type ReportErrorOptions = {
   /** Where it failed, e.g. `http`, `invoices.issue`, `process.unhandledRejection`. */
@@ -24,10 +25,12 @@ const MAX_META_DEPTH = 4
 const MAX_META_STRING = 2000
 const MAX_META_ARRAY = 50
 
-/** Handled business failures (4xx `AppError`, validation) are not incidents. */
+/** Handled business failures (4xx `AppError`, validation, maintenance rejections) are not incidents. */
 export function isExpectedError(error: unknown): boolean {
   if (error instanceof ZodError) return true
-  if (error instanceof AppError) return error.status < 500
+  if (error instanceof AppError) {
+    return error.status < 500 || error.code === ErrorCodes.MAINTENANCE_MODE
+  }
   return false
 }
 

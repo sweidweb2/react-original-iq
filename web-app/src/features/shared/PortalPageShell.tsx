@@ -41,12 +41,7 @@ export function PortalPageShell({
           <Breadcrumbs items={breadcrumbs} />
         </div>
       ) : null}
-      <PageHeader
-        title={title}
-        description={description}
-        actions={actions}
-        hideTitle={hideTitle}
-      />
+      <PageHeader title={title} description={description} actions={actions} hideTitle={hideTitle} />
       {children}
     </div>
   )

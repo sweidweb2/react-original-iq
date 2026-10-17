@@ -53,12 +53,18 @@ export type UpdateUserInput = {
   password?: string
 }
 
-export function userDisplayName(user: Pick<ManagedUser, 'email' | 'profile'>): string {
+/** Real name from the profile, or `''`. Use this to pre-fill name inputs. */
+export function profileName(user: Pick<ManagedUser, 'profile'> | null | undefined): string {
   return (
-    user.profile?.displayName?.trim() ||
-    [user.profile?.firstName, user.profile?.lastName].filter(Boolean).join(' ').trim() ||
-    user.email
+    user?.profile?.displayName?.trim() ||
+    [user?.profile?.firstName, user?.profile?.lastName].filter(Boolean).join(' ').trim() ||
+    ''
   )
+}
+
+/** Display-only label; falls back to the email, so never use it to pre-fill a name field. */
+export function userDisplayName(user: Pick<ManagedUser, 'email' | 'profile'>): string {
+  return profileName(user) || user.email
 }
 
 export function listUsers(query: UserListQuery) {

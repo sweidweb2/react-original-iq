@@ -14,5 +14,5 @@ export function createBackupsModule(
     repository: deps.repository ?? createBackupsRepository(config),
     storage: deps.storage ?? getStorageService(config),
   })
-  return createBackupsRoutes(createBackupsController(service))
+  return createBackupsRoutes(createBackupsController(service), config)
 }

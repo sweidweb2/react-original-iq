@@ -293,7 +293,8 @@ export function createBackupsService(deps: BackupsServiceDeps): BackupsService {
         }
         // Stored files (images, PDFs, Office docs) are already compressed.
         const estimatedBytes = objects.reduce(
-          (sum, object) => sum + object.sizeBytes + object.key.length * 2 + ZIP_ENTRY_OVERHEAD_BYTES,
+          (sum, object) =>
+            sum + object.sizeBytes + object.key.length * 2 + ZIP_ENTRY_OVERHEAD_BYTES,
           0,
         )
         return { ...zipArtifact(entries(), { store: true }), estimatedBytes }

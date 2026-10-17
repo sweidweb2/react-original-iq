@@ -2,6 +2,9 @@ import type { InvoiceSummary } from '../invoices/invoices.types.js'
 
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'canceled' | 'refunded'
 
+/** Ledger currency; totals are summed without conversion (DB CHECK enforces it). */
+export const LEDGER_CURRENCY = 'USD'
+
 /** Gateway labels: manual staff entries use `No Gateway` (doc 06). */
 export const MANUAL_GATEWAY = 'No Gateway'
 export const SIMULATED_GATEWAY = 'simulated'
@@ -57,7 +60,6 @@ export type CreatePaymentInput = {
   status: PaymentStatus
   gateway: string
   paymentMethod?: string | null
-  currency?: string
   montypayTransactionId?: string | null
 }
 
@@ -72,6 +74,4 @@ export type CreateRefundInput = {
   refunderId: string
   amount: number
   refundReason?: string
-  currency?: string
-  gateway?: string
 }

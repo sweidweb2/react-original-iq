@@ -16,7 +16,11 @@ import {
   type PaymentsRepository,
   resetPaymentsRepositoryForTests,
 } from '../../src/modules/payments/payments.repository.js'
-import { createManualPaymentBodySchema } from '../../src/modules/payments/payments.schema.js'
+import {
+  checkoutPaymentBodySchema,
+  createManualPaymentBodySchema,
+  createRefundBodySchema,
+} from '../../src/modules/payments/payments.schema.js'
 import {
   createPaymentsService,
   type PaymentsService,
@@ -243,5 +247,70 @@ describe('payments + invoices', () => {
     expect(storage.deleteObject).toHaveBeenCalledTimes(2)
     expect(await paymentsRepository.findPaymentById(payment.id)).toBeNull()
     expect((await invoices.summariesForPayments([payment.id])).size).toBe(0)
+  })
+
+  it('caps refunds at the paid total, counting pending refunds', async () => {
+    await expect(payments.createRefund(TASK_ID, { amount: 10 }, admin)).rejects.toMatchObject({
+      status: 400,
+    })
+
+    await payments.checkout(TASK_ID, {}, client)
+    const first = await payments.createRefund(TASK_ID, { amount: 60.004 }, admin)
+    expect(first).toMatchObject({ amount: 60, status: 'pending', currency: 'USD' })
+    expect(task.paymentStatus).toBe('refund_pending')
+
+    await expect(payments.createRefund(TASK_ID, { amount: 50 }, admin)).rejects.toMatchObject({
+      status: 400,
+    })
+    await payments.createRefund(TASK_ID, { amount: 40 }, admin)
+    await expect(payments.createRefund(TASK_ID, { amount: 0.01 }, admin)).rejects.toMatchObject({
+      status: 400,
+    })
+  })
+
+  it('enforces the refund cap atomically in the repository', async () => {
+    await payments.checkout(TASK_ID, {}, client)
+    await expect(
+      paymentsRepository.createRefund({ taskId: TASK_ID, refunderId: admin.id, amount: 100.01 }),
+    ).rejects.toMatchObject({ name: 'PaymentCapError', reason: 'refund_cap' })
+  })
+
+  it('accepts only USD amounts', () => {
+    expect(createRefundBodySchema.safeParse({ amount: 5, currency: 'EUR' }).success).toBe(false)
+    expect(checkoutPaymentBodySchema.safeParse({ currency: 'GBP' }).success).toBe(false)
+    expect(createManualPaymentBodySchema.parse({ amount: 5, currency: ' usd ' }).currency).toBe(
+      'USD',
+    )
+  })
+
+  it('concurrent checkouts cannot overpay the task', async () => {
+    const results = await Promise.allSettled([
+      payments.checkout(TASK_ID, {}, client),
+      payments.checkout(TASK_ID, {}, client),
+    ])
+
+    expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(1)
+    const rejected = results.find((row) => row.status === 'rejected') as PromiseRejectedResult
+    expect(rejected.reason).toMatchObject({ status: 400 })
+    expect(await paymentsRepository.sumPaidByTask(TASK_ID)).toBe(100)
+  })
+
+  it('refuses to delete or unpay a payment that backs refunds', async () => {
+    const payment = await payments.createManualPayment(TASK_ID, { amount: 100 }, admin)
+    await payments.createRefund(TASK_ID, { amount: 30 }, admin)
+
+    await expect(payments.deletePayment(TASK_ID, payment.id, admin)).rejects.toMatchObject({
+      status: 400,
+    })
+    await expect(
+      payments.updatePayment(TASK_ID, payment.id, { status: 'canceled' }, admin),
+    ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      payments.updatePayment(TASK_ID, payment.id, { amount: 20 }, admin),
+    ).rejects.toMatchObject({ status: 400 })
+
+    const lowered = await payments.updatePayment(TASK_ID, payment.id, { amount: 30 }, admin)
+    expect(lowered.amount).toBe(30)
+    expect(await paymentsRepository.findPaymentById(payment.id)).not.toBeNull()
   })
 })

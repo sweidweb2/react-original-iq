@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/authStore'
 
 import { AuthCard } from './AuthCard'
 import { loginSchema, type LoginValues } from './login.schema'
+import { MaintenanceBanner } from './MaintenanceBanner'
 
 export function LoginPage() {
   useDocumentTitle('Sign in')
@@ -50,6 +51,8 @@ export function LoginPage() {
       <div className="flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_top,color-mix(in_srgb,var(--primary)_16%,transparent),transparent_55%)] px-4 py-12">
         <AuthCard badge="UNIFIED ACCESS" subtitle="Universal Access Portal">
           <Form onSubmit={onSubmit} className="gap-4" noValidate>
+            <MaintenanceBanner page="login" />
+
             <Field data-invalid={Boolean(fieldErrors.email) || undefined}>
               <FieldLabel htmlFor="email">Email Address</FieldLabel>
               <Input

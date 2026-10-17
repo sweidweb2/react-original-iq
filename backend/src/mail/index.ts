@@ -10,4 +10,5 @@ export {
   type MailMessage,
   type MailResult,
   setMailerForTests,
+  withSendGate,
 } from './mailer.js'

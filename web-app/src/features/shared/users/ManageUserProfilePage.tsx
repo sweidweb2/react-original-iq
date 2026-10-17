@@ -30,6 +30,7 @@ import {
   deleteUser,
   getUser,
   type ManagedUser,
+  profileName,
   updateUser,
   userDisplayName,
   type UserStatus,
@@ -39,7 +40,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 
 const editSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required').max(120),
+  name: z.string().trim().max(120),
   role: z.enum(['super', 'admin', 'coordinator', 'tutor', 'client']),
   status: z.enum(['ACTIVE', 'INACTIVE']),
   password: z
@@ -110,7 +111,7 @@ export function ManageUserProfilePage() {
       const data = await getUser(userId)
       setUser(data)
       setValues({
-        name: userDisplayName(data),
+        name: profileName(data),
         role: data.role,
         status: data.status,
         password: '',
@@ -152,7 +153,8 @@ export function ManageUserProfilePage() {
     setFieldErrors({})
     setSaving(true)
     try {
-      const payload: Parameters<typeof updateUser>[1] = { name: parsed.data.name }
+      const payload: Parameters<typeof updateUser>[1] = {}
+      if (parsed.data.name) payload.name = parsed.data.name
       if (isAdmin) {
         if (parsed.data.role !== user.role) payload.role = parsed.data.role
         if (parsed.data.status !== user.status) payload.status = parsed.data.status
@@ -162,7 +164,7 @@ export function ManageUserProfilePage() {
       setUser(updated)
       setValues((prev) => ({
         ...prev,
-        name: userDisplayName(updated),
+        name: profileName(updated),
         role: updated.role,
         status: updated.status,
         password: '',

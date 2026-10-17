@@ -8,18 +8,11 @@ import { Input } from '@/components/ui/input'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { downloadExport, EXPORT_GROUPS, type ExportResource } from '@/services/exports'
 import { toastApiError, toastSuccess } from '@/services/toast'
+import { profileName } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 import { profileUpdateSchema, type ProfileUpdateValues } from './profile.schema'
-
-function displayNameFromStore(user: ReturnType<typeof useAuthStore.getState>['user']): string {
-  return (
-    user?.profile?.displayName?.trim() ||
-    [user?.profile?.firstName, user?.profile?.lastName].filter(Boolean).join(' ').trim() ||
-    ''
-  )
-}
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user)
@@ -28,6 +21,7 @@ export function ProfilePage() {
 
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<unknown>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const [values, setValues] = useState<ProfileUpdateValues>({
     name: '',
     phone: '',
@@ -52,7 +46,7 @@ export function ProfilePage() {
         const fresh = useAuthStore.getState().user
         setValues((prev) => ({
           ...prev,
-          name: displayNameFromStore(fresh),
+          name: profileName(fresh),
           phone: fresh?.phone ?? '',
           currentPassword: '',
           newPassword: '',
@@ -68,7 +62,7 @@ export function ProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [refreshProfile])
+  }, [refreshProfile, reloadKey])
 
   async function onSave(event: FormEvent) {
     event.preventDefault()
@@ -129,7 +123,7 @@ export function ProfilePage() {
         description="Update personal information and password."
         maxWidth="4xl"
       >
-        <AsyncState error={loadError} onRetry={() => window.location.reload()}>
+        <AsyncState error={loadError} onRetry={() => setReloadKey((k) => k + 1)}>
           <span className="sr-only">Profile unavailable</span>
         </AsyncState>
       </PortalPageShell>

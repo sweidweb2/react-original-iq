@@ -8,7 +8,7 @@ import { createRbacService, type RbacService } from './rbac.service.js'
 export function createRbacModule(config: AppConfig = loadConfig(), service?: RbacService) {
   const rbac = service ?? createRbacService(createRbacRepository(config))
   const controller = createRbacController(rbac)
-  return createRbacRoutes(controller)
+  return createRbacRoutes(controller, config)
 }
 
 export type { RbacService } from './rbac.service.js'

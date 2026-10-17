@@ -1,13 +1,14 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, TriangleAlert } from 'lucide-react'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/brand/BrandLogo'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
+import { useMaintenanceStore } from '@/stores/maintenanceStore'
 
 /** Shared header height so the sidebar brand row lines up with the portal bar. */
 const shellBarHeight = 'h-16'
@@ -165,6 +166,8 @@ export function PortalShell({ title, nav, profilePath, children }: PortalShellPr
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const maintenanceMode = useMaintenanceStore((s) => s.maintenanceMode)
+  const showMaintenanceBar = maintenanceMode && user?.role === 'super'
 
   async function onLogout() {
     if (loggingOut) return
@@ -317,6 +320,18 @@ export function PortalShell({ title, nav, profilePath, children }: PortalShellPr
             onLogout={() => void onLogout()}
           />
         </header>
+        {showMaintenanceBar ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-accent/40 bg-accent/10 px-4 py-2 text-sm"
+          >
+            <TriangleAlert className="size-4 shrink-0" aria-hidden />
+            <span>Maintenance mode is on. Only SUPER users can use the platform.</span>
+            <Link to="/super/settings" className="font-medium text-primary hover:underline">
+              Manage settings
+            </Link>
+          </div>
+        ) : null}
         <main className="flex-1 p-4 md:p-6">{children ?? <Outlet />}</main>
       </div>
     </div>

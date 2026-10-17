@@ -27,6 +27,9 @@ This folder holds the **DBML reflection** of the schema. Executable migrations l
 | `015_auth_sessions.sql`                | `auth_sessions` (refresh-token sessions)                                                     |
 | `016_backup_history.sql`               | `backup_history`                                                                             |
 | `017_error_logs_source.sql`            | `error_logs.source`, `level`, `meta`                                                         |
+| `020_money_integrity.sql`              | USD-only `payments`/`refunds`; locked `create_task_payment`, `update_task_payment`, `create_task_refund` |
+| `021_revision_open_unique.sql`         | one open `revision_sessions` row per task (partial unique index)                             |
+| `022_financial_fk_restrict.sql`        | `ON DELETE RESTRICT` for `users → tasks` and `tasks → payments/refunds`                      |
 
 ## Apply on Supabase
 

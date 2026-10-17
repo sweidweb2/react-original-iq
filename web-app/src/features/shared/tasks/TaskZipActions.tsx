@@ -25,7 +25,13 @@ export function TaskZipActions({
   return (
     <>
       {selectedCount > 0 ? (
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={onDownloadSelected}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={onDownloadSelected}
+        >
           {icon}
           Download selected ({selectedCount})
         </Button>

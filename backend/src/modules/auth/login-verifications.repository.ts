@@ -8,11 +8,13 @@ export type LoginVerificationType = 'email' | 'password_reset'
 export type LoginVerificationRecord = {
   id: string
   userId: string
-  code: string
+  /** sha256 hex of the code; the plain code is never stored. */
+  codeHash: string
   type: LoginVerificationType
   expiresAt: string
   used: boolean
   usedAt: string | null
+  attempts: number
   createdAt: string
   updatedAt: string
 }
@@ -21,15 +23,17 @@ export type LoginVerificationsRepository = {
   invalidateUnusedForUser: (userId: string, type: LoginVerificationType) => Promise<void>
   create: (input: {
     userId: string
-    code: string
+    codeHash: string
     type: LoginVerificationType
     expiresAt: Date
   }) => Promise<LoginVerificationRecord>
-  findActive: (input: {
+  /** Newest unused, unexpired code for the user. */
+  findLatestActive: (input: {
     userId: string
-    code: string
     type: LoginVerificationType
   }) => Promise<LoginVerificationRecord | null>
+  /** Atomically counts a wrong guess; burns the code once `maxAttempts` is reached. Returns attempts. */
+  registerFailedAttempt: (id: string, maxAttempts: number) => Promise<number>
   markUsed: (id: string) => Promise<void>
 }
 
@@ -41,21 +45,24 @@ type VerificationRow = {
   expires_at: string
   used: boolean
   used_at: string | null
+  attempts: number
   created_at: string
   updated_at: string
 }
 
-const COLUMNS = 'id, user_id, code, type, expires_at, used, used_at, created_at, updated_at'
+const COLUMNS =
+  'id, user_id, code, type, expires_at, used, used_at, attempts, created_at, updated_at'
 
 function toRecord(row: VerificationRow): LoginVerificationRecord {
   return {
     id: row.id,
     userId: row.user_id,
-    code: row.code,
+    codeHash: row.code,
     type: row.type,
     expiresAt: row.expires_at,
     used: row.used,
     usedAt: row.used_at,
+    attempts: row.attempts,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -67,18 +74,20 @@ function isActive(record: LoginVerificationRecord, now = Date.now()): boolean {
 }
 
 const memoryVerifications = new Map<string, LoginVerificationRecord>()
+/** Plain codes for the in-memory store only, so tests and local dev can read them back. */
+const memoryPlainCodes = new Map<string, string>()
 
 function createMemoryLoginVerificationsRepository(): LoginVerificationsRepository {
+  function markUsedRow(row: LoginVerificationRecord): void {
+    const now = new Date().toISOString()
+    memoryVerifications.set(row.id, { ...row, used: true, usedAt: now, updatedAt: now })
+  }
+
   return {
     async invalidateUnusedForUser(userId, type) {
-      for (const [id, row] of memoryVerifications) {
+      for (const row of memoryVerifications.values()) {
         if (row.userId === userId && row.type === type && !row.used) {
-          memoryVerifications.set(id, {
-            ...row,
-            used: true,
-            usedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          })
+          markUsedRow(row)
         }
       }
     },
@@ -88,11 +97,12 @@ function createMemoryLoginVerificationsRepository(): LoginVerificationsRepositor
       const record: LoginVerificationRecord = {
         id: randomUUID(),
         userId: input.userId,
-        code: input.code,
+        codeHash: input.codeHash,
         type: input.type,
         expiresAt: input.expiresAt.toISOString(),
         used: false,
         usedAt: null,
+        attempts: 0,
         createdAt: now,
         updatedAt: now,
       }
@@ -100,29 +110,35 @@ function createMemoryLoginVerificationsRepository(): LoginVerificationsRepositor
       return record
     },
 
-    async findActive(input) {
+    async findLatestActive(input) {
+      let latest: LoginVerificationRecord | null = null
       for (const row of memoryVerifications.values()) {
-        if (
-          row.userId === input.userId &&
-          row.code === input.code &&
-          row.type === input.type &&
-          isActive(row)
-        ) {
-          return row
+        if (row.userId === input.userId && row.type === input.type && isActive(row)) {
+          if (!latest || row.createdAt >= latest.createdAt) latest = row
         }
       }
-      return null
+      return latest
+    },
+
+    async registerFailedAttempt(id, maxAttempts) {
+      const row = memoryVerifications.get(id)
+      if (!row) return maxAttempts
+      const attempts = row.attempts + 1
+      const now = new Date().toISOString()
+      const burned = attempts >= maxAttempts
+      memoryVerifications.set(id, {
+        ...row,
+        attempts,
+        used: row.used || burned,
+        usedAt: burned ? now : row.usedAt,
+        updatedAt: now,
+      })
+      return attempts
     },
 
     async markUsed(id) {
       const row = memoryVerifications.get(id)
-      if (!row) return
-      memoryVerifications.set(id, {
-        ...row,
-        used: true,
-        usedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
+      if (row) markUsedRow(row)
     },
   }
 }
@@ -130,19 +146,25 @@ function createMemoryLoginVerificationsRepository(): LoginVerificationsRepositor
 /** Clear in-memory verification codes (tests only). */
 export function resetLoginVerificationsRepositoryForTests(): void {
   memoryVerifications.clear()
+  memoryPlainCodes.clear()
 }
 
-/** Latest active password-reset code for a user (tests / dev without mailer). */
+/** In-memory store only: remember the plain code so tests / local dev can read it back. */
+export function rememberPlainCodeForTests(recordId: string, code: string): void {
+  memoryPlainCodes.set(recordId, code)
+}
+
+/** Latest active password-reset code for a user (in-memory store only). */
 export function getPasswordResetCodeForTests(userId: string): string | null {
   let latest: LoginVerificationRecord | null = null
   for (const row of memoryVerifications.values()) {
     if (row.userId === userId && row.type === 'password_reset' && isActive(row)) {
-      if (!latest || row.createdAt > latest.createdAt) {
+      if (!latest || row.createdAt >= latest.createdAt) {
         latest = row
       }
     }
   }
-  return latest?.code ?? null
+  return latest ? (memoryPlainCodes.get(latest.id) ?? null) : null
 }
 
 function createSupabaseLoginVerificationsRepository(
@@ -171,7 +193,7 @@ function createSupabaseLoginVerificationsRepository(
         .from('login_verifications')
         .insert({
           user_id: input.userId,
-          code: input.code,
+          code: input.codeHash,
           type: input.type,
           expires_at: input.expiresAt.toISOString(),
           used: false,
@@ -183,13 +205,12 @@ function createSupabaseLoginVerificationsRepository(
       return toRecord(data as VerificationRow)
     },
 
-    async findActive(input) {
+    async findLatestActive(input) {
       const now = new Date().toISOString()
       const { data, error } = await client
         .from('login_verifications')
         .select(COLUMNS)
         .eq('user_id', input.userId)
-        .eq('code', input.code)
         .eq('type', input.type)
         .eq('used', false)
         .gt('expires_at', now)
@@ -199,6 +220,15 @@ function createSupabaseLoginVerificationsRepository(
 
       if (error) throw error
       return data ? toRecord(data as VerificationRow) : null
+    },
+
+    async registerFailedAttempt(id, maxAttempts) {
+      const { data, error } = await client.rpc('login_verification_register_failure', {
+        p_id: id,
+        p_max_attempts: maxAttempts,
+      })
+      if (error) throw error
+      return typeof data === 'number' ? data : maxAttempts
     },
 
     async markUsed(id) {
@@ -227,3 +257,6 @@ export function generateSixDigitCode(): string {
 }
 
 export const PASSWORD_RESET_CODE_TTL_MS = 10 * 60 * 1000
+
+/** Wrong guesses allowed per code before it is burned and a new one must be requested. */
+export const PASSWORD_RESET_MAX_ATTEMPTS = 5

@@ -1,4 +1,4 @@
-export { authenticate } from './authenticate.js'
+export { createAuthenticate } from './authenticate.js'
 export { authorize } from './authorize.js'
 export { createApiRateLimiter, createAuthRateLimiter } from './rate-limit.js'
 export { getRequestScope, requestContext, setRequestUserId } from './request-context.js'

@@ -35,6 +35,7 @@ export function tableToCsv(rows: TableRow[]): string {
   return rowsToCsv(
     columns,
     rows.map((row) => columns.map((column) => cellText(row[column]))),
+    { neutralizeFormulas: false },
   )
 }
 

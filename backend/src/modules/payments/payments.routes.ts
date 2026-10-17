@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
-import { authenticate } from '../../middleware/authenticate.js'
+import type { AppConfig } from '../../config/index.js'
+import { createAuthenticate } from '../../middleware/authenticate.js'
 import { validate } from '../../middleware/validate.js'
 import type { PaymentsController } from './payments.controller.js'
 import {
@@ -14,10 +15,10 @@ import {
   updateRefundStatusBodySchema,
 } from './payments.schema.js'
 
-export function createTaskPaymentsRoutes(controller: PaymentsController): Router {
+export function createTaskPaymentsRoutes(controller: PaymentsController, config: AppConfig): Router {
   const router = Router({ mergeParams: true })
 
-  router.use(authenticate)
+  router.use(createAuthenticate(config))
 
   router.get('/', validate({ params: taskPaymentsParamsSchema }), controller.getTaskPayments)
   router.post(
@@ -45,10 +46,10 @@ export function createTaskPaymentsRoutes(controller: PaymentsController): Router
   return router
 }
 
-export function createTaskRefundsRoutes(controller: PaymentsController): Router {
+export function createTaskRefundsRoutes(controller: PaymentsController, config: AppConfig): Router {
   const router = Router({ mergeParams: true })
 
-  router.use(authenticate)
+  router.use(createAuthenticate(config))
   router.post(
     '/',
     validate({ params: taskPaymentsParamsSchema, body: createRefundBodySchema }),

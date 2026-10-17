@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
-import { authenticate } from '../../middleware/authenticate.js'
+import type { AppConfig } from '../../config/index.js'
+import { createAuthenticate } from '../../middleware/authenticate.js'
 import { validate } from '../../middleware/validate.js'
 import type { RevisionsController } from './revisions.controller.js'
 import {
@@ -11,10 +12,13 @@ import {
   updateRevisionBodySchema,
 } from './revisions.schema.js'
 
-export function createTaskRevisionsRoutes(controller: RevisionsController): Router {
+export function createTaskRevisionsRoutes(
+  controller: RevisionsController,
+  config: AppConfig,
+): Router {
   const router = Router({ mergeParams: true })
 
-  router.use(authenticate)
+  router.use(createAuthenticate(config))
 
   router.post(
     '/',
@@ -26,10 +30,13 @@ export function createTaskRevisionsRoutes(controller: RevisionsController): Rout
   return router
 }
 
-export function createRevisionDetailRoutes(controller: RevisionsController): Router {
+export function createRevisionDetailRoutes(
+  controller: RevisionsController,
+  config: AppConfig,
+): Router {
   const router = Router()
 
-  router.use(authenticate)
+  router.use(createAuthenticate(config))
 
   router.get('/:id', validate({ params: revisionIdParamsSchema }), controller.getById)
   router.patch(

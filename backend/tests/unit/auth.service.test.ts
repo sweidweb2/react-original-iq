@@ -6,7 +6,12 @@ import {
   createAuthSessionsRepository,
   resetAuthSessionsRepositoryForTests,
 } from '../../src/modules/auth/auth-sessions.repository.js'
-import type { LoginVerificationsRepository } from '../../src/modules/auth/login-verifications.repository.js'
+import {
+  createLoginVerificationsRepository,
+  getPasswordResetCodeForTests,
+  type LoginVerificationsRepository,
+  resetLoginVerificationsRepositoryForTests,
+} from '../../src/modules/auth/login-verifications.repository.js'
 import type { UsersService } from '../../src/modules/users/users.service.js'
 import type { AccountRecord } from '../../src/modules/users/users.types.js'
 import { loadTestConfig } from '../helpers/test-config.js'
@@ -60,6 +65,7 @@ describe('auth.service', () => {
 
   beforeEach(() => {
     resetAuthSessionsRepositoryForTests()
+    resetLoginVerificationsRepositoryForTests()
     sessions = createAuthSessionsRepository(config)
     users = {
       findByEmail: vi.fn(),
@@ -202,32 +208,70 @@ describe('auth.service', () => {
     await expect(service.logout({ refreshToken: 'anything' })).resolves.toBeUndefined()
   })
 
-  it('password reset signs the user out of every session', async () => {
-    const verifications: LoginVerificationsRepository = {
-      invalidateUnusedForUser: vi.fn(),
-      create: vi.fn(),
-      findActive: vi.fn().mockResolvedValue({ id: 'code-1' }),
-      markUsed: vi.fn(),
+  function resetInput(code: string) {
+    return {
+      email: 'user@example.com',
+      code,
+      newPassword: 'newpass99',
+      confirmPassword: 'newpass99',
     }
+  }
+
+  function wrongCode(code: string): string {
+    return code === '000000' ? '111111' : '000000'
+  }
+
+  it('password reset signs the user out of every session', async () => {
     vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
     vi.mocked(users.findById).mockResolvedValue(makeUser())
     vi.mocked(users.updateSelfPassword).mockResolvedValue(makeUser())
-    const service = serviceWithSessions(verifications)
+    const service = serviceWithSessions(createLoginVerificationsRepository(config))
     const first = await service.login({ email: 'user@example.com', password: 'secret123' })
     const second = await service.login({ email: 'user@example.com', password: 'secret123' })
 
-    await service.resetPassword({
-      email: 'user@example.com',
-      code: '123456',
-      newPassword: 'newpass99',
-      confirmPassword: 'newpass99',
-    })
+    await service.forgotPassword({ email: 'user@example.com' })
+    await service.resetPassword(resetInput(getPasswordResetCodeForTests('user-1')!))
 
     for (const { tokens } of [first, second]) {
       await expect(
         service.refreshTokens({ refreshToken: tokens.refreshToken }),
       ).rejects.toMatchObject({ status: 401 })
     }
+  })
+
+  it('stores only a hash of the reset code', async () => {
+    vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
+    const verifications = createLoginVerificationsRepository(config)
+    const service = serviceWithSessions(verifications)
+
+    await service.forgotPassword({ email: 'user@example.com' })
+    const code = getPasswordResetCodeForTests('user-1')!
+    const record = await verifications.findLatestActive({
+      userId: 'user-1',
+      type: 'password_reset',
+    })
+    expect(record?.codeHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(record?.codeHash).not.toBe(code)
+  })
+
+  it('burns the reset code after 5 wrong guesses, even if the right code comes next', async () => {
+    vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
+    vi.mocked(users.updateSelfPassword).mockResolvedValue(makeUser())
+    const service = serviceWithSessions(createLoginVerificationsRepository(config))
+
+    await service.forgotPassword({ email: 'user@example.com' })
+    const code = getPasswordResetCodeForTests('user-1')!
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      await expect(
+        service.verifyResetCode({ email: 'user@example.com', code: wrongCode(code) }),
+      ).rejects.toMatchObject({ status: 401, message: 'Invalid or expired reset code' })
+    }
+    await expect(
+      service.verifyResetCode({ email: 'user@example.com', code: wrongCode(code) }),
+    ).rejects.toMatchObject({ status: 401, message: expect.stringContaining('Too many') })
+
+    await expect(service.resetPassword(resetInput(code))).rejects.toMatchObject({ status: 401 })
+    expect(users.updateSelfPassword).not.toHaveBeenCalled()
   })
 
   it('changing password keeps the current session and ends the others', async () => {
@@ -256,5 +300,59 @@ describe('auth.service', () => {
     await expect(
       service.refreshTokens({ refreshToken: other.tokens.refreshToken }),
     ).rejects.toMatchObject({ status: 401 })
+  })
+
+  describe('maintenance mode', () => {
+    let maintenanceOn = false
+    const maintenance = { isMaintenance: async () => maintenanceOn }
+
+    beforeEach(() => {
+      maintenanceOn = false
+    })
+
+    function maintenanceService() {
+      return createAuthService(users, config, undefined, undefined, sessions, maintenance)
+    }
+
+    it('rejects non-SUPER login with 503 after the password check', async () => {
+      vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
+      maintenanceOn = true
+      const service = maintenanceService()
+
+      await expect(
+        service.login({ email: 'user@example.com', password: 'secret123' }),
+      ).rejects.toMatchObject({ status: 503, code: 'MAINTENANCE_MODE' })
+      await expect(
+        service.login({ email: 'user@example.com', password: 'wrong' }),
+      ).rejects.toMatchObject({ status: 401 })
+    })
+
+    it('still lets SUPER sign in', async () => {
+      vi.mocked(users.findByEmail).mockResolvedValue(makeUser({ role: 'super' }))
+      maintenanceOn = true
+
+      const result = await maintenanceService().login({
+        email: 'user@example.com',
+        password: 'secret123',
+      })
+      expect(result.user.role).toBe('super')
+    })
+
+    it('rejects non-SUPER refresh while maintenance is on', async () => {
+      vi.mocked(users.findByEmail).mockResolvedValue(makeUser())
+      vi.mocked(users.findById).mockResolvedValue(makeUser())
+      const service = maintenanceService()
+      const { tokens } = await service.login({ email: 'user@example.com', password: 'secret123' })
+
+      maintenanceOn = true
+      await expect(
+        service.refreshTokens({ refreshToken: tokens.refreshToken }),
+      ).rejects.toMatchObject({ status: 503, code: 'MAINTENANCE_MODE' })
+
+      maintenanceOn = false
+      await expect(
+        service.refreshTokens({ refreshToken: tokens.refreshToken }),
+      ).resolves.toBeDefined()
+    })
   })
 })

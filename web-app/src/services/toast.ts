@@ -1,6 +1,6 @@
 import { toast } from '@/components/ui/toast'
 
-import { ApiError, NETWORK_ERROR_STATUS } from './api'
+import { ApiError, MAINTENANCE_ERROR_CODE, NETWORK_ERROR_STATUS } from './api'
 
 /**
  * Turns a failure into one safe, user-facing sentence.
@@ -55,6 +55,9 @@ export function describeError(error: unknown): string {
   }
   if (status >= 400 && status < 500) {
     return isSpecific(error.message, []) ? error.message : 'This request could not be completed.'
+  }
+  if (code === MAINTENANCE_ERROR_CODE) {
+    return 'The platform is under maintenance. Please try again later.'
   }
   if (status === 503 || code === 'DB_UNAVAILABLE' || code === 'DB_NOT_CONFIGURED') {
     return 'The service is temporarily unavailable. Please try again shortly.'

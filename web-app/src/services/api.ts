@@ -35,6 +35,25 @@ export function apiErrorFromBody(status: number, data: ApiErrorBody): ApiError {
   return new ApiError(status, message, data.code ?? data.error?.code, data.details)
 }
 
+export const MAINTENANCE_ERROR_CODE = 'MAINTENANCE_MODE'
+
+export function isMaintenanceError(error: unknown): boolean {
+  return error instanceof ApiError && error.code === MAINTENANCE_ERROR_CODE
+}
+
+let onMaintenance: (() => void) | null = null
+
+/** Bridge so any request can flip the maintenance store without importing it (cycle-safe). */
+export function bindMaintenance(handler: () => void): void {
+  onMaintenance = handler
+}
+
+function failedResponseError(status: number, data: ApiErrorBody): ApiError {
+  const error = apiErrorFromBody(status, data)
+  if (isMaintenanceError(error)) onMaintenance?.()
+  return error
+}
+
 async function fetchOrNetworkError(input: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(input, init)
@@ -86,7 +105,7 @@ async function exchangeRefreshToken(refreshToken: string): Promise<AuthTokens> {
   const data = (await response.json().catch(() => ({}))) as ApiErrorBody & AuthTokens
 
   if (!response.ok) {
-    throw apiErrorFromBody(response.status, data)
+    throw failedResponseError(response.status, data)
   }
 
   if (!data.accessToken || !data.refreshToken) {
@@ -111,8 +130,9 @@ async function tryRefreshSession(): Promise<boolean> {
       const tokens = await exchangeRefreshToken(refreshToken)
       authSession.setTokens(tokens)
       return true
-    } catch {
-      authSession.clearSession()
+    } catch (error) {
+      // Keep the session through maintenance so the user resumes once it ends.
+      if (!isMaintenanceError(error)) authSession.clearSession()
       return false
     } finally {
       refreshInFlight = null
@@ -186,7 +206,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const data = (await response.json().catch(() => ({}))) as ApiErrorBody & T
 
   if (!response.ok) {
-    throw apiErrorFromBody(response.status, data)
+    throw failedResponseError(response.status, data)
   }
 
   return data as T
@@ -254,7 +274,7 @@ export async function apiDownload(
 
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as ApiErrorBody
-      throw apiErrorFromBody(response.status, data)
+      throw failedResponseError(response.status, data)
     }
 
     const exact = byteHeader(response, 'Content-Length')

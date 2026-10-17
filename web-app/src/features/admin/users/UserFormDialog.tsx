@@ -13,6 +13,7 @@ import { toastApiError, toastSuccess } from '@/services/toast'
 import {
   createUser,
   type ManagedUser,
+  profileName,
   updateUser,
   userDisplayName,
   type UserStatus,
@@ -67,7 +68,7 @@ export function UserFormDialog({
     setShowPassword(false)
     if (mode === 'edit' && user) {
       setValues({
-        name: userDisplayName(user),
+        name: profileName(user),
         email: user.email,
         password: '',
         role: user.role,
@@ -99,12 +100,15 @@ export function UserFormDialog({
         }
         setFieldErrors({})
         await updateUser(user.id, {
-          name: parsed.data.name,
+          ...(parsed.data.name ? { name: parsed.data.name } : {}),
           role: parsed.data.role,
           status: parsed.data.status,
           ...(parsed.data.password ? { password: parsed.data.password } : {}),
         })
-        toastSuccess('User saved', `Changes to ${parsed.data.name} were saved.`)
+        toastSuccess(
+          'User saved',
+          `Changes to ${parsed.data.name || userDisplayName(user)} were saved.`,
+        )
       }
       onSaved()
       onClose()

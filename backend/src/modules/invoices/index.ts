@@ -39,7 +39,7 @@ export function createInvoicesModule(
   })
   return {
     service,
-    routes: createInvoicesRoutes(createInvoicesController(service)),
+    routes: createInvoicesRoutes(createInvoicesController(service), config),
   }
 }
 

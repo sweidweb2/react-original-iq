@@ -137,9 +137,7 @@ export function PublicLayout({ children }: { children?: ReactNode }) {
           <div className="mt-4 flex flex-col gap-2">
             <AccountLinks onNavigate={closeMenu} />
           </div>
-          {localized ? (
-            <LanguageSwitcher className="mt-4 w-full" onNavigate={closeMenu} />
-          ) : null}
+          {localized ? <LanguageSwitcher className="mt-4 w-full" onNavigate={closeMenu} /> : null}
         </nav>
       </Sheet>
 

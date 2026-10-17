@@ -12,5 +12,5 @@ export function createFeedbackModule(
 ) {
   const service = createFeedbackService(repository, deps)
   const controller = createFeedbackController(service)
-  return createFeedbackRoutes(controller)
+  return createFeedbackRoutes(controller, config)
 }

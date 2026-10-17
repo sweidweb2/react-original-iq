@@ -19,8 +19,10 @@ export type MailMessage = {
 
 export type MailResult = {
   messageId: string | null
-  /** False when the log-only transport handled the message (nothing left the server). */
+  /** False when the message was only logged (nothing left the server). */
   delivered: boolean
+  /** Why an undelivered message was not sent. */
+  skipped?: 'not_configured' | 'disabled'
 }
 
 export type Mailer = {
@@ -74,7 +76,26 @@ function createLogMailer(): Mailer {
         },
         'mail not configured; message logged instead of sent',
       )
-      return { messageId: null, delivered: false }
+      return { messageId: null, delivered: false, skipped: 'not_configured' }
+    },
+  }
+}
+
+/** Logs instead of sending while `isEnabled()` is false (the `emails_send` setting). */
+export function withSendGate(mailer: Mailer, isEnabled: () => Promise<boolean>): Mailer {
+  return {
+    isConfigured: mailer.isConfigured,
+    async send(message) {
+      if (await isEnabled()) return mailer.send(message)
+      getLogger().info(
+        {
+          to: message.to,
+          subject: message.subject,
+          attachments: message.attachments?.map((item) => item.filename) ?? [],
+        },
+        'email sending disabled in settings; message logged instead of sent',
+      )
+      return { messageId: null, delivered: false, skipped: 'disabled' }
     },
   }
 }

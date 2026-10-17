@@ -75,11 +75,11 @@ export function verifyAccessToken(config: AppConfig, token: string): AccessToken
   const { accessSecret } = requireJwtSecrets(config)
   const decoded = jwt.verify(token, accessSecret, VERIFY_OPTIONS)
   if (typeof decoded !== 'object' || decoded === null) {
-    throw new Error('Invalid access token')
+    throw new jwt.JsonWebTokenError('Invalid access token')
   }
   const payload = decoded as AccessTokenPayload
   if (payload.typ !== 'access' || !payload.sub || !payload.role) {
-    throw new Error('Invalid access token payload')
+    throw new jwt.JsonWebTokenError('Invalid access token payload')
   }
   return payload
 }
@@ -88,11 +88,11 @@ export function verifyRefreshToken(config: AppConfig, token: string): RefreshTok
   const { refreshSecret } = requireJwtSecrets(config)
   const decoded = jwt.verify(token, refreshSecret, VERIFY_OPTIONS)
   if (typeof decoded !== 'object' || decoded === null) {
-    throw new Error('Invalid refresh token')
+    throw new jwt.JsonWebTokenError('Invalid refresh token')
   }
   const payload = decoded as RefreshTokenPayload
   if (payload.typ !== 'refresh' || !payload.sub || !payload.role || !payload.sid) {
-    throw new Error('Invalid refresh token payload')
+    throw new jwt.JsonWebTokenError('Invalid refresh token payload')
   }
   return payload
 }

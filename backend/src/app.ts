@@ -7,10 +7,12 @@ import { errorHandler, notFoundHandler } from './errors/error.middleware.js'
 import { createApiRateLimiter } from './middleware/rate-limit.js'
 import { requestContext } from './middleware/request-context.js'
 import { createRequestLogger } from './middleware/request-logger.js'
+import type { SettingsService } from './modules/settings/index.js'
 import { createV1Router } from './routes/v1.js'
 
 export type AppDeps = {
   config?: AppConfig
+  settings?: SettingsService
 }
 
 export function createApp(deps: AppDeps = {}) {
@@ -34,7 +36,7 @@ export function createApp(deps: AppDeps = {}) {
   app.use(express.json({ limit: config.jsonBodyLimit }))
   app.use(createApiRateLimiter(config))
 
-  app.use('/api/v1', createV1Router({ config }))
+  app.use('/api/v1', createV1Router({ config, settings: deps.settings }))
 
   app.use(notFoundHandler)
   app.use(errorHandler)

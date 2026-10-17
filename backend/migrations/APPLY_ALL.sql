@@ -1,4 +1,4 @@
--- Original IQ — full schema (001→010). Paste into Supabase SQL Editor → Run
+?-- Original IQ — full schema (001→010). Paste into Supabase SQL Editor → Run
 -- Generated for one-shot apply. Prefer numbered files for incremental runs.
 
 -- ========== 001_extensions_and_enums.sql ==========
@@ -772,3 +772,313 @@ WHERE f.task_id = newer.task_id
   AND (f.created_at, f.id) < (newer.created_at, newer.id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS feedbacks_task_client_unique ON feedbacks (task_id, client_id);
+
+-- ========== 019_auth_hardening.sql ==========
+-- Original IQ — 019: reset-code brute-force limits + shared rate-limit counters
+-- 1) login_verifications.code now holds sha256(code) hex; `attempts` counts wrong guesses and the
+--    code is burned after the limit. Codes issued before this migration stop matching (10 min TTL).
+-- 2) rate_limit_hits backs express-rate-limit for auth routes so limits hold across Vercel instances.
+-- Functions are callable only with the service-role key.
+
+ALTER TABLE login_verifications ALTER COLUMN code TYPE varchar(64);
+ALTER TABLE login_verifications ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION login_verification_register_failure(p_id uuid, p_max_attempts integer)
+RETURNS integer
+LANGUAGE sql
+SET search_path = public
+AS $$
+  UPDATE login_verifications
+  SET attempts = attempts + 1,
+      used = used OR attempts + 1 >= p_max_attempts,
+      used_at = CASE WHEN attempts + 1 >= p_max_attempts THEN now() ELSE used_at END
+  WHERE id = p_id
+  RETURNING attempts;
+$$;
+
+REVOKE ALL ON FUNCTION login_verification_register_failure(uuid, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION login_verification_register_failure(uuid, integer) TO service_role;
+
+CREATE TABLE IF NOT EXISTS rate_limit_hits (
+  key text PRIMARY KEY,
+  hits integer NOT NULL DEFAULT 0,
+  reset_at timestamptz NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS rate_limit_hits_reset_at_idx ON rate_limit_hits (reset_at);
+
+ALTER TABLE rate_limit_hits ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION rate_limit_hit(p_key text, p_window_ms integer)
+RETURNS TABLE (hits integer, reset_at timestamptz)
+LANGUAGE sql
+SET search_path = public
+AS $$
+  INSERT INTO rate_limit_hits AS r (key, hits, reset_at)
+  VALUES (p_key, 1, now() + make_interval(secs => p_window_ms / 1000.0))
+  ON CONFLICT (key) DO UPDATE
+  SET hits = CASE WHEN r.reset_at <= now() THEN 1 ELSE r.hits + 1 END,
+      reset_at = CASE WHEN r.reset_at <= now() THEN EXCLUDED.reset_at ELSE r.reset_at END
+  RETURNING r.hits, r.reset_at;
+$$;
+
+CREATE OR REPLACE FUNCTION rate_limit_decrement(p_key text)
+RETURNS void
+LANGUAGE sql
+SET search_path = public
+AS $$
+  UPDATE rate_limit_hits SET hits = greatest(hits - 1, 0) WHERE key = p_key;
+$$;
+
+REVOKE ALL ON FUNCTION rate_limit_hit(text, integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION rate_limit_decrement(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION rate_limit_hit(text, integer) TO service_role;
+GRANT EXECUTE ON FUNCTION rate_limit_decrement(text) TO service_role;
+
+-- ========== 020_money_integrity.sql ==========
+-- Original IQ — 020: money integrity (USD-only ledger + atomic payment/refund writes)
+-- 1) Totals are summed without conversion, so every payment/refund row must be USD.
+-- 2) Payment and refund writes lock the task row (SELECT … FOR UPDATE) and re-check the caps
+--    inside the same transaction, so concurrent requests cannot overpay or over-refund a task.
+--    Errors are raised with messages OVERPAY / REFUND_CAP / REFUND_UNCOVERED / TASK_NOT_FOUND /
+--    PAYMENT_NOT_FOUND (SQLSTATE P0001), which the backend maps to 400/404.
+-- Functions are callable only with the service-role key.
+
+UPDATE payments SET currency = 'USD' WHERE currency <> 'USD';
+UPDATE refunds SET currency = 'USD' WHERE currency <> 'USD';
+
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_currency_usd_check;
+ALTER TABLE payments ADD CONSTRAINT payments_currency_usd_check CHECK (currency = 'USD');
+ALTER TABLE refunds DROP CONSTRAINT IF EXISTS refunds_currency_usd_check;
+ALTER TABLE refunds ADD CONSTRAINT refunds_currency_usd_check CHECK (currency = 'USD');
+
+CREATE OR REPLACE FUNCTION task_money_totals(
+  p_task_id uuid,
+  OUT paid_payments numeric,
+  OUT paid_refunds numeric,
+  OUT pending_refunds numeric
+)
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT
+    coalesce((SELECT sum(amount) FROM payments WHERE task_id = p_task_id AND status = 'paid'), 0),
+    coalesce((SELECT sum(amount) FROM refunds WHERE task_id = p_task_id AND status = 'paid'), 0),
+    coalesce((SELECT sum(amount) FROM refunds WHERE task_id = p_task_id AND status = 'pending'), 0);
+$$;
+
+CREATE OR REPLACE FUNCTION create_task_payment(
+  p_task_id uuid,
+  p_user_id uuid,
+  p_amount numeric,
+  p_status payment_status,
+  p_gateway varchar,
+  p_method varchar,
+  p_txn_id varchar,
+  p_max_net numeric
+)
+RETURNS SETOF payments
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_totals record;
+  v_row payments;
+BEGIN
+  PERFORM 1 FROM tasks WHERE id = p_task_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TASK_NOT_FOUND';
+  END IF;
+
+  IF p_status = 'paid' THEN
+    SELECT * INTO v_totals FROM task_money_totals(p_task_id);
+    IF v_totals.paid_payments - v_totals.paid_refunds + p_amount > p_max_net + 0.005 THEN
+      RAISE EXCEPTION 'OVERPAY';
+    END IF;
+  END IF;
+
+  INSERT INTO payments (
+    task_id, user_id, amount, currency, gateway, status, payment_method, montypay_transaction_id
+  )
+  VALUES (p_task_id, p_user_id, p_amount, 'USD', p_gateway, p_status, p_method, p_txn_id)
+  RETURNING * INTO v_row;
+
+  RETURN NEXT v_row;
+END;
+$$;
+
+-- p_amount / p_status NULL = keep current; p_set_method distinguishes "clear method" from "keep".
+CREATE OR REPLACE FUNCTION update_task_payment(
+  p_payment_id uuid,
+  p_amount numeric,
+  p_status payment_status,
+  p_set_method boolean,
+  p_method varchar,
+  p_max_net numeric
+)
+RETURNS SETOF payments
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_current payments;
+  v_totals record;
+  v_next_amount numeric;
+  v_next_status payment_status;
+  v_others numeric;
+  v_next_paid numeric;
+  v_row payments;
+BEGIN
+  SELECT * INTO v_current FROM payments WHERE id = p_payment_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PAYMENT_NOT_FOUND';
+  END IF;
+
+  PERFORM 1 FROM tasks WHERE id = v_current.task_id FOR UPDATE;
+  SELECT * INTO v_current FROM payments WHERE id = p_payment_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PAYMENT_NOT_FOUND';
+  END IF;
+
+  v_next_amount := coalesce(p_amount, v_current.amount);
+  v_next_status := coalesce(p_status, v_current.status);
+
+  SELECT * INTO v_totals FROM task_money_totals(v_current.task_id);
+  v_others := v_totals.paid_payments
+    - CASE WHEN v_current.status = 'paid' THEN v_current.amount ELSE 0 END;
+
+  IF v_next_status = 'paid'
+    AND v_others + v_next_amount - v_totals.paid_refunds > p_max_net + 0.005 THEN
+    RAISE EXCEPTION 'OVERPAY';
+  END IF;
+
+  -- PL/pgSQL ends an IF condition at the first THEN, so a CASE cannot appear inside it.
+  v_next_paid := v_others + CASE WHEN v_next_status = 'paid' THEN v_next_amount ELSE 0 END;
+  IF v_next_paid < v_totals.paid_payments
+    AND v_next_paid < v_totals.paid_refunds + v_totals.pending_refunds - 0.005 THEN
+    RAISE EXCEPTION 'REFUND_UNCOVERED';
+  END IF;
+
+  UPDATE payments
+  SET amount = v_next_amount,
+      status = v_next_status,
+      payment_method = CASE WHEN p_set_method THEN p_method ELSE payment_method END
+  WHERE id = p_payment_id
+  RETURNING * INTO v_row;
+
+  RETURN NEXT v_row;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION create_task_refund(
+  p_task_id uuid,
+  p_refunder_id uuid,
+  p_amount numeric,
+  p_reason text
+)
+RETURNS SETOF refunds
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_totals record;
+  v_row refunds;
+BEGIN
+  PERFORM 1 FROM tasks WHERE id = p_task_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'TASK_NOT_FOUND';
+  END IF;
+
+  SELECT * INTO v_totals FROM task_money_totals(p_task_id);
+  IF p_amount > v_totals.paid_payments - v_totals.paid_refunds - v_totals.pending_refunds + 0.005 THEN
+    RAISE EXCEPTION 'REFUND_CAP';
+  END IF;
+
+  INSERT INTO refunds (
+    task_id, refunder_id, amount, refund_reason, currency, gateway, status, payment_method
+  )
+  VALUES (p_task_id, p_refunder_id, p_amount, p_reason, 'USD', 'manual', 'pending', 'manual')
+  RETURNING * INTO v_row;
+
+  RETURN NEXT v_row;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION task_money_totals(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION create_task_payment(uuid, uuid, numeric, payment_status, varchar, varchar, varchar, numeric)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION update_task_payment(uuid, numeric, payment_status, boolean, varchar, numeric)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION create_task_refund(uuid, uuid, numeric, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION task_money_totals(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION create_task_payment(uuid, uuid, numeric, payment_status, varchar, varchar, varchar, numeric)
+  TO service_role;
+GRANT EXECUTE ON FUNCTION update_task_payment(uuid, numeric, payment_status, boolean, varchar, numeric)
+  TO service_role;
+GRANT EXECUTE ON FUNCTION create_task_refund(uuid, uuid, numeric, text) TO service_role;
+
+-- ========== 021_revision_open_unique.sql ==========
+-- Original IQ — 021: at most one open revision session per task
+-- Cancels older duplicate open sessions (keeps the newest per task) before adding the partial unique index.
+
+UPDATE revision_sessions r
+SET status = 'cancelled'
+WHERE r.status IN ('in-revision', 'waiting_coordinator_approval')
+  AND EXISTS (
+    SELECT 1
+    FROM revision_sessions newer
+    WHERE newer.task_id = r.task_id
+      AND newer.status IN ('in-revision', 'waiting_coordinator_approval')
+      AND (newer.created_at, newer.id) > (r.created_at, r.id)
+  );
+
+CREATE UNIQUE INDEX IF NOT EXISTS revision_sessions_one_open_per_task
+  ON revision_sessions (task_id)
+  WHERE status IN ('in-revision', 'waiting_coordinator_approval');
+
+-- ========== 022_financial_fk_restrict.sql ==========
+-- Original IQ — 022: never cascade-delete financial records
+-- Deleting a client no longer cascades to their tasks, and deleting a task no longer cascades to its
+-- payments/refunds (and, through payments, invoices). The backend deletes payment-free tasks explicitly
+-- and answers 409 when a foreign key blocks a delete.
+
+ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_client_id_fkey;
+ALTER TABLE tasks
+  ADD CONSTRAINT tasks_client_id_fkey
+  FOREIGN KEY (client_id) REFERENCES users (id) ON DELETE RESTRICT;
+
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_task_id_fkey;
+ALTER TABLE payments
+  ADD CONSTRAINT payments_task_id_fkey
+  FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE RESTRICT;
+
+ALTER TABLE refunds DROP CONSTRAINT IF EXISTS refunds_task_id_fkey;
+ALTER TABLE refunds
+  ADD CONSTRAINT refunds_task_id_fkey
+  FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE RESTRICT;
+
+-- ========== 023_settings.sql ==========
+-- Original IQ — 023: platform settings (single row, managed by SUPER)
+-- maintenance_mode: only SUPER users may sign in or call the API while true.
+-- emails_send: outgoing emails are logged instead of sent while false.
+
+CREATE TABLE IF NOT EXISTS settings (
+  id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  maintenance_mode boolean NOT NULL DEFAULT false,
+  emails_send boolean NOT NULL DEFAULT true,
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+DROP TRIGGER IF EXISTS settings_set_updated_at ON settings;
+CREATE TRIGGER settings_set_updated_at
+  BEFORE UPDATE ON settings
+  FOR EACH ROW
+  EXECUTE FUNCTION set_updated_at();
+
+-- Backend uses the service-role key (bypasses RLS); no policies = no anon/authenticated access.
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;

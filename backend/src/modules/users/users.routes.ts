@@ -1,7 +1,8 @@
 import { Router } from 'express'
 
 import { USER_ADMIN_ROLES } from '../../authz/index.js'
-import { authenticate } from '../../middleware/authenticate.js'
+import type { AppConfig } from '../../config/index.js'
+import { createAuthenticate } from '../../middleware/authenticate.js'
 import { authorize } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
 import type { UsersController } from './users.controller.js'
@@ -12,10 +13,10 @@ import {
   userIdParamsSchema,
 } from './users.schema.js'
 
-export function createUsersRoutes(controller: UsersController): Router {
+export function createUsersRoutes(controller: UsersController, config: AppConfig): Router {
   const router = Router()
 
-  router.use(authenticate)
+  router.use(createAuthenticate(config))
 
   router.get(
     '/',

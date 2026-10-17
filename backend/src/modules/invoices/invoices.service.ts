@@ -161,7 +161,13 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
             : undefined,
         })
         delivered = result.delivered
-        if (!result.delivered) problems.push('Mail is not configured; email not sent')
+        if (!result.delivered) {
+          problems.push(
+            result.skipped === 'disabled'
+              ? 'Email sending is turned off in settings; email not sent'
+              : 'Mail is not configured; email not sent',
+          )
+        }
       } catch (error) {
         problems.push(`Email failed: ${errorMessage(error)}`)
         reportError(error, { source: 'invoices.email', level: 'warning', meta: invoiceMeta })

@@ -10,7 +10,7 @@ export const createUserSchema = z.object({
 })
 
 export const editUserSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required').max(120),
+  name: z.string().trim().max(120),
   role: roleSchema,
   status: z.enum(['ACTIVE', 'INACTIVE']),
   password: z

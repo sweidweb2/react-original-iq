@@ -10,6 +10,7 @@ export type RevisionsModule = {
   taskRoutes: ReturnType<typeof createTaskRevisionsRoutes>
   detailRoutes: ReturnType<typeof createRevisionDetailRoutes>
   hasOpenForTask: (taskId: string) => Promise<boolean>
+  cancelOpenForTask: (taskId: string) => Promise<number>
 }
 
 export function createRevisionsModule(
@@ -20,8 +21,9 @@ export function createRevisionsModule(
   const service = createRevisionsService(repository, tasksRepository)
   const controller = createRevisionsController(service)
   return {
-    taskRoutes: createTaskRevisionsRoutes(controller),
-    detailRoutes: createRevisionDetailRoutes(controller),
+    taskRoutes: createTaskRevisionsRoutes(controller, config),
+    detailRoutes: createRevisionDetailRoutes(controller, config),
     hasOpenForTask: (taskId) => repository.hasOpenForTask(taskId),
+    cancelOpenForTask: (taskId) => repository.cancelOpenForTask(taskId),
   }
 }

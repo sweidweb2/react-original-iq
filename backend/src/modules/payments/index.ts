@@ -31,8 +31,8 @@ export function createPaymentsModule(
   const controller = createPaymentsController(service)
   return {
     repository,
-    paymentRoutes: createTaskPaymentsRoutes(controller),
-    refundRoutes: createTaskRefundsRoutes(controller),
+    paymentRoutes: createTaskPaymentsRoutes(controller, config),
+    refundRoutes: createTaskRefundsRoutes(controller, config),
     recomputeForTask: (taskId) => service.recomputeForTask(taskId),
   }
 }

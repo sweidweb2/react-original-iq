@@ -87,12 +87,10 @@ function setup(detail: TaskDetail, options: { maxZipBytes?: number } = {}) {
       return Buffer.from(`content of ${key}`)
     }),
   } as unknown as StorageService
-  const service = createTasksService(
-    repository,
-    {} as UsersService,
-    {} as UsersRepository,
-    { storage, maxZipBytes: options.maxZipBytes },
-  )
+  const service = createTasksService(repository, {} as UsersService, {} as UsersRepository, {
+    storage,
+    maxZipBytes: options.maxZipBytes,
+  })
   return { service, storage }
 }
 
@@ -110,7 +108,9 @@ describe('tasks.service buildZip', () => {
     const zip = await service.buildZip(TASK_ID, 'documents', undefined, client)
 
     expect(zip.entryCount).toBe(3)
-    expect(zip.filename).toMatch(/^task-11111111_documents_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.zip$/)
+    expect(zip.filename).toMatch(
+      /^task-11111111_documents_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.zip$/,
+    )
     const bytes = await collect(zip)
     expect(bytes.startsWith('PK')).toBe(true)
     expect(bytes).toContain('report.pdf')
@@ -146,21 +146,21 @@ describe('tasks.service buildZip', () => {
     ).rejects.toMatchObject({ status: 404, code: 'FILE_NOT_FOUND' })
 
     const empty = setup(makeDetail({ files: [] }))
-    await expect(empty.service.buildZip(TASK_ID, 'documents', undefined, admin)).rejects.toMatchObject(
-      { status: 404, code: 'NO_FILES' },
-    )
+    await expect(
+      empty.service.buildZip(TASK_ID, 'documents', undefined, admin),
+    ).rejects.toMatchObject({ status: 404, code: 'NO_FILES' })
 
     const tiny = setup(makeDetail(), { maxZipBytes: 15 })
-    await expect(tiny.service.buildZip(TASK_ID, 'documents', undefined, admin)).rejects.toMatchObject(
-      { status: 413, code: 'ZIP_TOO_LARGE' },
-    )
+    await expect(
+      tiny.service.buildZip(TASK_ID, 'documents', undefined, admin),
+    ).rejects.toMatchObject({ status: 413, code: 'ZIP_TOO_LARGE' })
   })
 
   it('enforces task access and solution visibility', async () => {
     const { service } = setup(makeDetail())
-    await expect(service.buildZip(TASK_ID, 'documents', undefined, otherClient)).rejects.toMatchObject(
-      { status: 403 },
-    )
+    await expect(
+      service.buildZip(TASK_ID, 'documents', undefined, otherClient),
+    ).rejects.toMatchObject({ status: 403 })
     await expect(service.buildZip(TASK_ID, 'solutions', undefined, client)).rejects.toMatchObject({
       status: 403,
     })

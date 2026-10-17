@@ -8,5 +8,5 @@ import { createUsersService, type UsersService } from './users.service.js'
 export function createUsersModule(config: AppConfig = loadConfig(), service?: UsersService) {
   const users = service ?? createUsersService(createUsersRepository(config))
   const controller = createUsersController(users)
-  return createUsersRoutes(controller)
+  return createUsersRoutes(controller, config)
 }

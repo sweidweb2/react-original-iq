@@ -3,6 +3,8 @@ import { Router } from 'express'
 import type { AppConfig } from '../config/index.js'
 import { loadConfig } from '../config/index.js'
 import { conflict } from '../errors/app-error.js'
+import { getMailer, withSendGate } from '../mail/index.js'
+import { createMaintenanceGuard } from '../middleware/maintenance.js'
 import { createAnalyticsModule } from '../modules/analytics/index.js'
 import { createAuthModule, createAuthSessionsRepository } from '../modules/auth/index.js'
 import { createBackupsModule } from '../modules/backups/index.js'
@@ -22,6 +24,7 @@ import { createPaymentsModule } from '../modules/payments/index.js'
 import { createPaymentsRepository } from '../modules/payments/payments.repository.js'
 import { createRbacModule } from '../modules/rbac/index.js'
 import { createRevisionsModule } from '../modules/revisions/index.js'
+import { createSettingsModule, type SettingsService } from '../modules/settings/index.js'
 import { createSpecializationsModule } from '../modules/specializations/index.js'
 import { createTasksModule } from '../modules/tasks/index.js'
 import { createTasksRepository } from '../modules/tasks/tasks.repository.js'
@@ -31,11 +34,16 @@ import { createUsersService } from '../modules/users/users.service.js'
 
 export type V1Deps = {
   config?: AppConfig
+  settings?: SettingsService
 }
 
 export function createV1Router(deps: V1Deps = {}): Router {
   const router = Router()
   const config = deps.config ?? loadConfig()
+
+  const settingsModule = createSettingsModule(config, deps.settings)
+  const settings = settingsModule.service
+  router.use(createMaintenanceGuard({ isMaintenance: settings.isMaintenance, config }))
 
   const healthRepository = createHealthRepository(config)
   const healthService = createHealthService(healthRepository)
@@ -54,6 +62,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
     paymentsRepository,
     tasksRepository,
     usersRepository,
+    mailer: withSendGate(getMailer(), settings.isEmailSendingEnabled),
   })
   const paymentsModule = createPaymentsModule(config, {
     tasksRepository,
@@ -74,11 +83,16 @@ export function createV1Router(deps: V1Deps = {}): Router {
           throw conflict('User has tasks with payments or refunds and cannot be deleted')
         }
       }
+      // tasks.client_id is ON DELETE RESTRICT, so the account delete needs these gone first.
+      if (clientTaskIds.length > 0) {
+        await tasksRepository.deleteForClient(userId)
+      }
     },
     revokeSessions: (userId) => authSessions.revokeAllForUser(userId),
   })
 
   router.use('/health', createHealthRoutes(healthController))
+  router.use('/settings', settingsModule.routes)
   router.use('/contact', createContactModule(config, contactRepository))
   router.use(
     '/feedback',
@@ -87,7 +101,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
     }),
   )
   router.use('/fx', createFxModule(config))
-  router.use('/auth', createAuthModule(config, users, authSessions))
+  router.use('/auth', createAuthModule(config, users, authSessions, settings))
   router.use(createLoggingModule())
   router.use('/users', createUsersModule(config, users))
   router.use('/specializations', createSpecializationsModule(config, users))

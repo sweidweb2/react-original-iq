@@ -20,6 +20,11 @@ function asHttpClientError(err: unknown): HttpClientError | null {
   return candidate as HttpClientError
 }
 
+/** Postgres foreign_key_violation: a RESTRICT reference blocked a delete or an insert. */
+function isForeignKeyViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '23503'
+}
+
 export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   const context = {
     requestId: req.requestId,
@@ -49,6 +54,15 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
       code: ErrorCodes.VALIDATION_ERROR,
       message: 'Validation failed',
       details: err.flatten(),
+    })
+    return
+  }
+
+  if (isForeignKeyViolation(err)) {
+    reportError(err, { source: 'http', status: 409, code: ErrorCodes.CONFLICT, context })
+    res.status(409).json({
+      code: ErrorCodes.CONFLICT,
+      message: 'This record is still referenced by other records and cannot be changed or deleted',
     })
     return
   }

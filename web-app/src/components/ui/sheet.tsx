@@ -57,9 +57,7 @@ export function Sheet({ open, onClose, title, children, footer, side = 'end' }: 
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
-        {footer ? (
-          <div className="shrink-0 border-t border-border px-4 py-4">{footer}</div>
-        ) : null}
+        {footer ? <div className="shrink-0 border-t border-border px-4 py-4">{footer}</div> : null}
       </div>
     </div>,
     document.body,

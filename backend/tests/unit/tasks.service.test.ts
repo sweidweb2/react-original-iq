@@ -98,6 +98,7 @@ describe('tasks.service', () => {
       hasPayments: vi.fn().mockResolvedValue(false),
       countActiveInvolvingUser: vi.fn().mockResolvedValue(0),
       listTaskIdsForClient: vi.fn().mockResolvedValue([]),
+      deleteForClient: vi.fn().mockResolvedValue(0),
     }
     users = {
       findById: vi.fn(),
@@ -218,6 +219,21 @@ describe('tasks.service', () => {
     })
     expect(hasOpenRevision).toHaveBeenCalled()
     expect(repository.update).not.toHaveBeenCalled()
+  })
+
+  it('cancelling a task also cancels its open revisions', async () => {
+    const task = makeTask({ status: 'in-progress', tutorId: 'tutor-1' })
+    vi.mocked(repository.findById).mockResolvedValue(task)
+    vi.mocked(repository.update).mockResolvedValue({ ...task, status: 'cancelled' })
+    const cancelOpenRevisions = vi.fn().mockResolvedValue(1)
+    const service = createTasksService(repository, users, usersRepository, {
+      cancelOpenRevisions,
+    })
+
+    await expect(service.cancelTask(task.id, coordinator)).resolves.toMatchObject({
+      status: 'cancelled',
+    })
+    expect(cancelOpenRevisions).toHaveBeenCalledWith(task.id)
   })
 
   it.each([

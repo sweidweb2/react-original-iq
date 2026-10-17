@@ -10,5 +10,5 @@ export function createAnalyticsModule(
   deps: { repository?: AnalyticsRepository } = {},
 ) {
   const service = createAnalyticsService(deps.repository ?? createAnalyticsRepository(config))
-  return createAnalyticsRoutes(createAnalyticsController(service))
+  return createAnalyticsRoutes(createAnalyticsController(service), config)
 }
