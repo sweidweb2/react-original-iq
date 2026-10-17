@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
@@ -21,6 +21,7 @@ import {
   taskStatusLabel,
 } from '@/services/tasks'
 import { toastApiError, toastSuccess } from '@/services/toast'
+import { listUsers, type ManagedUser, userDisplayName } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
@@ -116,9 +117,29 @@ function CoordinatorSections({ base }: { base: string }) {
   const [values, setValues] = useState(emptyRequest)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof CreateTaskFormValues>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [clients, setClients] = useState<ManagedUser[]>([])
+
+  useEffect(() => {
+    if (!createOpen) return
+    let cancelled = false
+    void listUsers({ page: 1, limit: 100, role: 'client', status: 'ACTIVE' })
+      .then((result) => {
+        if (!cancelled) setClients(result.data)
+      })
+      .catch(() => {
+        if (!cancelled) setClients([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [createOpen])
 
   async function onCreate(event: FormEvent) {
     event.preventDefault()
+    if (!values.clientId) {
+      setFieldErrors({ clientId: 'Select a client' })
+      return
+    }
     const parsed = parseForm(createTaskFormSchema, values)
     if (!parsed.success) {
       setFieldErrors(parsed.fieldErrors)
@@ -128,6 +149,7 @@ function CoordinatorSections({ base }: { base: string }) {
     try {
       await createTask({
         ...parsed.data,
+        clientId: values.clientId,
         deadline: deadlineToApi(parsed.data.deadline),
       })
       toastSuccess('Task created', `“${parsed.data.topic}” was added to the task list.`)
@@ -168,6 +190,27 @@ function CoordinatorSections({ base }: { base: string }) {
             onSubmit={onCreate}
             className="mb-6 grid gap-3 rounded-lg border p-4 sm:grid-cols-2"
           >
+            <Field
+              data-invalid={Boolean(fieldErrors.clientId) || undefined}
+              className="sm:col-span-2"
+            >
+              <FieldLabel htmlFor="dash-client">Client</FieldLabel>
+              <Select
+                id="dash-client"
+                value={values.clientId ?? ''}
+                onChange={(e) =>
+                  setValues((v) => ({ ...v, clientId: e.target.value || undefined }))
+                }
+              >
+                <option value="">Select client…</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {userDisplayName(client)}
+                  </option>
+                ))}
+              </Select>
+              <FieldError>{fieldErrors.clientId}</FieldError>
+            </Field>
             <Field data-invalid={Boolean(fieldErrors.topic) || undefined} className="sm:col-span-2">
               <FieldLabel htmlFor="dash-topic">Topic</FieldLabel>
               <Input

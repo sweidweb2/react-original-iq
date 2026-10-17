@@ -1,7 +1,9 @@
+import { Pencil } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 
 import { AsyncState, EmptyState, InlineSpinner } from '@/components/feedback'
 import { Badge } from '@/components/ui/badge'
+import { IconAction } from '@/components/ui/icon-action'
 import { type TabItem, TabPanel, Tabs } from '@/components/ui/tabs'
 import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
 import { taskStatusLabel } from '@/services/tasks'
@@ -151,16 +153,23 @@ export function TaskDetailsPage() {
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-card px-4 py-3 text-sm">
         <Badge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</Badge>
-        <Badge tone={paymentStatusTone(task.paymentStatus)}>
-          {paymentStatusLabel(task.paymentStatus)}
-        </Badge>
+        {model.canViewPaymentSummary ? (
+          <Badge tone={paymentStatusTone(task.paymentStatus)}>
+            {paymentStatusLabel(task.paymentStatus)}
+          </Badge>
+        ) : null}
         <span className="text-muted-foreground">
           Deadline{' '}
           <span className="font-medium text-foreground">{formatTaskDate(task.deadline)}</span>
         </span>
-        <span className="text-muted-foreground">
+        <span className="inline-flex items-center gap-1 text-muted-foreground">
           Price{' '}
           <span className="font-medium text-foreground tabular-nums">${task.price.toFixed(2)}</span>
+          {model.canSetPrice ? (
+            <IconAction label="Edit price" onClick={() => model.setPriceOpen(true)}>
+              <Pencil className="size-4" aria-hidden />
+            </IconAction>
+          ) : null}
         </span>
       </div>
 
@@ -296,8 +305,6 @@ export function TaskDetailsPage() {
               taskId={model.taskId}
               tasksBase={model.tasksBase}
               canViewPayments={model.canViewPayments}
-              canEditPrice={model.canSetPrice}
-              onEditPrice={() => model.setPriceOpen(true)}
             />
             <aside aria-label="Currency conversion">
               <TaskCurrencyConverter amountUsd={task.price} />

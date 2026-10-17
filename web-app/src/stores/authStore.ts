@@ -78,11 +78,13 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         tokens: state.tokens,
       }),
-      onRehydrateStorage: () => (_state, error) => {
+      // localStorage rehydrates synchronously inside `create()`, before `useAuthStore` exists,
+      // so mark hydration through the initial state's own setter (also on error).
+      onRehydrateStorage: (initial) => (_state, error) => {
         if (error) {
           console.warn('auth rehydrate failed', error)
         }
-        useAuthStore.setState({ isHydrated: true })
+        initial.setHydrated(true)
       },
     },
   ),
@@ -94,11 +96,3 @@ bindAuthSession({
   setTokens: (tokens) => useAuthStore.getState().setTokens(tokens),
   clearSession: () => useAuthStore.getState().clearSession(),
 })
-
-if (typeof window !== 'undefined') {
-  queueMicrotask(() => {
-    if (!useAuthStore.getState().isHydrated) {
-      useAuthStore.setState({ isHydrated: true })
-    }
-  })
-}

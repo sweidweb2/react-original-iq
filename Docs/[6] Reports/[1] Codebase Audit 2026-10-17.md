@@ -64,7 +64,8 @@ All recommendations stay inside the locked stack (`Docs/[1] Main App/[1] Tech St
 
 - **C3. Refresh tokens cannot be revoked; tokens persisted in `localStorage`; no CSP** ⚠️ (partial)
   - Done: revocable sessions with a fixed 7-day lifetime — `auth_sessions` table (`backend/migrations/015_auth_sessions.sql`), `auth-sessions.repository.ts`, refresh token carries `sid` and expires at session end; logout revokes the session, password reset revokes all, password change revokes others, admin password reset / deactivation revokes all.
-  - Remaining: tokens (access + refresh) still persisted in `localStorage` (`authStore.ts` `partialize`); no CSP meta in `web-app/index.html` and no `headers` block in the root `vercel.json` (`helmet()` covers API responses only).
+  - Done: CSP + security headers in the root `vercel.json` (`headers`; CSP on non-API paths, verified violation-free against a production build of the public and auth pages).
+  - Remaining: tokens (access + refresh) still persisted in `localStorage` (`authStore.ts` `partialize`).
   - Files: `backend/src/modules/auth/auth.service.ts` `refreshTokens` L182–196, `logout` L198–217; `backend/src/modules/auth/auth.tokens.ts` L38–45; `web-app/src/stores/authStore.ts` L77–80 (`partialize` persists `tokens`); `web-app/index.html` (no CSP).
   - Why: a stolen 7-day refresh token stays valid through logout and password reset, and each refresh mints a fresh 7-day token (sessions never end). Any XSS can read both tokens.
   - Fix (backend, in-stack): `refresh_tokens` table (`jti`, `user_id`, `token_hash`, `expires_at`, `revoked_at`, `replaced_by`) or `users.token_version`; rotate on refresh with reuse detection; revoke on logout; bump on password reset. Web: stop persisting the access token (keep in memory). Add CSP + security headers via Vercel config. **Needs discussion:** moving the refresh token to an `httpOnly; Secure; SameSite=Strict` cookie.
@@ -257,27 +258,26 @@ All recommendations stay inside the locked stack (`Docs/[1] Main App/[1] Tech St
 
 ### 2.7 Deployment, CI & testing
 
-- **H30. No Vercel configuration for either app** ⚠️ (partial)
-  - Done: root `vercel.json` defines a backend service (`src/server.ts`), a web-app service with an SPA rewrite to `/index.html`, and routes `/api/(.*)` to the backend.
-  - Remaining: no `headers` block (CSP etc., see C3); `server.ts` calls `app.listen()` rather than exporting the app — confirm Vercel's Express mode handles that in a preview deploy.
+- **H30. No Vercel configuration for either app** ✅
+  - Done: root `vercel.json` defines a backend service (`src/server.ts`), a web-app service with an SPA rewrite to `/index.html`, and routes `/api/(.*)` to the backend. Top-level `headers`: `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options: DENY` everywhere, CSP on non-API paths (`connect-src` allows `*.supabase.co` for direct storage uploads; `frame-src` Google Maps). `app.listen()` is a supported entrypoint per Vercel's Express docs.
+  - Note: the CSP assumes the API is same-origin (`VITE_API_BASE_URL` unset or `/api/v1`); a cross-origin API needs its origin added to `connect-src`.
   - Files: no `vercel.json`; `backend/src/server.ts` only calls `app.listen()`; web uses `BrowserRouter` with no SPA rewrite.
   - Fix: `backend/api/index.ts` (`export default createApp()`) + `backend/vercel.json` rewrite; `web-app/vercel.json` rewrite to `/index.html` (also the place for CSP/security headers from C3).
 
-- **H31. CI is red today** ⚠️ (partial)
-  - Done: lint passes in both apps; typecheck and tests pass.
-  - Remaining: `prettier --check .` fails on `backend/src/modules/settings/settings.repository.ts` and `Docs/[4] Database/README.md`.
+- **H31. CI is red today** ✅
+  - Done: lint, typecheck, unit/integration tests, e2e (13/13) and `prettier --check .` pass.
   - Files: `.github/workflows/ci.yml` (`format:check`, `lint`); failures listed in §0.
   - Fix: run `npm run format`, remove the two unused imports; ensure the Husky/lint-staged hook runs locally.
 
 - **H32. No tests for revisions, feedback, exports; no HTTP authz tests for tasks/payments/invoices/revisions** ✅
   - Done: unit tests for revisions, feedback, exports, payments/invoices, config, CSV, rate limiter; integration tests for users/logs (incl. super hierarchy), auth sessions, task zips. Supertest role matrices (SUPER/ADMIN/COORDINATOR/TUTOR/CLIENT plus an unrelated coordinator, tutor and client) in `tests/integration/tasks-lifecycle.test.ts` (B1–B12, I1, I2, I4), `revisions.test.ts` (C1–C7, C9), `payments.test.ts` (D1–D3, D6–D9, B13, payment logs) and `invoices.test.ts` (download/resend authz), sharing `tests/helpers/http-actors.ts`. The matrix found that the assigned tutor could read a task's payment ledger (web hides it); `payments.service` `assertCanView` now allows only managing staff and the paying client.
-  - Remaining: `config.test.ts`, `csv.test.ts`, `rate-limit.test.ts` and the new integration files are untracked.
+  - All test files above are committed.
   - Files: `backend/tests/unit/*`, `backend/tests/integration/*`.
   - Fix: service tests for `revisions`, `feedback`, `exports`; Supertest role-matrix tests (CLIENT/TUTOR/COORDINATOR/ADMIN/SUPER) for `/tasks`, `/payments`, `/revisions`, `/invoices`, seeded from `Docs/[5] Transfer docs/10-acceptance-test-scenarios.md`.
 
 - **H33. Web feature tests missing for the largest areas** ✅
   - Done: `tests/unit/useTaskDetails.test.tsx` (load/error/retry, role permissions, price, status-change toasts, file removal, delete + redirect, upload size guard / progress / partial batch), `tests/unit/payments.schema.test.ts` (checkout + manual payment rules, fixed clock for expiry), `tests/unit/usePagedAdminList.test.ts` (paging, debounced search, last-page clamp, stale responses, delete flows), and `tests/e2e/task-payment.spec.ts` (client creates task → admin sets price → client pays simulated checkout → paid status + `INV-` invoice). Revisions: `revision-details-page.test.tsx` (actions per role and status, approve/reject/submit/cancel, edit dialog, load error + retry). Users: `permissions.test.ts` (`canManageRole` / `assignableRoles` matrix), `users.schema.test.ts`, `manage-users-page.test.tsx` (super/self locks, confirm-then-deactivate, reactivate failure, stat-card filter, empty state). RBAC: `rbac.schema.test.ts`, `assign-permissions-dialog.test.tsx` (category grouping, preselect, save, failure). Dashboard: `portal-dashboard.test.tsx` (per-role titles/KPIs/links, client request validation, ISO deadline, reload, failure, error + retry). `tests/e2e/auth.spec.ts` now expects the "… dashboard" headings; 5/5 pass.
-  - Remaining: the coordinator dashboard "Create task" form sends no `clientId`, which the API requires from staff, so it always returns 400 (not covered by a test).
+  - Fixed: the coordinator dashboard "Create task" form now requires a client (active clients loaded when the form opens) and sends `clientId`; covered in `portal-dashboard.test.tsx`. Whole e2e suite (13) passes.
   - Files: `web-app/tests/unit/*` cover schemas, i18n, guards, shell; nothing for tasks, payments, revisions, users, rbac, dashboard. E2E has no task/payment journey.
   - Fix: start with `useTaskDetails`, `payments.schema.ts`, `usePagedAdminList`, and one e2e "create task → simulated pay → invoice".
 
@@ -353,7 +353,7 @@ All recommendations stay inside the locked stack (`Docs/[1] Main App/[1] Tech St
 
 - **M47. Network failure during refresh logs the user out** ⚠️ — `web-app/src/services/api.ts` L88–94. Fix: clear session only on `ApiError` 400/401/403.
 - **M48. Network errors not normalized** ⚠️ (partial: `fetchOrNetworkError` throws `ApiError(0, …, 'NETWORK_ERROR')`, `describeError` in `services/toast.ts`; `LeadModal.tsx` and `ContactPage.tsx` still show raw `error.message`) — `api.ts` L57–61, L126–135; `services/toast.ts` L5–9 and `components/feedback/async-state.tsx` L15–19 duplicate message extraction. Fix: throw `ApiError(0, …, 'NETWORK_ERROR')`; single `getErrorMessage(err, fallback)`.
-- **M49. Auth store rehydration callback likely throws (TDZ)** ⚠️ — `web-app/src/stores/authStore.ts` L81–86 references `useAuthStore` inside its own initializer; L98–104 `queueMicrotask` hack masks it. Fix: `onRehydrateStorage: (state) => () => state?.setHydrated(true)`, remove the hack.
+- **M49. Auth store rehydration callback likely throws (TDZ)** ✅ (callback marks hydration via the initial state's `setHydrated`, also on error; `queueMicrotask` hack removed; `tests/unit/auth-store.test.ts`) — `web-app/src/stores/authStore.ts` L81–86 references `useAuthStore` inside its own initializer; L98–104 `queueMicrotask` hack masks it. Fix: `onRehydrateStorage: (state) => () => state?.setHydrated(true)`, remove the hack.
 - **M50. Auth state not synced across tabs** ⚠️ — `authStore.ts`. Fix: `storage` event → `useAuthStore.persist.rehydrate()`.
 - **M51. Production silently falls back to `http://localhost:3000/api/v1`** ⚠️ (partial: fallback is now same-origin `/api/v1`; no `src/vite-env.d.ts`/`ImportMetaEnv` typing, `.env.example` still points at localhost) — `api.ts` L1–2; no `src/vite-env.d.ts`; `VITE_APP_*` in `.env.example` unused. Fix: throw in `PROD` if missing; type `ImportMetaEnv`.
 - **M52. Role/route rules defined twice; unknown portal URLs render the public 404** ⚠️ — `web-app/src/App.tsx` L33–74 vs `features/portals/portalNav.ts` L27–95; `App.tsx` L92 and `publicRoutes.tsx` L21–31 (e.g. `/admin/unknown` → `/:lang` with `lang="admin"`). Fix: `capabilities` per `PortalDefinition` driving both; `path="*"` inside each portal.

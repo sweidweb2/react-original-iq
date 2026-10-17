@@ -7,6 +7,7 @@ import { PortalDashboardPage } from '@/features/shared/dashboard/PortalDashboard
 import type { AuthRole } from '@/services/auth'
 import { createTask, getTaskStats, listTasks, type Task, type TaskStats } from '@/services/tasks'
 import { toastApiError, toastSuccess } from '@/services/toast'
+import { listUsers, type ManagedUser } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
 import { permissionsFor } from '../helpers/permissions'
@@ -19,6 +20,11 @@ vi.mock('@/services/tasks', async (importOriginal) => {
 vi.mock('@/services/toast', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/toast')>()
   return { ...actual, toastApiError: vi.fn(), toastSuccess: vi.fn() }
+})
+
+vi.mock('@/services/users', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/users')>()
+  return { ...actual, listUsers: vi.fn() }
 })
 
 const TIMESTAMP = '2026-10-01T10:00:00.000Z'
@@ -106,6 +112,58 @@ describe('PortalDashboardPage', () => {
     expect(screen.getAllByRole('link', { name: 'Open' })[0]).toHaveAttribute(
       'href',
       '/coordinator/tasks/t-1',
+    )
+  })
+
+  it('makes coordinators pick a client and sends it with the new task', async () => {
+    const user = userEvent.setup()
+    vi.mocked(listUsers).mockResolvedValue({
+      data: [
+        {
+          id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+          email: 'ada@example.com',
+          profile: { displayName: 'Ada' },
+        },
+      ],
+      meta: { page: 1, limit: 100, total: 1 },
+    } as unknown as Awaited<ReturnType<typeof listUsers>> & { data: ManagedUser[] })
+    vi.mocked(createTask).mockResolvedValue(task('t-4', 'Calculus prep', 'pending'))
+    renderAs('coordinator')
+    await screen.findByText('Essay on Turing')
+
+    await user.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(listUsers).toHaveBeenCalledWith({
+      page: 1,
+      limit: 100,
+      role: 'client',
+      status: 'ACTIVE',
+    })
+    await user.type(screen.getByLabelText('Topic'), 'Calculus prep')
+    await user.type(screen.getByLabelText('Category'), 'Math')
+    fireEvent.change(screen.getByLabelText('Deadline'), { target: { value: '2026-11-03T10:00' } })
+    await user.type(screen.getByLabelText('Description'), 'Limits')
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(screen.getByText('Select a client')).toBeVisible()
+    expect(createTask).not.toHaveBeenCalled()
+
+    await user.selectOptions(
+      await screen.findByLabelText('Client'),
+      '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+    )
+    await user.click(screen.getByRole('button', { name: 'Submit request' }))
+
+    expect(createTask).toHaveBeenCalledWith({
+      topic: 'Calculus prep',
+      type: 'assignment',
+      category: 'Math',
+      description: 'Limits',
+      clientId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+      deadline: new Date('2026-11-03T10:00').toISOString(),
+    })
+    expect(toastSuccess).toHaveBeenCalledWith(
+      'Task created',
+      '“Calculus prep” was added to the task list.',
     )
   })
 

@@ -1,0 +1,193 @@
+# Role Permissions
+
+Default permissions seeded per role. Source of truth: `backend/src/authz/permission-catalog.ts` (seed with `npm run db:seed:rbac`).
+
+## Super (65)
+
+- `view_users`
+- `create_users`
+- `manage_users`
+- `reset_user_passwords`
+- `manage_super_users`
+- `manage_admins`
+- `manage_coordinators`
+- `manage_tutors`
+- `manage_clients`
+- `change_user_roles`
+- `activate_users`
+- `delete_users`
+- `assign_user_permissions`
+- `manage_specializations`
+- `view_activity_logs`
+- `view_error_logs`
+- `manage_rbac`
+- `manage_backups`
+- `manage_system`
+- `view_dashboard`
+- `view_reports`
+- `export_data`
+- `send_custom_emails`
+- `manage_leads`
+- `manage_contact_messages`
+- `manage_newsletter`
+- `view_tasks`
+- `view_all_tasks`
+- `create_own_tasks`
+- `create_tasks`
+- `edit_own_tasks`
+- `edit_tasks`
+- `delete_own_tasks`
+- `delete_tasks`
+- `assign_tutors`
+- `change_coordinator`
+- `set_pricing`
+- `cancel_tasks`
+- `toggle_allow_view`
+- `approve_deliveries`
+- `submit_work`
+- `download_task_documents`
+- `upload_task_documents`
+- `delete_task_documents`
+- `download_solutions`
+- `upload_solutions`
+- `delete_solutions`
+- `bulk_download_files`
+- `view_revisions`
+- `create_revisions`
+- `manage_revisions`
+- `submit_revisions`
+- `view_payment_summary`
+- `view_payments`
+- `pay_own_tasks`
+- `manage_payments`
+- `manage_refunds`
+- `download_invoices`
+- `manage_invoices`
+- `view_feedback`
+- `submit_feedback`
+- `delete_feedback`
+- `evaluate_tutors`
+- `manage_own_profile`
+- `delete_own_account`
+
+## Admin (50)
+
+- `view_users`
+- `create_users`
+- `manage_users`
+- `reset_user_passwords`
+- `manage_admins`
+- `manage_coordinators`
+- `manage_tutors`
+- `manage_clients`
+- `change_user_roles`
+- `activate_users`
+- `delete_users`
+- `manage_specializations`
+- `view_activity_logs`
+- `view_reports`
+- `send_custom_emails`
+- `manage_leads`
+- `manage_contact_messages`
+- `manage_newsletter`
+- `view_tasks`
+- `view_all_tasks`
+- `create_tasks`
+- `edit_tasks`
+- `delete_tasks`
+- `assign_tutors`
+- `change_coordinator`
+- `set_pricing`
+- `cancel_tasks`
+- `toggle_allow_view`
+- `approve_deliveries`
+- `download_task_documents`
+- `upload_task_documents`
+- `delete_task_documents`
+- `download_solutions`
+- `upload_solutions`
+- `delete_solutions`
+- `bulk_download_files`
+- `view_revisions`
+- `create_revisions`
+- `manage_revisions`
+- `view_payment_summary`
+- `view_payments`
+- `manage_payments`
+- `manage_refunds`
+- `download_invoices`
+- `manage_invoices`
+- `view_feedback`
+- `delete_feedback`
+- `evaluate_tutors`
+- `manage_own_profile`
+- `delete_own_account`
+
+## Coordinator (29)
+
+- `view_users`
+- `manage_users`
+- `manage_tutors`
+- `manage_clients`
+- `delete_users`
+- `manage_specializations`
+- `view_dashboard`
+- `view_tasks`
+- `create_tasks`
+- `edit_tasks`
+- `delete_tasks`
+- `assign_tutors`
+- `set_pricing`
+- `cancel_tasks`
+- `approve_deliveries`
+- `download_task_documents`
+- `upload_task_documents`
+- `delete_task_documents`
+- `download_solutions`
+- `upload_solutions`
+- `delete_solutions`
+- `bulk_download_files`
+- `view_revisions`
+- `create_revisions`
+- `manage_revisions`
+- `view_feedback`
+- `evaluate_tutors`
+- `manage_own_profile`
+- `delete_own_account`
+
+## Tutor (13)
+
+- `view_dashboard`
+- `view_tasks`
+- `submit_work`
+- `download_task_documents`
+- `download_solutions`
+- `upload_solutions`
+- `delete_solutions`
+- `bulk_download_files`
+- `view_revisions`
+- `submit_revisions`
+- `view_feedback`
+- `manage_own_profile`
+- `delete_own_account`
+
+## Client (18)
+
+- `view_dashboard`
+- `view_tasks`
+- `create_own_tasks`
+- `edit_own_tasks`
+- `delete_own_tasks`
+- `download_task_documents`
+- `upload_task_documents`
+- `delete_task_documents`
+- `download_solutions`
+- `bulk_download_files`
+- `view_payment_summary`
+- `view_payments`
+- `pay_own_tasks`
+- `download_invoices`
+- `view_feedback`
+- `submit_feedback`
+- `manage_own_profile`
+- `delete_own_account`

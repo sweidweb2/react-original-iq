@@ -70,7 +70,9 @@ test('client creates a task, pays the simulated checkout, and gets an invoice', 
   await checkout.getByLabel('CVC').fill('123')
   await checkout.getByRole('button', { name: 'Pay $49.99' }).click()
 
-  await expect(page.getByText(/^\$49\.99 paid\. Invoice INV-\d{6} was created\.$/)).toBeVisible()
+  await expect(
+    page.getByText(/^\$49\.99 paid\. Invoice INV-\d{6} will be emailed to you shortly\.$/),
+  ).toBeVisible()
   await expect(checkout).toBeHidden()
 
   const payments = page.getByRole('table', { name: 'Payments' })

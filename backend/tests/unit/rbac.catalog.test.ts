@@ -63,9 +63,6 @@ describe('rbac catalog', () => {
     expect(tutor).toEqual(
       expect.arrayContaining(['submit_work', 'submit_revisions', 'upload_solutions']),
     )
-    expect(tutor).not.toContain('view_payments')
-    expect(tutor).toContain('view_payment_summary')
-
     expect(coordinator).toEqual(
       expect.arrayContaining([
         'create_tasks',
@@ -75,11 +72,17 @@ describe('rbac catalog', () => {
         'approve_deliveries',
         'create_revisions',
         'manage_revisions',
-        'manage_refunds',
         'evaluate_tutors',
         'delete_users',
       ]),
     )
+
+    const payments = RBAC_PERMISSIONS.filter((item) => item.category === 'payments')
+    expect(payments.length).toBeGreaterThan(0)
+    for (const { key } of payments) {
+      expect(coordinator, key).not.toContain(key)
+      expect(tutor, key).not.toContain(key)
+    }
     for (const adminOnly of [
       'toggle_allow_view',
       'change_coordinator',

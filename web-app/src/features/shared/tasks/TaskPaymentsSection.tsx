@@ -1,8 +1,6 @@
-import { Pencil } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
-import { IconAction } from '@/components/ui/icon-action'
 import type { TaskDetail } from '@/services/tasks'
 
 import { SectionCard } from '../PortalPageShell'
@@ -13,15 +11,11 @@ export function TaskPaymentsSection({
   taskId,
   tasksBase,
   canViewPayments,
-  canEditPrice,
-  onEditPrice,
 }: {
   task: TaskDetail
   taskId: string
   tasksBase: string
   canViewPayments: boolean
-  canEditPrice: boolean
-  onEditPrice: () => void
 }) {
   return (
     <SectionCard
@@ -49,13 +43,8 @@ export function TaskPaymentsSection({
         </div>
         <div>
           <dt className="text-muted-foreground">Price</dt>
-          <dd className="mt-1 flex items-center gap-2">
+          <dd className="mt-1">
             <span className="text-base font-semibold tabular-nums">${task.price.toFixed(2)}</span>
-            {canEditPrice ? (
-              <IconAction label="Edit price" onClick={onEditPrice}>
-                <Pencil className="size-4" aria-hidden />
-              </IconAction>
-            ) : null}
           </dd>
         </div>
       </dl>

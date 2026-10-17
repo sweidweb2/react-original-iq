@@ -54,7 +54,7 @@ describe('payments and refunds role matrix HTTP', () => {
 
   afterAll(() => setMailerForTests(null))
 
-  it('shows the ledger to managing staff and the paying client only', async () => {
+  it('shows the ledger to admins and the paying client only', async () => {
     const task = await createManagedTask(app, cast, { price: 100, tutorId: cast.tutor.id })
     const view = (actor: HttpActor) =>
       request(app)
@@ -62,13 +62,10 @@ describe('payments and refunds role matrix HTTP', () => {
         .set(...actor.auth)
 
     expect((await request(app).get(`/api/v1/tasks/${task.id}/payments`)).status).toBe(401)
-    await expectStatusFor(
-      { super: cast.super, admin: cast.admin, coordinator: cast.coordinator, client: cast.client },
-      200,
-      view,
-    )
+    await expectStatusFor({ super: cast.super, admin: cast.admin, client: cast.client }, 200, view)
     await expectStatusFor(
       {
+        coordinator: cast.coordinator,
         tutor: cast.tutor,
         otherTutor: cast.otherTutor,
         otherCoordinator: cast.otherCoordinator,
@@ -209,7 +206,7 @@ describe('payments and refunds role matrix HTTP', () => {
     expect((await detail(cast.tutor)).status).toBe(403)
   })
 
-  it('D7/D8/D9: refunds are staff-only, capped, and drive payment status', async () => {
+  it('D7/D8/D9: refunds are admin-only, capped, and drive payment status', async () => {
     const task = await createManagedTask(app, cast, { price: 100 })
     expect((await checkout(task.id)(cast.client)).status).toBe(201)
 
@@ -223,6 +220,7 @@ describe('payments and refunds role matrix HTTP', () => {
       {
         client: cast.client,
         tutor: cast.tutor,
+        coordinator: cast.coordinator,
         otherCoordinator: cast.otherCoordinator,
         otherClient: cast.otherClient,
       },
@@ -232,7 +230,7 @@ describe('payments and refunds role matrix HTTP', () => {
 
     expect((await refund(task.id, 150)(cast.admin)).status).toBe(400)
 
-    const created = await refund(task.id, 20)(cast.coordinator)
+    const created = await refund(task.id, 20)(cast.admin)
     expect(created.status).toBe(201)
     expect(created.body.status).toBe('pending')
     expect(await paymentStatusOf(task.id)).toBe('refund_pending')
@@ -243,12 +241,12 @@ describe('payments and refunds role matrix HTTP', () => {
         .set(...actor.auth)
         .send({ status })
     await expectStatusFor(
-      { client: cast.client, tutor: cast.tutor },
+      { client: cast.client, tutor: cast.tutor, coordinator: cast.coordinator },
       403,
       settle(created.body.id, 'paid'),
     )
 
-    const settled = await settle(created.body.id, 'paid')(cast.coordinator)
+    const settled = await settle(created.body.id, 'paid')(cast.admin)
     expect(settled.status).toBe(200)
     expect(await paymentStatusOf(task.id)).toBe('paid')
 

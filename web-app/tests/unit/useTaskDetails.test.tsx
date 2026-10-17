@@ -280,6 +280,9 @@ describe('useTaskDetails', () => {
       expect(hook.result.current.canAssignTutors).toBe(true)
       expect(hook.result.current.canChangeCoordinator).toBe(false)
       expect(hook.result.current.canToggleAllowView).toBe(false)
+      expect(hook.result.current.canSetPrice).toBe(true)
+      expect(hook.result.current.canViewPaymentSummary).toBe(false)
+      expect(hook.result.current.canViewPayments).toBe(false)
       expect(listUsers).toHaveBeenCalledTimes(1)
       expect(vi.mocked(listUsers).mock.calls[0]?.[0].role).toBe('tutor')
     })
@@ -348,7 +351,7 @@ describe('useTaskDetails', () => {
         expect(hook.result.current).toMatchObject({
           ...expected,
           canViewPayments: false,
-          canViewPaymentSummary: true,
+          canViewPaymentSummary: false,
           canViewRevisions: true,
           canUploadSolutions: tutorId === 'tutor-1',
           canEditFields: false,
