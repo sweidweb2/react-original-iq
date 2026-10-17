@@ -98,6 +98,9 @@ export type LoggingRepository = {
     total: number
   }>
   countErrorStats: () => Promise<ErrorLogStats>
+  /** Returns how many rows were removed. */
+  deleteErrors: (ids: readonly string[]) => Promise<number>
+  deleteAllErrors: () => Promise<number>
 }
 
 type ActivityRow = {
@@ -310,6 +313,20 @@ function createMemoryLoggingRepository(): LoggingRepository {
     async countErrorStats() {
       return summarizeErrors(memoryErrors)
     },
+
+    async deleteErrors(ids) {
+      const targets = new Set(ids)
+      const kept = memoryErrors.filter((row) => !targets.has(row.id))
+      const deleted = memoryErrors.length - kept.length
+      memoryErrors.splice(0, memoryErrors.length, ...kept)
+      return deleted
+    },
+
+    async deleteAllErrors() {
+      const deleted = memoryErrors.length
+      memoryErrors.length = 0
+      return deleted
+    },
   }
 }
 
@@ -450,6 +467,26 @@ function createSupabaseLoggingRepository(config: AppConfig): LoggingRepository {
         errors: total - warnings,
         warnings,
       }
+    },
+
+    async deleteErrors(ids) {
+      if (ids.length === 0) return 0
+      const { error, count } = await client
+        .from('error_logs')
+        .delete({ count: 'exact' })
+        .in('id', [...ids])
+      if (error) throw error
+      return count ?? 0
+    },
+
+    async deleteAllErrors() {
+      // PostgREST rejects an unfiltered DELETE; this filter matches every row.
+      const { error, count } = await client
+        .from('error_logs')
+        .delete({ count: 'exact' })
+        .not('id', 'is', null)
+      if (error) throw error
+      return count ?? 0
     },
   }
 }

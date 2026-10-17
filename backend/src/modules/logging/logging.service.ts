@@ -1,3 +1,5 @@
+import type { AuthActor } from '../../authz/index.js'
+import { notFound } from '../../errors/app-error.js'
 import { getLogger } from '../../logging/index.js'
 import { toListResult } from '../_shared/list-result.js'
 import type {
@@ -7,7 +9,13 @@ import type {
   LoggingRepository,
 } from './logging.repository.js'
 import type { ListActivityQuery, ListErrorsQuery } from './logging.schema.js'
-import type { ActivityLogDto, ErrorLogDto, ErrorLogStats, PaginatedLogs } from './logging.types.js'
+import type {
+  ActivityLogDto,
+  DeleteErrorLogsResult,
+  ErrorLogDto,
+  ErrorLogStats,
+  PaginatedLogs,
+} from './logging.types.js'
 
 const MAX_STACK_LENGTH = 4000
 const MAX_MESSAGE_LENGTH = 2000
@@ -23,6 +31,9 @@ export type LoggingService = {
   getActivityStats: () => Promise<ActivityLogStats>
   listErrors: (query: ListErrorsQuery) => Promise<PaginatedLogs<ErrorLogDto>>
   getErrorStats: () => Promise<ErrorLogStats>
+  deleteError: (id: string, actor: AuthActor) => Promise<void>
+  deleteErrors: (ids: readonly string[], actor: AuthActor) => Promise<DeleteErrorLogsResult>
+  clearErrors: (actor: AuthActor) => Promise<DeleteErrorLogsResult>
 }
 
 function truncate(value: string, max: number): string {
@@ -46,6 +57,16 @@ export function createLoggingService(
   repository: LoggingRepository,
   options: LoggingServiceOptions = {},
 ): LoggingService {
+  function recordActivitySafe(input: CreateActivityInput) {
+    void repository.createActivity(input).catch((error: unknown) => {
+      if (options.onActivityWriteFailure) {
+        options.onActivityWriteFailure(error, input)
+        return
+      }
+      getLogger().error({ err: error }, 'failed to write activity')
+    })
+  }
+
   return {
     async recordActivity(input) {
       await repository.createActivity(input)
@@ -55,15 +76,7 @@ export function createLoggingService(
       await repository.createError(normalizeError(input))
     },
 
-    recordActivitySafe(input) {
-      void repository.createActivity(input).catch((error: unknown) => {
-        if (options.onActivityWriteFailure) {
-          options.onActivityWriteFailure(error, input)
-          return
-        }
-        getLogger().error({ err: error }, 'failed to write activity')
-      })
-    },
+    recordActivitySafe,
 
     recordErrorSafe(input) {
       void repository.createError(normalizeError(input)).catch((error: unknown) => {
@@ -147,6 +160,42 @@ export function createLoggingService(
 
     getErrorStats() {
       return repository.countErrorStats()
+    },
+
+    async deleteError(id, actor) {
+      const deleted = await repository.deleteErrors([id])
+      if (deleted === 0) {
+        throw notFound('Error log not found')
+      }
+      recordActivitySafe({
+        userId: actor.id,
+        action: 'error_logs.delete',
+        entity: 'error_log',
+        entityId: id,
+      })
+    },
+
+    async deleteErrors(ids, actor) {
+      const unique = [...new Set(ids)]
+      const deleted = await repository.deleteErrors(unique)
+      recordActivitySafe({
+        userId: actor.id,
+        action: 'error_logs.delete_many',
+        entity: 'error_log',
+        meta: { requested: unique.length, deleted },
+      })
+      return { deleted }
+    },
+
+    async clearErrors(actor) {
+      const deleted = await repository.deleteAllErrors()
+      recordActivitySafe({
+        userId: actor.id,
+        action: 'error_logs.clear',
+        entity: 'error_log',
+        meta: { deleted },
+      })
+      return { deleted }
     },
   }
 }

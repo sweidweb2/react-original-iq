@@ -193,6 +193,14 @@ const PERMISSIONS = [
     roles: ['super'],
   },
   {
+    key: 'delete_error_logs',
+    name: 'Delete error logs',
+    category: 'system',
+    section: 'Error log (Delete / Delete selected / Clear all)',
+    description: 'Delete single, selected, or all error log records.',
+    roles: ['super'],
+  },
+  {
     key: 'manage_rbac',
     name: 'Manage RBAC',
     category: 'system',

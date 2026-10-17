@@ -38,6 +38,7 @@ const WEB_KEYS = {
   manage_specializations: true,
   view_activity_logs: true,
   view_error_logs: true,
+  delete_error_logs: true,
   manage_rbac: true,
   manage_backups: true,
   manage_system: true,

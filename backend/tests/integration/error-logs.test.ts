@@ -13,6 +13,7 @@ import { loadTestConfig } from '../helpers/test-config.js'
 
 type ErrorLogBody = {
   data: Array<{
+    id: string
     source: string | null
     level: string
     message: string
@@ -158,5 +159,65 @@ describe('error logs HTTP', () => {
     })
     expect(res.body.warnings).toBeGreaterThanOrEqual(1)
     expect(res.body.errors).toBeGreaterThanOrEqual(1)
+  })
+
+  it('lets only super delete error logs', async () => {
+    const id = '00000000-0000-4000-8000-000000000000'
+    const single = await request(app)
+      .delete(`/api/v1/error-logs/${id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+    expect(single.status).toBe(403)
+
+    const bulk = await request(app)
+      .post('/api/v1/error-logs/delete')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ ids: [id] })
+    expect(bulk.status).toBe(403)
+
+    const clear = await request(app)
+      .delete('/api/v1/error-logs')
+      .set('Authorization', `Bearer ${adminToken}`)
+    expect(clear.status).toBe(403)
+  })
+
+  it('deletes one, selected, and then all error logs', async () => {
+    for (const message of ['delete-a', 'delete-b', 'delete-c', 'delete-d']) {
+      reportError(new Error(message), { source: 'tests.delete' })
+    }
+    await waitForLogs()
+
+    const rows = (await listErrors('?source=tests.delete&limit=50')).data
+    expect(rows).toHaveLength(4)
+    const [first, second, third] = rows.map((row) => row.id)
+
+    await request(app)
+      .delete(`/api/v1/error-logs/${first}`)
+      .set('Authorization', `Bearer ${superToken}`)
+      .expect(204)
+    await request(app)
+      .delete(`/api/v1/error-logs/${first}`)
+      .set('Authorization', `Bearer ${superToken}`)
+      .expect(404)
+
+    const bulk = await request(app)
+      .post('/api/v1/error-logs/delete')
+      .set('Authorization', `Bearer ${superToken}`)
+      .send({ ids: [second, third] })
+    expect(bulk.status).toBe(200)
+    expect(bulk.body).toEqual({ deleted: 2 })
+    expect((await listErrors('?source=tests.delete')).meta.total).toBe(1)
+
+    const invalid = await request(app)
+      .post('/api/v1/error-logs/delete')
+      .set('Authorization', `Bearer ${superToken}`)
+      .send({ ids: [] })
+    expect(invalid.status).toBe(400)
+
+    const clear = await request(app)
+      .delete('/api/v1/error-logs')
+      .set('Authorization', `Bearer ${superToken}`)
+    expect(clear.status).toBe(200)
+    expect(clear.body.deleted).toBeGreaterThanOrEqual(1)
+    expect((await listErrors()).meta.total).toBe(0)
   })
 })

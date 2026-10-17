@@ -47,6 +47,8 @@ function errorRow(overrides: Partial<ErrorLogRecord> = {}): ErrorLogRecord {
   }
 }
 
+const actor = { id: 'super-1', roles: ['super'], permissions: ['delete_error_logs'] }
+
 describe('logging.service', () => {
   let repository: LoggingRepository
 
@@ -58,7 +60,10 @@ describe('logging.service', () => {
       countActivityStats: vi.fn(),
       listErrors: vi.fn(),
       countErrorStats: vi.fn(),
+      deleteErrors: vi.fn(),
+      deleteAllErrors: vi.fn(),
     }
+    vi.mocked(repository.createActivity).mockResolvedValue()
   })
 
   it('writes activity and error rows', async () => {
@@ -202,6 +207,54 @@ describe('logging.service', () => {
     vi.mocked(repository.countErrorStats).mockResolvedValue(stats)
 
     await expect(createLoggingService(repository).getErrorStats()).resolves.toEqual(stats)
+  })
+
+  it('deletes one error log and audits it', async () => {
+    vi.mocked(repository.deleteErrors).mockResolvedValue(1)
+    const service = createLoggingService(repository)
+
+    await service.deleteError('err-1', actor)
+
+    expect(repository.deleteErrors).toHaveBeenCalledWith(['err-1'])
+    expect(repository.createActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'super-1', action: 'error_logs.delete', entityId: 'err-1' }),
+    )
+  })
+
+  it('throws not found when the error log is missing', async () => {
+    vi.mocked(repository.deleteErrors).mockResolvedValue(0)
+
+    await expect(createLoggingService(repository).deleteError('err-x', actor)).rejects.toMatchObject(
+      { status: 404 },
+    )
+    expect(repository.createActivity).not.toHaveBeenCalled()
+  })
+
+  it('deletes selected error logs once per id', async () => {
+    vi.mocked(repository.deleteErrors).mockResolvedValue(2)
+    const service = createLoggingService(repository)
+
+    const result = await service.deleteErrors(['err-1', 'err-2', 'err-1'], actor)
+
+    expect(result).toEqual({ deleted: 2 })
+    expect(repository.deleteErrors).toHaveBeenCalledWith(['err-1', 'err-2'])
+    expect(repository.createActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'error_logs.delete_many',
+        meta: { requested: 2, deleted: 2 },
+      }),
+    )
+  })
+
+  it('clears every error log', async () => {
+    vi.mocked(repository.deleteAllErrors).mockResolvedValue(7)
+
+    await expect(createLoggingService(repository).clearErrors(actor)).resolves.toEqual({
+      deleted: 7,
+    })
+    expect(repository.createActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'error_logs.clear', meta: { deleted: 7 } }),
+    )
   })
 
   it('routes activity write failures to the injected reporter', async () => {

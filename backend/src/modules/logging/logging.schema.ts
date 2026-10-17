@@ -23,5 +23,14 @@ export const listErrorsQuerySchema = paginationQuerySchema.extend({
   since: z.string().datetime().optional(),
 })
 
+export const errorLogIdParamsSchema = z.object({
+  id: z.string().uuid(),
+})
+
+export const deleteErrorLogsBodySchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(500),
+})
+
 export type ListActivityQuery = z.infer<typeof listActivityQuerySchema>
 export type ListErrorsQuery = z.infer<typeof listErrorsQuerySchema>
+export type DeleteErrorLogsBody = z.infer<typeof deleteErrorLogsBodySchema>

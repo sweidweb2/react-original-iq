@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bug, Eye } from 'lucide-react'
+import { Bug, Eye, Loader2, Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -7,12 +7,17 @@ import { PageHeader } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Dialog } from '@/components/ui/dialog'
 import { IconAction } from '@/components/ui/icon-action'
 import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import {
+  clearErrorLogs,
+  deleteErrorLog,
+  deleteErrorLogs,
   type ErrorLevel,
   type ErrorLog,
   type ErrorLogListMeta,
@@ -20,6 +25,7 @@ import {
   getErrorLogStats,
   listErrorLogs,
 } from '@/services/errorLogs'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { ErrorLogDetailsDialog } from './ErrorLogDetailsDialog'
 
@@ -78,8 +84,16 @@ type Directory = {
   stats: ErrorLogStats
 }
 
+type PendingDelete = { kind: 'one'; log: ErrorLog } | { kind: 'selected' } | { kind: 'all' }
+
+function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? '' : 's'}`
+}
+
 export function ErrorLogsPage() {
   useDocumentTitle('Error log')
+  const can = useCan()
+  const canDelete = can('delete_error_logs')
 
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState<(typeof PAGE_SIZE_OPTIONS)[number]>(20)
@@ -94,6 +108,9 @@ export function ErrorLogsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [viewing, setViewing] = useState<ErrorLog | null>(null)
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300)
@@ -102,6 +119,7 @@ export function ErrorLogsPage() {
 
   useEffect(() => {
     setPage(1)
+    setSelected(new Set())
   }, [search, source, level, since, limit])
 
   useEffect(() => {
@@ -153,6 +171,82 @@ export function ErrorLogsPage() {
   const rangeEnd = meta ? Math.min(meta.page * meta.limit, meta.total) : 0
 
   const filtersActive = Boolean(search || source || level || since)
+
+  const pageSelectedCount = logs.filter((log) => selected.has(log.id)).length
+  const allPageSelected = logs.length > 0 && pageSelectedCount === logs.length
+  const somePageSelected = pageSelectedCount > 0 && !allPageSelected
+
+  function toggleRow(id: string) {
+    setSelected((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function togglePage() {
+    setSelected((current) => {
+      const next = new Set(current)
+      for (const log of logs) {
+        if (allPageSelected) next.delete(log.id)
+        else next.add(log.id)
+      }
+      return next
+    })
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return
+    setIsDeleting(true)
+    try {
+      if (pendingDelete.kind === 'one') {
+        const { id } = pendingDelete.log
+        await deleteErrorLog(id)
+        setSelected((current) => {
+          const next = new Set(current)
+          next.delete(id)
+          return next
+        })
+        if (viewing?.id === id) setViewing(null)
+        toastSuccess('Error deleted', 'The error log record was removed.')
+      } else if (pendingDelete.kind === 'selected') {
+        const { deleted } = await deleteErrorLogs([...selected])
+        setSelected(new Set())
+        toastSuccess('Errors deleted', `${plural(deleted, 'record')} removed.`)
+      } else {
+        const { deleted } = await clearErrorLogs()
+        setSelected(new Set())
+        setViewing(null)
+        toastSuccess('Error log cleared', `${plural(deleted, 'record')} removed.`)
+      }
+      setPendingDelete(null)
+      refresh()
+    } catch (actionError) {
+      toastApiError(actionError, "Couldn't delete error logs")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const deleteDialog =
+    pendingDelete?.kind === 'one'
+      ? {
+          title: 'Delete error?',
+          description: `Delete “${pendingDelete.log.message}”? This cannot be undone.`,
+          confirm: 'Delete',
+        }
+      : pendingDelete?.kind === 'selected'
+        ? {
+            title: `Delete ${plural(selected.size, 'error')}?`,
+            description: `The ${plural(selected.size, 'selected record')} will be permanently removed. This cannot be undone.`,
+            confirm: 'Delete selected',
+          }
+        : {
+            title: 'Clear the entire error log?',
+            description: `All ${plural(stats?.total ?? 0, 'record')} will be permanently removed, not just the ones matching the current filters. This cannot be undone.`,
+            confirm: 'Delete all',
+          }
 
   const statCards = [
     {
@@ -213,9 +307,22 @@ export function ErrorLogsPage() {
         title="Error log"
         description="Unexpected backend failures: crashes, 5xx responses, and errors caught in background work. Handled validation and permission errors are not listed."
         actions={
-          <Button type="button" variant="secondary" onClick={refresh}>
-            Refresh
-          </Button>
+          <>
+            <Button type="button" variant="secondary" onClick={refresh}>
+              Refresh
+            </Button>
+            {canDelete ? (
+              <Button
+                type="button"
+                variant="danger-soft"
+                disabled={!stats?.total}
+                onClick={() => setPendingDelete({ kind: 'all' })}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                Clear all
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -298,6 +405,31 @@ export function ErrorLogsPage() {
             </Field>
           </div>
 
+          {canDelete && selected.size > 0 ? (
+            <div className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium">{plural(selected.size, 'record')} selected</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelected(new Set())}
+                >
+                  Clear selection
+                </Button>
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setPendingDelete({ kind: 'selected' })}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  Delete selected
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <AsyncState
             isLoading={isLoading && !directory}
             error={error}
@@ -326,6 +458,20 @@ export function ErrorLogsPage() {
                   <caption className="sr-only">Error logs</caption>
                   <thead className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
                     <tr>
+                      {canDelete ? (
+                        <th className="w-8 px-2 py-2 text-start font-medium">
+                          <input
+                            type="checkbox"
+                            checked={allPageSelected}
+                            ref={(element) => {
+                              if (element) element.indeterminate = somePageSelected
+                            }}
+                            onChange={togglePage}
+                            aria-label="Select all errors on this page"
+                            className="size-4 cursor-pointer accent-primary"
+                          />
+                        </th>
+                      ) : null}
                       <th className="px-2 py-2 text-start font-medium">When</th>
                       <th className="px-2 py-2 text-start font-medium">Level</th>
                       <th className="px-2 py-2 text-start font-medium">Source</th>
@@ -333,12 +479,29 @@ export function ErrorLogsPage() {
                       <th className="px-2 py-2 text-start font-medium">Request</th>
                       <th className="px-2 py-2 text-start font-medium">Status</th>
                       <th className="px-2 py-2 text-start font-medium">User</th>
-                      <th className="px-2 py-2 text-center font-medium">Details</th>
+                      <th className="px-2 py-2 text-center font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {logs.map((log) => (
-                      <tr key={log.id} className="border-b border-border last:border-0">
+                      <tr
+                        key={log.id}
+                        className={cn(
+                          'border-b border-border last:border-0',
+                          selected.has(log.id) && 'bg-primary/5',
+                        )}
+                      >
+                        {canDelete ? (
+                          <td className="px-2 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selected.has(log.id)}
+                              onChange={() => toggleRow(log.id)}
+                              aria-label={`Select error: ${log.message}`}
+                              className="size-4 cursor-pointer accent-primary"
+                            />
+                          </td>
+                        ) : null}
                         <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
                           {formatWhen(log.createdAt)}
                         </td>
@@ -366,10 +529,19 @@ export function ErrorLogsPage() {
                           {log.user?.email ?? (log.userId ? 'Unknown user' : 'System')}
                         </td>
                         <td className="px-2 py-3">
-                          <div className="flex justify-center">
+                          <div className="flex justify-center gap-1">
                             <IconAction label="View details" onClick={() => setViewing(log)}>
                               <Eye className="size-4" />
                             </IconAction>
+                            {canDelete ? (
+                              <IconAction
+                                label="Delete error"
+                                tone="danger"
+                                onClick={() => setPendingDelete({ kind: 'one', log })}
+                              >
+                                <Trash2 className="size-4" aria-hidden />
+                              </IconAction>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -415,6 +587,34 @@ export function ErrorLogsPage() {
         open={viewing !== null}
         log={viewing}
         onClose={() => setViewing(null)}
+      />
+
+      <Dialog
+        open={pendingDelete !== null}
+        onClose={() => (isDeleting ? undefined : setPendingDelete(null))}
+        title={deleteDialog.title}
+        description={deleteDialog.description}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPendingDelete(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => void confirmDelete()}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 className="size-4 animate-spin" /> : null}
+              {deleteDialog.confirm}
+            </Button>
+          </>
+        }
       />
     </div>
   )

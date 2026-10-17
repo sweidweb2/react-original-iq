@@ -65,3 +65,18 @@ export function listErrorLogs(query: ErrorLogListQuery) {
 export function getErrorLogStats() {
   return apiRequest<ErrorLogStats>('/error-logs/stats')
 }
+
+export function deleteErrorLog(id: string) {
+  return apiRequest<void>(`/error-logs/${id}`, { method: 'DELETE' })
+}
+
+export function deleteErrorLogs(ids: string[]) {
+  return apiRequest<{ deleted: number }>('/error-logs/delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  })
+}
+
+export function clearErrorLogs() {
+  return apiRequest<{ deleted: number }>('/error-logs', { method: 'DELETE' })
+}

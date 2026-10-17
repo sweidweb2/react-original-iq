@@ -105,6 +105,7 @@ describe('rbac catalog', () => {
       'manage_system',
       'manage_backups',
       'view_error_logs',
+      'delete_error_logs',
       'export_data',
       'manage_super_users',
       'assign_user_permissions',

@@ -49,4 +49,8 @@ export type ErrorLogStats = {
   warnings: number
 }
 
+export type DeleteErrorLogsResult = {
+  deleted: number
+}
+
 export type PaginatedLogs<T> = ListResult<T>

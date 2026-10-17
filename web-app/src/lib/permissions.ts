@@ -23,6 +23,7 @@ export type PermissionKey =
   | 'manage_specializations'
   | 'view_activity_logs'
   | 'view_error_logs'
+  | 'delete_error_logs'
   | 'manage_rbac'
   | 'manage_backups'
   | 'manage_system'

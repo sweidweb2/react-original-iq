@@ -2,7 +2,7 @@
 
 Default permissions seeded per role. Source of truth: `backend/src/authz/permission-catalog.ts` (seed with `npm run db:seed:rbac`).
 
-## Super (65)
+## Super (66)
 
 - `view_users`
 - `create_users`
@@ -20,6 +20,7 @@ Default permissions seeded per role. Source of truth: `backend/src/authz/permiss
 - `manage_specializations`
 - `view_activity_logs`
 - `view_error_logs`
+- `delete_error_logs`
 - `manage_rbac`
 - `manage_backups`
 - `manage_system`
