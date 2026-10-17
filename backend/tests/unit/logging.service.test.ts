@@ -217,16 +217,20 @@ describe('logging.service', () => {
 
     expect(repository.deleteErrors).toHaveBeenCalledWith(['err-1'])
     expect(repository.createActivity).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'super-1', action: 'error_logs.delete', entityId: 'err-1' }),
+      expect.objectContaining({
+        userId: 'super-1',
+        action: 'error_logs.delete',
+        entityId: 'err-1',
+      }),
     )
   })
 
   it('throws not found when the error log is missing', async () => {
     vi.mocked(repository.deleteErrors).mockResolvedValue(0)
 
-    await expect(createLoggingService(repository).deleteError('err-x', actor)).rejects.toMatchObject(
-      { status: 404 },
-    )
+    await expect(
+      createLoggingService(repository).deleteError('err-x', actor),
+    ).rejects.toMatchObject({ status: 404 })
     expect(repository.createActivity).not.toHaveBeenCalled()
   })
 
