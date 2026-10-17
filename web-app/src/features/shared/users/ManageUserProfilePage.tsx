@@ -86,8 +86,7 @@ export function ManageUserProfilePage() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([])
   const [permsBusy, setPermsBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const canManageTarget =
-    !user || user.id === actor?.id || canManageRole(actor?.role, user.role)
+  const canManageTarget = !user || user.id === actor?.id || canManageRole(actor?.role, user.role)
   const roleOptions = canManageTarget ? assignableRoles(actor?.role) : ROLE_OPTIONS
 
   const breadcrumbs = usePortalBreadcrumbs([

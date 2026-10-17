@@ -42,6 +42,7 @@ describe('users.service', () => {
   beforeEach(() => {
     repository = {
       findMany: vi.fn(),
+      findActiveByRole: vi.fn(),
       findPage: vi.fn(),
       countStats: vi.fn(),
       findById: vi.fn(),
@@ -281,6 +282,31 @@ describe('users.service', () => {
     await expect(service.updateUser('user-1', { name: 'Ada' }, other)).rejects.toMatchObject({
       status: 403,
     })
+  })
+
+  it('lets a coordinator rename tutors, clients, and themselves only', async () => {
+    const coordinator: AuthActor = { id: 'coord-1', roles: ['coordinator'] }
+    vi.mocked(repository.updateAccount).mockResolvedValue(makeAccount())
+    const service = createUsersService(repository)
+
+    for (const role of ['tutor', 'client'] as const) {
+      vi.mocked(repository.findById).mockResolvedValue(makeAccount({ role }))
+      await expect(service.updateUser('user-1', { name: 'X' }, coordinator)).resolves.toBeDefined()
+    }
+
+    vi.mocked(repository.findById).mockResolvedValue(
+      makeAccount({ id: 'coord-1', role: 'coordinator' }),
+    )
+    await expect(service.updateUser('coord-1', { name: 'X' }, coordinator)).resolves.toBeDefined()
+
+    vi.mocked(repository.updateAccount).mockClear()
+    for (const role of ['admin', 'coordinator'] as const) {
+      vi.mocked(repository.findById).mockResolvedValue(makeAccount({ role }))
+      await expect(service.updateUser('user-1', { name: 'X' }, coordinator)).rejects.toMatchObject({
+        status: 403,
+      })
+    }
+    expect(repository.updateAccount).not.toHaveBeenCalled()
   })
 
   it('forbids a non-admin from changing role or status', async () => {

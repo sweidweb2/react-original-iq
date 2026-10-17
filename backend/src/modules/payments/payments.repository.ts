@@ -248,10 +248,7 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
       if (nextStatus === 'paid' && nextPaid - totals.paidRefunds > toMinor(guard.maxNet)) {
         throw new PaymentCapError('overpay')
       }
-      if (
-        nextPaid < totals.paidPayments &&
-        nextPaid < totals.paidRefunds + totals.pendingRefunds
-      ) {
+      if (nextPaid < totals.paidPayments && nextPaid < totals.paidRefunds + totals.pendingRefunds) {
         throw new PaymentCapError('refund_uncovered')
       }
       const updated: PaymentRecord = {
@@ -373,7 +370,9 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
       .eq('task_id', taskId)
       .eq('status', 'paid')
     if (error) throw error
-    return fromMinor(sumMinor((data as { amount: number | string }[]).map((row) => Number(row.amount))))
+    return fromMinor(
+      sumMinor((data as { amount: number | string }[]).map((row) => Number(row.amount))),
+    )
   }
 
   return {

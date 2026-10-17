@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs'
 import { rowsToCsv } from '../_shared/csv.js'
 import type { TableRow } from './backups.repository.js'
 import type { BackupDataFormat } from './backups.schema.js'
+import { generatedColumns } from './backups.tables.js'
 
 /** Excel rejects cells longer than this. */
 const XLSX_MAX_CELL_LENGTH = 32767
@@ -72,7 +73,8 @@ export function sqlFooter(): string {
 
 export function tableToSql(table: string, rows: TableRow[]): string {
   const lines = [`-- ${table}: ${rows.length} row(s)`]
-  const columns = collectColumns(rows)
+  const generated = new Set(generatedColumns(table))
+  const columns = collectColumns(rows).filter((column) => !generated.has(column))
   if (columns.length > 0) {
     const target = `${quoteIdent('public')}.${quoteIdent(table)} (${columns.map(quoteIdent).join(', ')})`
     for (const row of rows) {

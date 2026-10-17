@@ -1,110 +1,36 @@
-import type { NextFunction, Request, Response } from 'express'
+import type { RequestHandler } from 'express'
 
-import { unauthorized } from '../../errors/app-error.js'
+import { requireActor, respond, respondEmpty } from '../../middleware/respond.js'
 import type { AuthService } from './auth.service.js'
 
 export type AuthController = {
-  register: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  login: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  refresh: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  logout: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  forgotPassword: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  verifyResetCode: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  resetPassword: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  resendResetCode: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  getMe: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  updateMe: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  register: RequestHandler
+  login: RequestHandler
+  refresh: RequestHandler
+  logout: RequestHandler
+  forgotPassword: RequestHandler
+  verifyResetCode: RequestHandler
+  resetPassword: RequestHandler
+  resendResetCode: RequestHandler
+  getMe: RequestHandler
+  updateMe: RequestHandler
 }
 
 export function createAuthController(service: AuthService): AuthController {
   return {
-    async register(req, res, next) {
-      try {
-        const result = await service.register(req.body)
-        res.status(201).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async login(req, res, next) {
-      try {
-        const result = await service.login(req.body)
-        res.status(200).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async refresh(req, res, next) {
-      try {
-        const result = await service.refreshTokens(req.body)
-        res.status(200).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async logout(req, res, next) {
-      try {
-        await service.logout(req.body)
-        res.status(204).send()
-      } catch (error) {
-        next(error)
-      }
-    },
-    async forgotPassword(req, res, next) {
-      try {
-        const result = await service.forgotPassword(req.body)
-        res.status(200).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async verifyResetCode(req, res, next) {
-      try {
-        const result = await service.verifyResetCode(req.body)
-        res.status(200).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async resetPassword(req, res, next) {
-      try {
-        const result = await service.resetPassword(req.body)
-        res.status(200).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async resendResetCode(req, res, next) {
-      try {
-        const result = await service.resendResetCode(req.body)
-        res.status(200).json(result)
-      } catch (error) {
-        next(error)
-      }
-    },
-    async getMe(req, res, next) {
-      try {
-        const userId = req.user?.id
-        if (!userId) {
-          throw unauthorized()
-        }
-        const user = await service.getMe(userId)
-        res.status(200).json({ user })
-      } catch (error) {
-        next(error)
-      }
-    },
-    async updateMe(req, res, next) {
-      try {
-        const userId = req.user?.id
-        if (!userId) {
-          throw unauthorized()
-        }
-        const user = await service.updateMe(userId, req.body, req.user?.sessionId)
-        res.status(200).json({ user })
-      } catch (error) {
-        next(error)
-      }
-    },
+    register: respond(201, (req) => service.register(req.body)),
+    login: respond(200, (req) => service.login(req.body)),
+    refresh: respond(200, (req) => service.refreshTokens(req.body)),
+    logout: respondEmpty(204, (req) => service.logout(req.body)),
+    forgotPassword: respond(200, (req) => service.forgotPassword(req.body)),
+    verifyResetCode: respond(200, (req) => service.verifyResetCode(req.body)),
+    resetPassword: respond(200, (req) => service.resetPassword(req.body)),
+    resendResetCode: respond(200, (req) => service.resendResetCode(req.body)),
+    getMe: respond(200, async (req) => ({
+      user: await service.getMe(requireActor(req).id),
+    })),
+    updateMe: respond(200, async (req) => ({
+      user: await service.updateMe(requireActor(req).id, req.body, req.user?.sessionId),
+    })),
   }
 }

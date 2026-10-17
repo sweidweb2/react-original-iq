@@ -8,7 +8,6 @@ import {
   unauthorized,
   validationError,
 } from '../../errors/app-error.js'
-import { reportError } from '../../errors/report-error.js'
 import { getLogger } from '../../logging/index.js'
 import type { LoggingService } from '../logging/index.js'
 import type { UsersService } from '../users/users.service.js'
@@ -202,16 +201,12 @@ export function createAuthService(
         lastName: input.lastName,
       })
 
-      try {
-        await logging?.recordActivity({
-          userId: user.id,
-          action: 'auth.register',
-          entity: 'user',
-          entityId: user.id,
-        })
-      } catch (error) {
-        reportError(error, { source: 'auth.register.activity', meta: { userId: user.id } })
-      }
+      logging?.recordActivitySafe({
+        userId: user.id,
+        action: 'auth.register',
+        entity: 'user',
+        entityId: user.id,
+      })
 
       return {
         user: toUserDto(user),
@@ -228,16 +223,12 @@ export function createAuthService(
 
       await assertAllowedDuringMaintenance(user)
 
-      try {
-        await logging?.recordActivity({
-          userId: user.id,
-          action: 'auth.login',
-          entity: 'user',
-          entityId: user.id,
-        })
-      } catch (error) {
-        reportError(error, { source: 'auth.login.activity', meta: { userId: user.id } })
-      }
+      logging?.recordActivitySafe({
+        userId: user.id,
+        action: 'auth.login',
+        entity: 'user',
+        entityId: user.id,
+      })
 
       return {
         user: toUserDto(user),
@@ -282,16 +273,12 @@ export function createAuthService(
         await sessions.revoke(sessionId)
       }
 
-      try {
-        await logging?.recordActivity({
-          userId: userId ?? null,
-          action: 'auth.logout',
-          entity: 'user',
-          entityId: userId ?? null,
-        })
-      } catch (error) {
-        reportError(error, { source: 'auth.logout.activity', meta: { userId: userId ?? null } })
-      }
+      logging?.recordActivitySafe({
+        userId: userId ?? null,
+        action: 'auth.logout',
+        entity: 'user',
+        entityId: userId ?? null,
+      })
     },
 
     async forgotPassword(input) {
@@ -319,16 +306,12 @@ export function createAuthService(
       await verifications.markUsed(record.id)
       await sessions.revokeAllForUser(user.id)
 
-      try {
-        await logging?.recordActivity({
-          userId: user.id,
-          action: 'auth.password_reset',
-          entity: 'user',
-          entityId: user.id,
-        })
-      } catch (error) {
-        reportError(error, { source: 'auth.password_reset.activity', meta: { userId: user.id } })
-      }
+      logging?.recordActivitySafe({
+        userId: user.id,
+        action: 'auth.password_reset',
+        entity: 'user',
+        entityId: user.id,
+      })
 
       return { message: 'Password updated. You can sign in with your new password.' }
     },
@@ -366,21 +349,17 @@ export function createAuthService(
         await sessions.revokeAllForUser(userId, { exceptId: sessionId })
       }
 
-      try {
-        await logging?.recordActivity({
-          userId,
-          action: 'auth.update_me',
-          entity: 'user',
-          entityId: userId,
-          meta: {
-            nameChanged: Boolean(input.name),
-            phoneChanged: input.phone !== undefined,
-            passwordChanged: Boolean(input.newPassword),
-          },
-        })
-      } catch (error) {
-        reportError(error, { source: 'auth.update_me.activity', meta: { userId } })
-      }
+      logging?.recordActivitySafe({
+        userId,
+        action: 'auth.update_me',
+        entity: 'user',
+        entityId: userId,
+        meta: {
+          nameChanged: Boolean(input.name),
+          phoneChanged: input.phone !== undefined,
+          passwordChanged: Boolean(input.newPassword),
+        },
+      })
 
       return toUserDto(updated)
     },

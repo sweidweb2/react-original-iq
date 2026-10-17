@@ -56,7 +56,7 @@ export type UpdateInvoiceInput = {
   lastError?: string | null
 }
 
-/** `INV-000123`; grows past 6 digits instead of truncating (same rule as migration 024). */
+/** `INV-000123`; grows past 6 digits instead of truncating (same rule as migration 025). */
 export function formatInvoiceNumber(seq: number): string {
   return `INV-${String(seq).padStart(6, '0')}`
 }

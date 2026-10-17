@@ -34,6 +34,7 @@ export function TaskTutorSection({
   onRemoveTutor: () => void
 }) {
   const isAssigned = Boolean(task.tutorId)
+  const isOpen = task.status !== 'completed' && task.status !== 'cancelled'
 
   if (isAssigned) {
     return (
@@ -47,7 +48,12 @@ export function TaskTutorSection({
               </option>
             </Select>
           </Field>
-          <Button type="button" variant="secondary" disabled={isActing} onClick={onRemoveTutor}>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={isActing || !isOpen}
+            onClick={onRemoveTutor}
+          >
             Remove tutor
           </Button>
         </div>
@@ -80,7 +86,7 @@ export function TaskTutorSection({
             ))}
           </Select>
         </Field>
-        <Button type="submit" disabled={isActing || !selectedTutorId}>
+        <Button type="submit" disabled={isActing || !selectedTutorId || !isOpen}>
           Assign tutor
         </Button>
       </form>

@@ -1,4 +1,5 @@
 import { reportError } from '../../errors/report-error.js'
+import { roundMoney } from '../_shared/money.js'
 import type { FxRepository } from './fx.repository.js'
 import type { ConvertQuery } from './fx.schema.js'
 import {
@@ -12,10 +13,6 @@ import {
 export type FxService = {
   getRates: (base: SupportedCurrency) => Promise<FxRates>
   convert: (query: ConvertQuery) => Promise<FxConversion>
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100
 }
 
 export function createFxService(repository: FxRepository): FxService {
@@ -60,7 +57,7 @@ export function createFxService(repository: FxRepository): FxService {
           from: 'USD',
           to: 'USD',
           rate: 1,
-          converted: roundMoney(amount),
+          converted: roundMoney(amount, 'USD'),
           fetchedAt: null,
           fallback: true,
         }
@@ -72,7 +69,7 @@ export function createFxService(repository: FxRepository): FxService {
         from,
         to,
         rate,
-        converted: roundMoney(amount * rate),
+        converted: roundMoney(amount * rate, to),
         fetchedAt: snapshot.fetchedAt,
         fallback: false,
       }

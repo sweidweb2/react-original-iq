@@ -1,11 +1,9 @@
-import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import type { Request, RequestHandler } from 'express'
 
 import { respond, respondEmpty } from '../../middleware/respond.js'
-import { type ExportFile, sendExport } from '../_shared/export-file.js'
+import { type ExportFile, respondExport } from '../_shared/export-file.js'
 import type { ExportContactQuery, ListContactQuery } from './contact.schema.js'
 import type { ContactService, ExportOptions } from './contact.service.js'
-
-type ExportHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>
 
 export type ContactController = {
   createMessage: RequestHandler
@@ -14,18 +12,18 @@ export type ContactController = {
   updateLead: RequestHandler
   listLeads: RequestHandler
   deleteLead: RequestHandler
-  exportLeads: ExportHandler
-  exportLeadsPdf: ExportHandler
+  exportLeads: RequestHandler
+  exportLeadsPdf: RequestHandler
   listNewsletter: RequestHandler
   updateNewsletter: RequestHandler
   deleteNewsletter: RequestHandler
-  exportNewsletter: ExportHandler
-  exportNewsletterPdf: ExportHandler
+  exportNewsletter: RequestHandler
+  exportNewsletterPdf: RequestHandler
   listMessages: RequestHandler
   getMessage: RequestHandler
   updateMessage: RequestHandler
   deleteMessage: RequestHandler
-  exportMessages: ExportHandler
+  exportMessages: RequestHandler
 }
 
 function exportOptions(req: Request): ExportOptions {
@@ -33,14 +31,8 @@ function exportOptions(req: Request): ExportOptions {
   return { search, actorId: req.user?.id ?? null }
 }
 
-function exportHandler(build: (options: ExportOptions) => Promise<ExportFile>): ExportHandler {
-  return async (req, res, next) => {
-    try {
-      sendExport(res, await build(exportOptions(req)))
-    } catch (error) {
-      next(error)
-    }
-  }
+function exportHandler(build: (options: ExportOptions) => Promise<ExportFile>): RequestHandler {
+  return respondExport((req) => build(exportOptions(req)))
 }
 
 export function createContactController(service: ContactService): ContactController {

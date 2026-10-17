@@ -1,4 +1,4 @@
-import type { Response } from 'express'
+import type { Request, RequestHandler, Response } from 'express'
 
 function pad(value: number): string {
   return String(value).padStart(2, '0')
@@ -39,4 +39,18 @@ export function sendExport(res: Response, file: ExportFile): void {
   res.setHeader('Content-Type', file.contentType)
   res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`)
   res.status(200).send(file.body)
+}
+
+/** Send a file download. Errors go to the shared error middleware. */
+export function respondExport(
+  handle: (req: Request) => ExportFile | Promise<ExportFile>,
+): RequestHandler {
+  return (req, res, next) => {
+    Promise.resolve()
+      .then(() => handle(req))
+      .then((file) => {
+        sendExport(res, file)
+      })
+      .catch(next)
+  }
 }

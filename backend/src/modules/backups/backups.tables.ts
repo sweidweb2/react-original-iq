@@ -44,5 +44,14 @@ export function tableOrderBy(table: BackupTable): readonly string[] {
   return ORDER_BY[table] ?? ['id']
 }
 
+/** `GENERATED ALWAYS` columns: Postgres rejects explicit values for them on INSERT. */
+const GENERATED_COLUMNS: Partial<Record<string, readonly string[]>> = {
+  invoices: ['invoice_number'],
+}
+
+export function generatedColumns(table: string): readonly string[] {
+  return GENERATED_COLUMNS[table] ?? []
+}
+
 /** Table behind the "auth users" export (login is custom: bcrypt + JWT on public.users). */
 export const AUTH_USERS_TABLE: BackupTable = 'users'

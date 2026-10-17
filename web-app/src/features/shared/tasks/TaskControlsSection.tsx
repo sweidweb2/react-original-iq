@@ -54,6 +54,7 @@ export function TaskControlsSection({
   onToggleAllowView: () => void
 }) {
   const isCancelled = task.status === 'cancelled'
+  const isCompleted = task.status === 'completed'
 
   return (
     <SectionCard title="Task controls" description="Visibility and lifecycle of this task.">
@@ -81,10 +82,12 @@ export function TaskControlsSection({
             <p className="text-sm text-muted-foreground">
               {isCancelled
                 ? 'Bring this task back into the active workflow.'
-                : 'Stop all work on this task. You can reactivate it later.'}
+                : isCompleted
+                  ? 'Completed tasks cannot be cancelled.'
+                  : 'Stop all work on this task. You can reactivate it later.'}
             </p>
           </div>
-          {isCancelled ? (
+          {isCompleted ? null : isCancelled ? (
             <Button
               type="button"
               variant="secondary"

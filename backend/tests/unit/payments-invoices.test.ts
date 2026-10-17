@@ -136,6 +136,7 @@ describe('payments + invoices', () => {
   it('formats invoice numbers as INV-000123', () => {
     expect(formatInvoiceNumber(1)).toBe('INV-000001')
     expect(formatInvoiceNumber(123)).toBe('INV-000123')
+    expect(formatInvoiceNumber(1234567)).toBe('INV-1234567')
   })
 
   it('simulated checkout pays the balance and emails a stored PDF invoice', async () => {
@@ -229,24 +230,88 @@ describe('payments + invoices', () => {
     expect(download.url).toContain('https://signed.example/invoices/')
   })
 
-  it('editing a paid payment reissues the invoice; deleting purges it', async () => {
+  it('editing a paid payment voids its invoice and issues a new one; nothing is deleted', async () => {
     const payment = await payments.createManualPayment(TASK_ID, { amount: 100 }, admin)
-    const firstKey = vi.mocked(storage.putObject).mock.results[0]!
+    const first = payment.invoice!
 
     const edited = await payments.updatePayment(TASK_ID, payment.id, { amount: 80 }, admin)
-    expect(edited.invoice?.invoiceNumber).toBe('INV-000002')
-    expect(storage.deleteObject).toHaveBeenCalledTimes(1)
-    expect(firstKey.type).toBe('return')
+    expect(edited.invoice).toMatchObject({
+      invoiceNumber: 'INV-000002',
+      amount: 80,
+      voidedAt: null,
+    })
+    expect(edited.voidedInvoices).toHaveLength(1)
+    expect(edited.voidedInvoices[0]).toMatchObject({
+      id: first.id,
+      invoiceNumber: 'INV-000001',
+      amount: 100,
+      hasPdf: true,
+    })
+    expect(edited.voidedInvoices[0]!.voidedAt).not.toBeNull()
+    expect(edited.voidedInvoices[0]!.voidReason).toContain('100.00 to 80.00')
+    expect(storage.deleteObject).not.toHaveBeenCalled()
+    expect(vi.mocked(mailer.send).mock.calls[1]![0].text).toContain('80.00 USD')
     expect(task.paymentStatus).toBe('unpaid')
+
+    await expect(invoices.resend(first.id, admin)).rejects.toMatchObject({
+      status: 409,
+      code: 'INVOICE_VOIDED',
+    })
+    await expect(invoices.getDownloadUrl(first.id, admin)).resolves.toMatchObject({
+      invoiceNumber: 'INV-000001',
+    })
 
     await expect(
       payments.updatePayment(TASK_ID, payment.id, { amount: 120 }, admin),
     ).rejects.toMatchObject({ status: 400 })
 
-    await payments.deletePayment(TASK_ID, payment.id, admin)
-    expect(storage.deleteObject).toHaveBeenCalledTimes(2)
-    expect(await paymentsRepository.findPaymentById(payment.id)).toBeNull()
-    expect((await invoices.summariesForPayments([payment.id])).size).toBe(0)
+    const methodOnly = await payments.updatePayment(
+      TASK_ID,
+      payment.id,
+      { paymentMethod: 'bank' },
+      admin,
+    )
+    expect(methodOnly.invoice?.invoiceNumber).toBe('INV-000002')
+
+    const canceled = await payments.updatePayment(
+      TASK_ID,
+      payment.id,
+      { status: 'canceled' },
+      admin,
+    )
+    expect(canceled.invoice).toBeNull()
+    expect(canceled.voidedInvoices.map((row) => row.invoiceNumber)).toEqual([
+      'INV-000001',
+      'INV-000002',
+    ])
+    expect(canceled.voidedInvoices[1]!.voidReason).toBe('Payment marked canceled')
+
+    const logs = await paymentsRepository.listPaymentLogs(payment.id)
+    expect(logs.filter((row) => row.event === 'invoice.voided')).toHaveLength(2)
+  })
+
+  it('refuses to delete an invoiced payment but deletes one that never had an invoice', async () => {
+    const paid = await payments.createManualPayment(TASK_ID, { amount: 40 }, admin)
+    await expect(payments.deletePayment(TASK_ID, paid.id, admin)).rejects.toMatchObject({
+      status: 409,
+      code: 'PAYMENT_INVOICED',
+    })
+    expect(await paymentsRepository.findPaymentById(paid.id)).not.toBeNull()
+
+    const pending = await payments.createManualPayment(
+      TASK_ID,
+      { amount: 10, status: 'pending' },
+      admin,
+    )
+    expect(pending.invoice).toBeNull()
+    await payments.deletePayment(TASK_ID, pending.id, admin)
+    expect(await paymentsRepository.findPaymentById(pending.id)).toBeNull()
+  })
+
+  it('rejects amounts that round to zero cents', async () => {
+    await expect(
+      payments.createManualPayment(TASK_ID, { amount: 0.004 }, admin),
+    ).rejects.toMatchObject({ status: 400 })
   })
 
   it('caps refunds at the paid total, counting pending refunds', async () => {
@@ -300,7 +365,7 @@ describe('payments + invoices', () => {
     await payments.createRefund(TASK_ID, { amount: 30 }, admin)
 
     await expect(payments.deletePayment(TASK_ID, payment.id, admin)).rejects.toMatchObject({
-      status: 400,
+      status: 409,
     })
     await expect(
       payments.updatePayment(TASK_ID, payment.id, { status: 'canceled' }, admin),

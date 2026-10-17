@@ -55,6 +55,12 @@ describe('backup serializers', () => {
     expect(tableToSql('empty', [])).toBe('-- empty: 0 row(s)\n\n')
   })
 
+  it('leaves generated columns out of INSERTs', () => {
+    const sql = tableToSql('invoices', [{ id: 'i1', invoice_seq: 7, invoice_number: 'INV-000007' }])
+    expect(sql).toContain(`INSERT INTO "public"."invoices" ("id", "invoice_seq") VALUES ('i1', 7)`)
+    expect(sql).not.toContain('invoice_number')
+  })
+
   it('writes one worksheet per table', async () => {
     const buffer = await tablesToXlsx([
       { name: 'users', rows },

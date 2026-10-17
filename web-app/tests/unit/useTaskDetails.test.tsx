@@ -547,3 +547,16 @@ describe('useTaskDetails', () => {
       await act(() =>
         hook.result.current.onUpload('documents', [
           fileOf('a.pdf', 10),
+          fileOf('b.pdf', 10),
+          fileOf('c.pdf', 10),
+        ]),
+      )
+
+      expect(uploadTaskFile).toHaveBeenCalledTimes(2)
+      expect(toastApiError).toHaveBeenCalledWith(failure, "Couldn't upload “b.pdf”")
+      expect(toast.info).toHaveBeenCalledWith('1 of 3 files were uploaded before the error.')
+      expect(hook.result.current.task?.files.map((f) => f.originalName)).toEqual(['a.pdf'])
+      expect(hook.result.current.isActing).toBe(false)
+    })
+  })
+})

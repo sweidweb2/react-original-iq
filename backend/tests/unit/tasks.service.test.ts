@@ -85,7 +85,7 @@ describe('tasks.service', () => {
       countStats: vi.fn(),
       findById: vi.fn(),
       findDetailById: vi.fn(),
-      countActiveByCoordinator: vi.fn().mockResolvedValue(0),
+      countActiveByCoordinators: vi.fn().mockResolvedValue(new Map()),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
@@ -104,13 +104,45 @@ describe('tasks.service', () => {
       findById: vi.fn(),
     } as unknown as UsersService
     usersRepository = {
-      findMany: vi
+      findActiveByRole: vi
         .fn()
         .mockResolvedValue([
           makeAccount({ id: 'coord-1', role: 'coordinator', email: 'c@example.com' }),
         ]),
       incrementNbDone: vi.fn(),
     } as unknown as UsersRepository
+  })
+
+  it('auto-assigns the coordinator with the fewest active tasks in one grouped count', async () => {
+    vi.mocked(usersRepository.findActiveByRole).mockResolvedValue([
+      makeAccount({ id: 'coord-1', role: 'coordinator' }),
+      makeAccount({ id: 'coord-2', role: 'coordinator' }),
+      makeAccount({ id: 'coord-3', role: 'coordinator' }),
+    ])
+    vi.mocked(repository.countActiveByCoordinators).mockResolvedValue(
+      new Map([
+        ['coord-1', 4],
+        ['coord-2', 1],
+      ]),
+    )
+    vi.mocked(users.findById).mockResolvedValue(makeAccount())
+    vi.mocked(repository.create).mockResolvedValue(makeTask())
+    const service = createTasksService(repository, users, usersRepository)
+
+    await service.createTask(createBody, client)
+    expect(usersRepository.findActiveByRole).toHaveBeenCalledWith('coordinator')
+    expect(repository.countActiveByCoordinators).toHaveBeenCalledTimes(1)
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ coordinatorId: 'coord-3' }),
+    )
+  })
+
+  it('rejects creating a task for an inactive client', async () => {
+    vi.mocked(users.findById).mockResolvedValue(makeAccount({ status: 'INACTIVE' }))
+    const service = createTasksService(repository, users, usersRepository)
+
+    await expect(service.createTask(createBody, client)).rejects.toMatchObject({ status: 400 })
+    expect(repository.create).not.toHaveBeenCalled()
   })
 
   it('lets a client create a pending unpaid task with auto-assigned coordinator', async () => {
@@ -163,9 +195,48 @@ describe('tasks.service', () => {
     const service = createTasksService(repository, users, usersRepository)
 
     await expect(service.assignTutor(pending.id, 'tutor-1', coordinator)).resolves.toEqual(updated)
-    expect(repository.update).toHaveBeenCalledWith(pending.id, {
-      tutorId: 'tutor-1',
-      status: 'in-progress',
+    expect(repository.update).toHaveBeenCalledWith(
+      pending.id,
+      { tutorId: 'tutor-1', status: 'in-progress' },
+      { status: ['pending'], tutorId: null },
+    )
+  })
+
+  it.each(['completed', 'cancelled'] as const)(
+    'refuses to assign a tutor to a %s task',
+    async (status) => {
+      vi.mocked(repository.findById).mockResolvedValue(makeTask({ status }))
+      vi.mocked(users.findById).mockResolvedValue(makeAccount({ id: 'tutor-1', role: 'tutor' }))
+      const service = createTasksService(repository, users, usersRepository)
+
+      await expect(
+        service.assignTutor(makeTask().id, 'tutor-1', coordinator),
+      ).rejects.toMatchObject({ status: 400 })
+      expect(repository.update).not.toHaveBeenCalled()
+    },
+  )
+
+  it('refuses to assign an inactive tutor', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask())
+    vi.mocked(users.findById).mockResolvedValue(
+      makeAccount({ id: 'tutor-1', role: 'tutor', status: 'INACTIVE' }),
+    )
+    const service = createTasksService(repository, users, usersRepository)
+
+    await expect(service.assignTutor(makeTask().id, 'tutor-1', coordinator)).rejects.toMatchObject({
+      status: 400,
+    })
+    expect(repository.update).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 when another request assigned a tutor first', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask())
+    vi.mocked(users.findById).mockResolvedValue(makeAccount({ id: 'tutor-1', role: 'tutor' }))
+    vi.mocked(repository.update).mockResolvedValue(null)
+    const service = createTasksService(repository, users, usersRepository)
+
+    await expect(service.assignTutor(makeTask().id, 'tutor-1', coordinator)).rejects.toMatchObject({
+      status: 409,
     })
   })
 
@@ -193,7 +264,25 @@ describe('tasks.service', () => {
 
     await expect(service.submitTask(inProgress.id, tutor)).resolves.toEqual(waiting)
     await expect(service.approveTask(waiting.id, coordinator)).resolves.toEqual(completed)
+    expect(repository.update).toHaveBeenLastCalledWith(
+      waiting.id,
+      { status: 'completed' },
+      { status: ['waiting_coordinator_approval'], tutorId: 'tutor-1' },
+    )
     expect(usersRepository.incrementNbDone).toHaveBeenCalledWith('tutor-1')
+  })
+
+  it('a second concurrent approve gets 409 and does not increment nb_done again', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(
+      makeTask({ status: 'waiting_coordinator_approval', tutorId: 'tutor-1' }),
+    )
+    vi.mocked(repository.update).mockResolvedValue(null)
+    const service = createTasksService(repository, users, usersRepository)
+
+    await expect(service.approveTask(makeTask().id, coordinator)).rejects.toMatchObject({
+      status: 409,
+    })
+    expect(usersRepository.incrementNbDone).not.toHaveBeenCalled()
   })
 
   it('rejects approve when tutor is missing', async () => {
@@ -234,6 +323,20 @@ describe('tasks.service', () => {
       status: 'cancelled',
     })
     expect(cancelOpenRevisions).toHaveBeenCalledWith(task.id)
+  })
+
+  it.each(['completed', 'cancelled'] as const)('refuses to cancel a %s task', async (status) => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask({ status, tutorId: 'tutor-1' }))
+    const cancelOpenRevisions = vi.fn()
+    const service = createTasksService(repository, users, usersRepository, {
+      cancelOpenRevisions,
+    })
+
+    await expect(service.cancelTask(makeTask().id, coordinator)).rejects.toMatchObject({
+      status: 400,
+    })
+    expect(repository.update).not.toHaveBeenCalled()
+    expect(cancelOpenRevisions).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -301,10 +404,23 @@ describe('tasks.service', () => {
     const service = createTasksService(repository, users, usersRepository)
 
     await expect(service.removeTutor(task.id, coordinator)).resolves.toEqual(updated)
-    expect(repository.update).toHaveBeenCalledWith(task.id, {
-      tutorId: null,
-      status: 'pending',
+    expect(repository.update).toHaveBeenCalledWith(
+      task.id,
+      { tutorId: null, status: 'pending' },
+      { status: ['in-progress'], tutorId: 'tutor-1' },
+    )
+  })
+
+  it('refuses to remove the tutor from a completed task', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(
+      makeTask({ status: 'completed', tutorId: 'tutor-1', isAssigned: true }),
+    )
+    const service = createTasksService(repository, users, usersRepository)
+
+    await expect(service.removeTutor(makeTask().id, coordinator)).rejects.toMatchObject({
+      status: 400,
     })
+    expect(repository.update).not.toHaveBeenCalled()
   })
 
   it('activates cancelled task to pending or in-progress based on tutor', async () => {
@@ -315,7 +431,11 @@ describe('tasks.service', () => {
     const service = createTasksService(repository, users, usersRepository)
 
     await expect(service.activateTask(cancelled.id, admin)).resolves.toEqual(pending)
-    expect(repository.update).toHaveBeenCalledWith(cancelled.id, { status: 'pending' })
+    expect(repository.update).toHaveBeenCalledWith(
+      cancelled.id,
+      { status: 'pending' },
+      { status: ['cancelled'], tutorId: null },
+    )
   })
 
   it('blocks delete when payments or refunds exist', async () => {
@@ -328,6 +448,58 @@ describe('tasks.service', () => {
     })
   })
 
+  it.each([
+    { status: 'in-progress' as const, tutorId: 'tutor-1' },
+    { status: 'pending' as const, tutorId: 'tutor-1' },
+    { status: 'completed' as const, tutorId: 'tutor-1' },
+    { status: 'cancelled' as const, tutorId: null },
+  ])('blocks a client from deleting a task that is $status (tutor $tutorId)', async (state) => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask(state))
+    const service = createTasksService(repository, users, usersRepository)
+
+    await expect(service.deleteTask(makeTask().id, client)).rejects.toMatchObject({ status: 400 })
+    expect(repository.delete).not.toHaveBeenCalled()
+  })
+
+  it('lets a client delete a pending unassigned task and purges its stored files', async () => {
+    const taskId = makeTask().id
+    const stored = {
+      originalName: 'x.pdf',
+      contentType: 'application/pdf',
+      sizeBytes: 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    vi.mocked(repository.findById).mockResolvedValue(makeTask())
+    vi.mocked(repository.listFiles).mockResolvedValue([
+      { ...stored, id: 'f1', taskId, note: null, fileLocation: `student_files/${taskId}/a.pdf` },
+    ])
+    vi.mocked(repository.listSolutions).mockResolvedValue([
+      { ...stored, id: 's1', taskId, fileLocation: `solutions/${taskId}/b.pdf` },
+    ])
+    vi.mocked(repository.delete).mockResolvedValue(true)
+    const storage = {
+      isConfigured: () => true,
+      deleteObject: vi.fn(async () => undefined),
+    } as unknown as StorageService
+    const service = createTasksService(repository, users, usersRepository, { storage })
+
+    await service.deleteTask(taskId, client)
+    expect(repository.delete).toHaveBeenCalledWith(taskId, { status: ['pending'], tutorId: null })
+    expect(storage.deleteObject).toHaveBeenCalledWith(`student_files/${taskId}/a.pdf`)
+    expect(storage.deleteObject).toHaveBeenCalledWith(`solutions/${taskId}/b.pdf`)
+  })
+
+  it('returns 409 when the task changed before a client delete landed', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask())
+    vi.mocked(repository.listFiles).mockResolvedValue([])
+    vi.mocked(repository.listSolutions).mockResolvedValue([])
+    vi.mocked(repository.delete).mockResolvedValue(false)
+    const service = createTasksService(repository, users, usersRepository)
+
+    await expect(service.deleteTask(makeTask().id, client)).rejects.toMatchObject({ status: 409 })
+  })
+
   it('sets payment_status unpaid on price edit when no money rows', async () => {
     vi.mocked(repository.findById).mockResolvedValue(makeTask())
     vi.mocked(repository.hasPayments).mockResolvedValue(false)
@@ -338,6 +510,29 @@ describe('tasks.service', () => {
     await service.updatePrice(makeTask().id, 50, coordinator)
     expect(repository.update).toHaveBeenCalledWith(makeTask().id, { price: 50 })
     expect(repository.update).toHaveBeenCalledWith(makeTask().id, { paymentStatus: 'unpaid' })
+  })
+
+  it('uses the payments recompute rules on price edit: a free task with no money is paid', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask({ price: 50 }))
+    vi.mocked(repository.update).mockResolvedValue(makeTask({ price: 0 }))
+    const service = createTasksService(repository, users, usersRepository)
+
+    await service.updatePrice(makeTask().id, 0, coordinator)
+    expect(repository.update).toHaveBeenCalledWith(makeTask().id, { paymentStatus: 'paid' })
+  })
+
+  it('leaves payment_status to the payments module when money exists', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask())
+    vi.mocked(repository.hasPayments).mockResolvedValue(true)
+    vi.mocked(repository.update).mockResolvedValue(makeTask({ price: 50 }))
+    const recomputePaymentStatus = vi.fn().mockResolvedValue('refund_pending')
+    const service = createTasksService(repository, users, usersRepository, {
+      recomputePaymentStatus,
+    })
+
+    await service.updatePrice(makeTask().id, 50, coordinator)
+    expect(recomputePaymentStatus).toHaveBeenCalledWith(makeTask().id)
+    expect(repository.update).toHaveBeenCalledTimes(1)
   })
 
   it('hides solutions from client when allow_view is false', async () => {

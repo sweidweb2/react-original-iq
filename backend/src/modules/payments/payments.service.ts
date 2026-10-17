@@ -393,7 +393,9 @@ export function createPaymentsService(
       }
       const amountMinor = body.amount !== undefined ? positiveMinor(body.amount) : dueMinor
       if (amountMinor > dueMinor) {
-        throw validationError(`Amount exceeds the balance due (${formatAmount(fromMinor(dueMinor))})`)
+        throw validationError(
+          `Amount exceeds the balance due (${formatAmount(fromMinor(dueMinor))})`,
+        )
       }
       const amount = fromMinor(amountMinor)
 

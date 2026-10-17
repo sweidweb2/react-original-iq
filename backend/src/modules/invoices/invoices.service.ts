@@ -248,6 +248,9 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
         throw forbidden('Only admins can resend invoices')
       }
       const invoice = await loadInvoice(invoiceId)
+      if (invoice.voidedAt) {
+        throw conflict('Voided invoices cannot be resent', 'INVOICE_VOIDED')
+      }
       const ctx = await loadContext(invoice.paymentId)
       const updated = await deliver(invoice, ctx)
       getLoggingService().recordActivitySafe({
@@ -278,26 +281,38 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
       }
     },
 
-    async purgeForPayment(paymentId) {
-      const invoice = await repository.findByPaymentId(paymentId)
+    async voidForPayment(paymentId, reason) {
+      const invoice = await repository.findActiveByPaymentId(paymentId)
       if (!invoice) return
-      if (invoice.pdfPath && storage.isConfigured()) {
-        try {
-          await storage.deleteObject(invoice.pdfPath)
-        } catch (error) {
-          reportError(error, {
-            source: 'invoices.pdf_delete',
-            level: 'warning',
-            meta: { invoiceId: invoice.id, paymentId, key: invoice.pdfPath },
-          })
-        }
-      }
-      await repository.deleteByPaymentId(paymentId)
+      const voided = await repository.void(invoice.id, reason)
+      if (!voided) return
+      await logPaymentEvent(paymentId, 'invoice.voided', {
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        reason,
+      })
+      getLoggingService().recordActivitySafe({
+        action: 'invoices.void',
+        entity: 'invoice',
+        entityId: invoice.id,
+        meta: { paymentId, invoiceNumber: invoice.invoiceNumber, reason },
+      })
     },
 
-    async summariesForPayments(paymentIds) {
+    async hasInvoices(paymentId) {
+      return (await repository.listByPaymentIds([paymentId])).length > 0
+    },
+
+    async forPayments(paymentIds) {
       const rows = await repository.listByPaymentIds(paymentIds)
-      return new Map(rows.map((row) => [row.paymentId, toInvoiceSummary(row)]))
+      const map = new Map<string, PaymentInvoices>()
+      for (const row of rows) {
+        const entry = map.get(row.paymentId) ?? { invoice: null, voidedInvoices: [] }
+        if (row.voidedAt) entry.voidedInvoices.push(toInvoiceSummary(row))
+        else entry.invoice = toInvoiceSummary(row)
+        map.set(row.paymentId, entry)
+      }
+      return map
     },
   }
 }

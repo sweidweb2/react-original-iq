@@ -18,9 +18,11 @@ import {
   type StorageService,
 } from '../../storage/index.js'
 import { exportFilename } from '../_shared/export-file.js'
+import { roundMoney, toMinor } from '../_shared/money.js'
 import { getLoggingService } from '../logging/index.js'
 import type { UsersRepository } from '../users/users.repository.js'
 import type { UsersService } from '../users/users.service.js'
+import { derivePaymentStatus } from './payment-status.js'
 import type { TasksRepository } from './tasks.repository.js'
 import type {
   AddFileBody,
@@ -487,18 +489,23 @@ export function createTasksService(
       if (!canManageTask(actor, task)) {
         throw forbidden('You cannot edit this task')
       }
-      const updated = await repository.update(id, { price })
+      const updated = await repository.update(id, { price: roundMoney(price) })
       if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
       if (deps.recomputePaymentStatus) {
         await deps.recomputePaymentStatus(id)
         const refreshed = await repository.findById(id)
         return refreshed ?? updated
       }
-      const hasMoney = await repository.hasPayments(id)
-      if (!hasMoney) {
-        return (await repository.update(id, { paymentStatus: 'unpaid' })) ?? updated
+      if (await repository.hasPayments(id)) {
+        return updated
       }
-      return updated
+      const paymentStatus = derivePaymentStatus({
+        priceMinor: toMinor(updated.price),
+        paidMinor: 0,
+        refundedMinor: 0,
+        hasPendingRefund: false,
+      })
+      return (await repository.update(id, { paymentStatus })) ?? updated
     },
 
     async assignTutor(id, tutorId, actor) {
