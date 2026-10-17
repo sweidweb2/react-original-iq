@@ -1,13 +1,14 @@
 import type { RequestHandler } from 'express'
 import jwt from 'jsonwebtoken'
 
+import { resolvePermissions } from '../authz/permissions.js'
 import type { AppConfig } from '../config/index.js'
 import { unauthorized } from '../errors/app-error.js'
 import { verifyAccessToken } from '../modules/auth/auth.tokens.js'
 import { setRequestUserId } from './request-context.js'
 
 /**
- * Require a valid Bearer access JWT. Attaches `req.user`.
+ * Require a valid Bearer access JWT. Attaches `req.user` with its effective permissions.
  * Only token problems answer 401; missing secrets or other faults surface as server errors.
  */
 export function createAuthenticate(config: AppConfig): RequestHandler {
@@ -36,12 +37,16 @@ export function createAuthenticate(config: AppConfig): RequestHandler {
       return
     }
 
-    req.user = {
-      id: payload.sub,
-      roles: [payload.role],
-      ...(payload.sid ? { sessionId: payload.sid } : {}),
-    }
-    setRequestUserId(payload.sub)
-    next()
+    const { sub, role, sid } = payload
+    setRequestUserId(sub)
+    resolvePermissions({ id: sub, role }).then((permissions) => {
+      req.user = {
+        id: sub,
+        roles: [role],
+        permissions,
+        ...(sid ? { sessionId: sid } : {}),
+      }
+      next()
+    }, next)
   }
 }

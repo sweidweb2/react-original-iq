@@ -76,9 +76,12 @@ export function HeroSection({ onOpenLead }: HeroSectionProps) {
 
         <div className="flex shrink-0 items-center justify-center gap-8 max-lg:order-2 max-lg:w-full max-lg:flex-col">
           <img
-            src="/marketing/person.png"
+            src="/marketing/person.webp"
             alt={t.imageAlt}
-            className="max-h-[460px] w-auto object-contain max-lg:hidden"
+            width={408}
+            height={612}
+            fetchPriority="high"
+            className="h-auto max-h-[460px] w-auto object-contain max-lg:hidden"
           />
           <ul className="flex w-full max-w-[200px] flex-col gap-4 max-lg:max-w-none max-lg:flex-row max-lg:flex-wrap max-lg:justify-center max-sm:flex-col">
             {t.highlights.map((item, index) => {

@@ -6,6 +6,7 @@ import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { useCan } from '@/lib/permissions'
 import { downloadExport, EXPORT_GROUPS, type ExportResource } from '@/services/exports'
 import { toastApiError, toastSuccess } from '@/services/toast'
 import { profileName } from '@/services/users'
@@ -18,6 +19,8 @@ export function ProfilePage() {
   const user = useAuthStore((s) => s.user)
   const refreshProfile = useAuthStore((s) => s.refreshProfile)
   const updateProfile = useAuthStore((s) => s.updateProfile)
+  const can = useCan()
+  const canEditProfile = can('manage_own_profile')
 
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<unknown>(null)
@@ -135,134 +138,140 @@ export function ProfilePage() {
       title="Profile"
       description="Update personal information and password. Shared across all portals."
       actions={
-        <Button
-          type="submit"
-          form="profile-form"
-          size="sm"
-          disabled={isSaving}
-          aria-busy={isSaving}
-        >
-          {isSaving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-          {isSaving ? 'Saving…' : 'Save changes'}
-        </Button>
+        canEditProfile ? (
+          <Button
+            type="submit"
+            form="profile-form"
+            size="sm"
+            disabled={isSaving}
+            aria-busy={isSaving}
+          >
+            {isSaving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+            {isSaving ? 'Saving…' : 'Save changes'}
+          </Button>
+        ) : undefined
       }
       maxWidth="4xl"
     >
-      <form id="profile-form" onSubmit={onSave} className="flex flex-col gap-6" noValidate>
-        <SectionCard title="Personal information" description="Name and email.">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field data-invalid={Boolean(fieldErrors.name) || undefined}>
-              <FieldLabel htmlFor="displayName">Display name</FieldLabel>
-              <Input
-                id="displayName"
-                value={values.name}
-                placeholder="Your name"
-                aria-invalid={Boolean(fieldErrors.name) || undefined}
-                onChange={(e) => setValues((prev) => ({ ...prev, name: e.target.value }))}
-              />
-              <FieldError>{fieldErrors.name}</FieldError>
-            </Field>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">Email</span>
-              <Input defaultValue={user?.email ?? ''} type="email" readOnly disabled />
-            </label>
-            <Field>
-              <FieldLabel htmlFor="phone">Phone</FieldLabel>
-              <Input
-                id="phone"
-                value={values.phone}
-                placeholder="Optional"
-                onChange={(e) => setValues((prev) => ({ ...prev, phone: e.target.value }))}
-              />
-            </Field>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">Role</span>
-              <Input defaultValue={user?.role ?? ''} readOnly disabled />
-            </label>
-          </div>
-        </SectionCard>
-
-        <SectionCard title="Password" description="Change your account password.">
-          <div className="grid max-w-md gap-4">
-            <Field data-invalid={Boolean(fieldErrors.currentPassword) || undefined}>
-              <FieldLabel htmlFor="currentPassword">Current password</FieldLabel>
-              <div className="relative">
+      <form id="profile-form" onSubmit={onSave} noValidate>
+        <fieldset disabled={!canEditProfile} className="flex min-w-0 flex-col gap-6">
+          <SectionCard title="Personal information" description="Name and email.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field data-invalid={Boolean(fieldErrors.name) || undefined}>
+                <FieldLabel htmlFor="displayName">Display name</FieldLabel>
                 <Input
-                  id="currentPassword"
-                  type={showCurrentPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  className="pr-10"
-                  value={values.currentPassword}
-                  aria-invalid={Boolean(fieldErrors.currentPassword) || undefined}
+                  id="displayName"
+                  value={values.name}
+                  placeholder="Your name"
+                  aria-invalid={Boolean(fieldErrors.name) || undefined}
+                  onChange={(e) => setValues((prev) => ({ ...prev, name: e.target.value }))}
+                />
+                <FieldError>{fieldErrors.name}</FieldError>
+              </Field>
+              <label className="grid gap-1.5 text-sm">
+                <span className="font-medium">Email</span>
+                <Input defaultValue={user?.email ?? ''} type="email" readOnly disabled />
+              </label>
+              <Field>
+                <FieldLabel htmlFor="phone">Phone</FieldLabel>
+                <Input
+                  id="phone"
+                  value={values.phone}
+                  placeholder="Optional"
+                  onChange={(e) => setValues((prev) => ({ ...prev, phone: e.target.value }))}
+                />
+              </Field>
+              <label className="grid gap-1.5 text-sm">
+                <span className="font-medium">Role</span>
+                <Input defaultValue={user?.role ?? ''} readOnly disabled />
+              </label>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Password" description="Change your account password.">
+            <div className="grid max-w-md gap-4">
+              <Field data-invalid={Boolean(fieldErrors.currentPassword) || undefined}>
+                <FieldLabel htmlFor="currentPassword">Current password</FieldLabel>
+                <div className="relative">
+                  <Input
+                    id="currentPassword"
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    className="pr-10"
+                    value={values.currentPassword}
+                    aria-invalid={Boolean(fieldErrors.currentPassword) || undefined}
+                    onChange={(e) =>
+                      setValues((prev) => ({ ...prev, currentPassword: e.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="absolute top-1/2 right-2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                    aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowCurrentPassword((prev) => !prev)}
+                  >
+                    {showCurrentPassword ? (
+                      <EyeOff className="size-4" aria-hidden />
+                    ) : (
+                      <Eye className="size-4" aria-hidden />
+                    )}
+                  </button>
+                </div>
+                <FieldError>{fieldErrors.currentPassword}</FieldError>
+              </Field>
+
+              <Field data-invalid={Boolean(fieldErrors.newPassword) || undefined}>
+                <FieldLabel htmlFor="newPassword">New password</FieldLabel>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showNewPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    className="pr-10"
+                    placeholder="Leave blank to keep current"
+                    value={values.newPassword}
+                    aria-invalid={Boolean(fieldErrors.newPassword) || undefined}
+                    onChange={(e) =>
+                      setValues((prev) => ({ ...prev, newPassword: e.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="absolute top-1/2 right-2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowNewPassword((prev) => !prev)}
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="size-4" aria-hidden />
+                    ) : (
+                      <Eye className="size-4" aria-hidden />
+                    )}
+                  </button>
+                </div>
+                <FieldError>{fieldErrors.newPassword}</FieldError>
+              </Field>
+
+              <Field data-invalid={Boolean(fieldErrors.confirmPassword) || undefined}>
+                <FieldLabel htmlFor="confirmPassword">Confirm new password</FieldLabel>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Confirm new password"
+                  value={values.confirmPassword}
+                  aria-invalid={Boolean(fieldErrors.confirmPassword) || undefined}
                   onChange={(e) =>
-                    setValues((prev) => ({ ...prev, currentPassword: e.target.value }))
+                    setValues((prev) => ({ ...prev, confirmPassword: e.target.value }))
                   }
                 />
-                <button
-                  type="button"
-                  className="absolute top-1/2 right-2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                  aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
-                  onClick={() => setShowCurrentPassword((prev) => !prev)}
-                >
-                  {showCurrentPassword ? (
-                    <EyeOff className="size-4" aria-hidden />
-                  ) : (
-                    <Eye className="size-4" aria-hidden />
-                  )}
-                </button>
-              </div>
-              <FieldError>{fieldErrors.currentPassword}</FieldError>
-            </Field>
-
-            <Field data-invalid={Boolean(fieldErrors.newPassword) || undefined}>
-              <FieldLabel htmlFor="newPassword">New password</FieldLabel>
-              <div className="relative">
-                <Input
-                  id="newPassword"
-                  type={showNewPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  className="pr-10"
-                  placeholder="Leave blank to keep current"
-                  value={values.newPassword}
-                  aria-invalid={Boolean(fieldErrors.newPassword) || undefined}
-                  onChange={(e) => setValues((prev) => ({ ...prev, newPassword: e.target.value }))}
-                />
-                <button
-                  type="button"
-                  className="absolute top-1/2 right-2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                  aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                  onClick={() => setShowNewPassword((prev) => !prev)}
-                >
-                  {showNewPassword ? (
-                    <EyeOff className="size-4" aria-hidden />
-                  ) : (
-                    <Eye className="size-4" aria-hidden />
-                  )}
-                </button>
-              </div>
-              <FieldError>{fieldErrors.newPassword}</FieldError>
-            </Field>
-
-            <Field data-invalid={Boolean(fieldErrors.confirmPassword) || undefined}>
-              <FieldLabel htmlFor="confirmPassword">Confirm new password</FieldLabel>
-              <Input
-                id="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Confirm new password"
-                value={values.confirmPassword}
-                aria-invalid={Boolean(fieldErrors.confirmPassword) || undefined}
-                onChange={(e) =>
-                  setValues((prev) => ({ ...prev, confirmPassword: e.target.value }))
-                }
-              />
-              <FieldError>{fieldErrors.confirmPassword}</FieldError>
-            </Field>
-          </div>
-        </SectionCard>
+                <FieldError>{fieldErrors.confirmPassword}</FieldError>
+              </Field>
+            </div>
+          </SectionCard>
+        </fieldset>
       </form>
 
-      {user?.role === 'super' ? (
+      {can('export_data') ? (
         <SectionCard
           title="Exports"
           description="Download CSV snapshots (UTF-8, Excel-ready). Leads and subscriber PDFs live on their pages."
@@ -301,20 +310,22 @@ export function ProfilePage() {
         </SectionCard>
       ) : null}
 
-      <SectionCard
-        title="Danger zone"
-        description="Account deletion follows role rules (client-facing later)."
-      >
-        <EmptyState
-          title="Delete account"
-          description="This action will be gated by backend rules."
-          action={
-            <Button type="button" variant="danger" size="sm" disabled>
-              Delete account
-            </Button>
-          }
-        />
-      </SectionCard>
+      {can('delete_own_account') ? (
+        <SectionCard
+          title="Danger zone"
+          description="Account deletion follows role rules (client-facing later)."
+        >
+          <EmptyState
+            title="Delete account"
+            description="This action will be gated by backend rules."
+            action={
+              <Button type="button" variant="danger" size="sm" disabled>
+                Delete account
+              </Button>
+            }
+          />
+        </SectionCard>
+      ) : null}
     </PortalPageShell>
   )
 }

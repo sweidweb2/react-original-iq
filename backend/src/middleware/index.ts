@@ -1,5 +1,5 @@
 export { createAuthenticate } from './authenticate.js'
-export { authorize } from './authorize.js'
+export { authorize, requirePermission } from './authorize.js'
 export { createApiRateLimiter, createAuthRateLimiter } from './rate-limit.js'
 export { getRequestScope, requestContext, setRequestUserId } from './request-context.js'
 export { createRequestLogger } from './request-logger.js'

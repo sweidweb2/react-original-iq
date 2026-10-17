@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthActor } from '../../src/authz/index.js'
+import { flushBackgroundTasks } from '../../src/background/index.js'
 import type { Mailer } from '../../src/mail/index.js'
 import {
   createInvoicesRepository,
@@ -133,6 +134,14 @@ describe('payments + invoices', () => {
     })
   })
 
+  afterEach(flushBackgroundTasks)
+
+  /** Waits for background invoice delivery, then re-reads the payment. */
+  async function settled(payment: { id: string }) {
+    await flushBackgroundTasks()
+    return payments.getPayment(TASK_ID, payment.id, admin)
+  }
+
   it('formats invoice numbers as INV-000123', () => {
     expect(formatInvoiceNumber(1)).toBe('INV-000001')
     expect(formatInvoiceNumber(123)).toBe('INV-000123')
@@ -146,6 +155,14 @@ describe('payments + invoices', () => {
     expect(payment.montypayTransactionId).toMatch(/^SIM_/)
     expect(payment.invoice).toMatchObject({
       invoiceNumber: 'INV-000001',
+      invoiceStatus: null,
+      hasPdf: false,
+    })
+    expect(task.paymentStatus).toBe('paid')
+
+    const delivered = await settled(payment)
+    expect(delivered.invoice).toMatchObject({
+      invoiceNumber: 'INV-000001',
       invoiceStatus: 'sent',
       hasPdf: true,
     })
@@ -155,7 +172,6 @@ describe('payments + invoices', () => {
     const mail = vi.mocked(mailer.send).mock.calls[0]![0]
     expect(mail.to).toBe('client@example.com')
     expect(mail.attachments?.[0]?.filename).toBe('INV-000001.pdf')
-    expect(task.paymentStatus).toBe('paid')
 
     const logs = await paymentsRepository.listPaymentLogs(payment.id)
     expect(logs.map((row) => row.event)).toEqual(
@@ -183,7 +199,7 @@ describe('payments + invoices', () => {
 
     const manual = await payments.createManualPayment(TASK_ID, { amount: 100 }, admin)
     expect(manual).toMatchObject({ gateway: 'No Gateway', status: 'paid' })
-    expect(manual.invoice?.invoiceStatus).toBe('sent')
+    expect((await settled(manual)).invoice?.invoiceStatus).toBe('sent')
   })
 
   it('always attributes manual payments to the task client, ignoring a supplied userId', async () => {
@@ -191,13 +207,14 @@ describe('payments + invoices', () => {
 
     const manual = await payments.createManualPayment(TASK_ID, body, admin)
     expect(manual.userId).toBe(task.clientId)
+    await flushBackgroundTasks()
     expect(vi.mocked(mailer.send).mock.calls[0]![0].to).toBe('client@example.com')
   })
 
   it('marks the invoice failed but keeps the PDF when email fails, then resend fixes it', async () => {
     vi.mocked(mailer.send).mockRejectedValueOnce(new Error('SMTP down'))
 
-    const payment = await payments.checkout(TASK_ID, {}, client)
+    const payment = await settled(await payments.checkout(TASK_ID, {}, client))
     expect(payment.status).toBe('paid')
     expect(payment.invoice).toMatchObject({ invoiceStatus: 'failed', hasPdf: true })
     expect(payment.invoice?.lastError).toContain('SMTP down')
@@ -211,7 +228,7 @@ describe('payments + invoices', () => {
   })
 
   it('issueForPayment is idempotent once sent', async () => {
-    const payment = await payments.checkout(TASK_ID, {}, client)
+    const payment = await settled(await payments.checkout(TASK_ID, {}, client))
     const again = await invoices.issueForPayment(payment.id)
 
     expect(again?.id).toBe(payment.invoice?.id)
@@ -219,7 +236,7 @@ describe('payments + invoices', () => {
   })
 
   it('limits invoice downloads to the task client and staff', async () => {
-    const payment = await payments.checkout(TASK_ID, {}, client)
+    const payment = await settled(await payments.checkout(TASK_ID, {}, client))
     const invoiceId = payment.invoice!.id
 
     await expect(invoices.getDownloadUrl(invoiceId, otherClient)).rejects.toMatchObject({
@@ -231,10 +248,13 @@ describe('payments + invoices', () => {
   })
 
   it('editing a paid payment voids its invoice and issues a new one; nothing is deleted', async () => {
-    const payment = await payments.createManualPayment(TASK_ID, { amount: 100 }, admin)
+    const payment = await settled(
+      await payments.createManualPayment(TASK_ID, { amount: 100 }, admin),
+    )
     const first = payment.invoice!
 
     const edited = await payments.updatePayment(TASK_ID, payment.id, { amount: 80 }, admin)
+    await flushBackgroundTasks()
     expect(edited.invoice).toMatchObject({
       invoiceNumber: 'INV-000002',
       amount: 80,

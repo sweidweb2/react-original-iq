@@ -1,3 +1,5 @@
+import { ltr } from '@/i18n/config'
+
 import type { PublicDictionary } from './en'
 
 export const publicAr: PublicDictionary = {
@@ -135,18 +137,18 @@ export const publicAr: PublicDictionary = {
     paymentBadge: 'طرق الدفع',
     paymentTitle: 'طرق الدفع',
     paymentIntro:
-      'تواصل معنا عبر البريد الإلكتروني أو واتساب لأي استفسار عن الدفع، وسنزوّدك بالتفاصيل المناسبة لطلبك.',
-    emailCard: {
-      title: 'البريد الإلكتروني',
-      description: 'أرسل استفساراتك عن الدفع إلى فريقنا، وسنردّ عليك من العنوان التالي.',
-      label: 'البريد الإلكتروني',
-      feature: 'نردّ عبر البريد الإلكتروني',
+      'اختر من بين عدة طرق دفع آمنة تناسب تفضيلاتك؛ نوفّر التحويل المصرفي والدفع عبر المحافظ الرقمية والدفع الإلكتروني.',
+    bankCard: {
+      title: 'تحويل مصرفي',
+      description: `حوّل المبلغ مباشرةً إلى حسابنا المصرفي باستخدام رمز ${ltr('IBAN')}. طريقة آمنة وموثوقة للمبالغ الكبيرة.`,
+      label: `رمز ${ltr('IBAN')}`,
+      feature: 'تحويل آمن',
     },
-    whatsappCard: {
-      title: 'واتساب',
-      description: 'راسلنا على واتساب للمساعدة في الدفع، فهذا هو الرقم الذي نردّ منه.',
-      label: 'واتساب',
-      feature: 'الرقم نفسه الموجود في صفحة التواصل',
+    whishCard: {
+      title: `الدفع عبر ${ltr('Whish')}`,
+      description: `أرسل دفعتك فورًا عبر محفظة ${ltr('Whish')} الرقمية. طريقة سريعة ومريحة لمستخدمي الهاتف.`,
+      label: `رقم هاتف ${ltr('Whish')}`,
+      feature: 'تحويل فوري',
     },
     copy: 'نسخ',
     copyLabel: (label: string) => `نسخ ${label}`,

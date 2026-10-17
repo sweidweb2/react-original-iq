@@ -27,7 +27,7 @@ describe('public navbar', () => {
     useLocaleStore.setState({ preferredLocale: null })
   })
 
-  it('opens every public page from the navbar', async () => {
+  it('opens every public page from the navbar', { timeout: 15_000 }, async () => {
     const user = userEvent.setup()
     renderPublic()
 
@@ -35,16 +35,20 @@ describe('public navbar', () => {
     expect(screen.getByRole('heading', { name: 'Learn Smarter' })).toBeInTheDocument()
 
     await user.click(within(nav).getByRole('link', { name: 'About' }))
-    expect(screen.getByRole('heading', { name: 'About OriginaliQ' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'About OriginaliQ' })).toBeInTheDocument()
 
     await user.click(within(nav).getByRole('link', { name: 'Services' }))
-    expect(screen.getByRole('heading', { name: /Guiding every learner/ })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: /Guiding every learner/ }),
+    ).toBeInTheDocument()
 
     await user.click(within(nav).getByRole('link', { name: 'FAQ' }))
-    expect(screen.getByRole('heading', { name: 'Frequently Asked Questions' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Frequently Asked Questions' }),
+    ).toBeInTheDocument()
 
     await user.click(within(nav).getByRole('link', { name: 'Contact' }))
-    expect(screen.getByRole('heading', { name: 'Send Us a Message' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Send Us a Message' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: 'Login' }))
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
@@ -57,6 +61,6 @@ describe('public navbar', () => {
         name: 'Terms of Service',
       }),
     )
-    expect(screen.getByRole('heading', { name: 'Terms of Service' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Terms of Service' })).toBeInTheDocument()
   })
 })

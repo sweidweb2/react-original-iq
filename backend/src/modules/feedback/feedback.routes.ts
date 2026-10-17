@@ -2,7 +2,7 @@ import { Router } from 'express'
 
 import type { AppConfig } from '../../config/index.js'
 import { createAuthenticate } from '../../middleware/authenticate.js'
-import { authorize } from '../../middleware/authorize.js'
+import { requirePermission } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
 import type { FeedbackController } from './feedback.controller.js'
 import {
@@ -18,14 +18,19 @@ export function createFeedbackRoutes(controller: FeedbackController, config: App
 
   router.post(
     '/',
-    authorize('client'),
+    requirePermission('submit_feedback'),
     validate({ body: createFeedbackBodySchema }),
     controller.create,
   )
-  router.get('/', validate({ query: listFeedbackQuerySchema }), controller.list)
+  router.get(
+    '/',
+    requirePermission('view_feedback'),
+    validate({ query: listFeedbackQuerySchema }),
+    controller.list,
+  )
   router.delete(
     '/:id',
-    authorize('super', 'admin'),
+    requirePermission('delete_feedback'),
     validate({ params: feedbackIdParamsSchema }),
     controller.remove,
   )

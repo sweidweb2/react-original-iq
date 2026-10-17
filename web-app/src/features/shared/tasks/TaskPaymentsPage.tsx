@@ -11,6 +11,7 @@ import { IconAction } from '@/components/ui/icon-action'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
+import { useCan } from '@/lib/permissions'
 import { getInvoiceDownloadUrl, resendInvoice } from '@/services/invoices'
 import {
   createRefund,
@@ -24,7 +25,6 @@ import {
   updateRefundStatus,
 } from '@/services/payments'
 import { toastApiError, toastFailure, toastInvalid, toastSuccess } from '@/services/toast'
-import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 import { PaymentDetailsDialog } from './PaymentDetailsDialog'
@@ -55,10 +55,11 @@ const STATUS_TONE: Record<PaymentStatus, 'success' | 'warning' | 'danger' | 'neu
 
 export function TaskPaymentsPage() {
   const { taskId = '' } = useParams()
-  const role = useAuthStore((s) => s.user?.role)
-  const isStaff = role === 'admin' || role === 'coordinator' || role === 'super'
-  const canResend = role === 'admin' || role === 'super'
-  const isClientRole = role === 'client'
+  const can = useCan()
+  const canManagePayments = can('manage_payments')
+  const canManageRefunds = can('manage_refunds')
+  const canResend = can('manage_invoices')
+  const canDownloadInvoices = can('download_invoices')
   const taskTopic = useTaskTopic(taskId)
   const breadcrumbs = usePortalBreadcrumbs([
     { label: 'Tasks', path: 'tasks' },
@@ -250,7 +251,7 @@ export function TaskPaymentsPage() {
   }
 
   const { summary, payments, refunds } = view
-  const canPay = isClientRole && summary.due > 0
+  const canPay = can('pay_own_tasks') && summary.due > 0
 
   return (
     <PortalPageShell
@@ -265,27 +266,22 @@ export function TaskPaymentsPage() {
               Pay now
             </Button>
           ) : null}
-          {isStaff ? (
-            <>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setRefundOpen(true)}
-              >
-                Create refund
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  setEditing(null)
-                  setFormMode('create')
-                }}
-              >
-                Add payment
-              </Button>
-            </>
+          {canManageRefunds ? (
+            <Button type="button" variant="secondary" size="sm" onClick={() => setRefundOpen(true)}>
+              Create refund
+            </Button>
+          ) : null}
+          {canManagePayments ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setEditing(null)
+                setFormMode('create')
+              }}
+            >
+              Add payment
+            </Button>
           ) : null}
         </>
       }
@@ -319,7 +315,7 @@ export function TaskPaymentsPage() {
             description={
               canPay
                 ? 'Use "Pay now" to settle the balance.'
-                : isStaff
+                : canManagePayments
                   ? 'Record a manual payment from the actions above.'
                   : 'No payments recorded for this task.'
             }
@@ -380,7 +376,7 @@ export function TaskPaymentsPage() {
                         <IconAction label="View details" onClick={() => setViewingId(payment.id)}>
                           <Eye className="size-4" />
                         </IconAction>
-                        {payment.invoice?.hasPdf ? (
+                        {canDownloadInvoices && payment.invoice?.hasPdf ? (
                           <IconAction
                             label="Download invoice"
                             onClick={() => void onDownloadInvoice(payment)}
@@ -399,7 +395,7 @@ export function TaskPaymentsPage() {
                             <RefreshCw className="size-4" />
                           </IconAction>
                         ) : null}
-                        {isStaff ? (
+                        {canManagePayments ? (
                           <>
                             <IconAction
                               label="Edit payment"
@@ -436,7 +432,11 @@ export function TaskPaymentsPage() {
         {refunds.length === 0 ? (
           <EmptyState
             title="No refunds"
-            description="Staff can issue refunds from the actions above."
+            description={
+              canManageRefunds
+                ? 'Issue a refund from the actions above.'
+                : 'No refunds recorded for this task.'
+            }
           />
         ) : (
           <ul className="space-y-2 text-sm">
@@ -454,7 +454,7 @@ export function TaskPaymentsPage() {
                     <p className="mt-1 text-xs text-muted-foreground">{refund.refundReason}</p>
                   ) : null}
                 </div>
-                {isStaff && refund.status === 'pending' ? (
+                {canManageRefunds && refund.status === 'pending' ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"

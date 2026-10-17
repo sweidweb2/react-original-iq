@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAsyncData } from '@/hooks'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { useCan } from '@/lib/permissions'
 import type { AuthRole } from '@/services/auth'
 import {
   createTask,
@@ -110,6 +111,7 @@ function RecentTasksList({ base, tasks }: { base: string; tasks: Task[] }) {
 function CoordinatorSections({ base }: { base: string }) {
   const { data, isLoading, error, reload } = useAsyncData(loadStatsAndRecent)
   const stats = data?.stats
+  const canCreate = useCan()('create_tasks')
   const [createOpen, setCreateOpen] = useState(false)
   const [values, setValues] = useState(emptyRequest)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof CreateTaskFormValues>>({})
@@ -154,12 +156,14 @@ function CoordinatorSections({ base }: { base: string }) {
         title="Requests & tasks"
         description="Recent tasks in your queue."
         actions={
-          <Button type="button" size="sm" onClick={() => setCreateOpen((o) => !o)}>
-            {createOpen ? 'Hide form' : 'Create task'}
-          </Button>
+          canCreate ? (
+            <Button type="button" size="sm" onClick={() => setCreateOpen((o) => !o)}>
+              {createOpen ? 'Hide form' : 'Create task'}
+            </Button>
+          ) : undefined
         }
       >
-        {createOpen ? (
+        {canCreate && createOpen ? (
           <form
             onSubmit={onCreate}
             className="mb-6 grid gap-3 rounded-lg border p-4 sm:grid-cols-2"
@@ -252,6 +256,7 @@ function TutorSections({ base }: { base: string }) {
 
 function ClientSections({ base }: { base: string }) {
   const { data: recent, isLoading, error, reload } = useAsyncData(loadRecent)
+  const canRequest = useCan()('create_own_tasks')
   const [values, setValues] = useState(emptyRequest)
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof CreateTaskFormValues>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -285,73 +290,75 @@ function ClientSections({ base }: { base: string }) {
 
   return (
     <>
-      <SectionCard title="Request help" description="Create a new task request.">
-        <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
-          <Field data-invalid={Boolean(fieldErrors.topic) || undefined} className="sm:col-span-2">
-            <FieldLabel htmlFor="client-topic">Topic</FieldLabel>
-            <Input
-              id="client-topic"
-              value={values.topic}
-              placeholder="What do you need help with?"
-              onChange={(e) => setValues((v) => ({ ...v, topic: e.target.value }))}
-            />
-            <FieldError>{fieldErrors.topic}</FieldError>
-          </Field>
-          <Field data-invalid={Boolean(fieldErrors.type) || undefined}>
-            <FieldLabel htmlFor="client-type">Type</FieldLabel>
-            <Select
-              id="client-type"
-              value={values.type}
-              onChange={(e) =>
-                setValues((v) => ({ ...v, type: e.target.value as CreateTaskFormValues['type'] }))
-              }
+      {canRequest ? (
+        <SectionCard title="Request help" description="Create a new task request.">
+          <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
+            <Field data-invalid={Boolean(fieldErrors.topic) || undefined} className="sm:col-span-2">
+              <FieldLabel htmlFor="client-topic">Topic</FieldLabel>
+              <Input
+                id="client-topic"
+                value={values.topic}
+                placeholder="What do you need help with?"
+                onChange={(e) => setValues((v) => ({ ...v, topic: e.target.value }))}
+              />
+              <FieldError>{fieldErrors.topic}</FieldError>
+            </Field>
+            <Field data-invalid={Boolean(fieldErrors.type) || undefined}>
+              <FieldLabel htmlFor="client-type">Type</FieldLabel>
+              <Select
+                id="client-type"
+                value={values.type}
+                onChange={(e) =>
+                  setValues((v) => ({ ...v, type: e.target.value as CreateTaskFormValues['type'] }))
+                }
+              >
+                <option value="assignment">Assignment</option>
+                <option value="tutoring">Tutoring</option>
+                <option value="research">Research</option>
+                <option value="editing">Editing</option>
+              </Select>
+              <FieldError>{fieldErrors.type}</FieldError>
+            </Field>
+            <Field data-invalid={Boolean(fieldErrors.category) || undefined}>
+              <FieldLabel htmlFor="client-category">Category</FieldLabel>
+              <Input
+                id="client-category"
+                value={values.category}
+                onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))}
+              />
+              <FieldError>{fieldErrors.category}</FieldError>
+            </Field>
+            <Field data-invalid={Boolean(fieldErrors.deadline) || undefined}>
+              <FieldLabel htmlFor="client-deadline">Deadline</FieldLabel>
+              <Input
+                id="client-deadline"
+                type="datetime-local"
+                value={values.deadline}
+                onChange={(e) => setValues((v) => ({ ...v, deadline: e.target.value }))}
+              />
+              <FieldError>{fieldErrors.deadline}</FieldError>
+            </Field>
+            <Field
+              data-invalid={Boolean(fieldErrors.description) || undefined}
+              className="sm:col-span-2"
             >
-              <option value="assignment">Assignment</option>
-              <option value="tutoring">Tutoring</option>
-              <option value="research">Research</option>
-              <option value="editing">Editing</option>
-            </Select>
-            <FieldError>{fieldErrors.type}</FieldError>
-          </Field>
-          <Field data-invalid={Boolean(fieldErrors.category) || undefined}>
-            <FieldLabel htmlFor="client-category">Category</FieldLabel>
-            <Input
-              id="client-category"
-              value={values.category}
-              onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))}
-            />
-            <FieldError>{fieldErrors.category}</FieldError>
-          </Field>
-          <Field data-invalid={Boolean(fieldErrors.deadline) || undefined}>
-            <FieldLabel htmlFor="client-deadline">Deadline</FieldLabel>
-            <Input
-              id="client-deadline"
-              type="datetime-local"
-              value={values.deadline}
-              onChange={(e) => setValues((v) => ({ ...v, deadline: e.target.value }))}
-            />
-            <FieldError>{fieldErrors.deadline}</FieldError>
-          </Field>
-          <Field
-            data-invalid={Boolean(fieldErrors.description) || undefined}
-            className="sm:col-span-2"
-          >
-            <FieldLabel htmlFor="client-desc">Description</FieldLabel>
-            <Textarea
-              id="client-desc"
-              rows={3}
-              value={values.description}
-              onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
-            />
-            <FieldError>{fieldErrors.description}</FieldError>
-          </Field>
-          <div className="sm:col-span-2">
-            <Button type="submit" size="sm" disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting…' : 'Submit request'}
-            </Button>
-          </div>
-        </form>
-      </SectionCard>
+              <FieldLabel htmlFor="client-desc">Description</FieldLabel>
+              <Textarea
+                id="client-desc"
+                rows={3}
+                value={values.description}
+                onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+              />
+              <FieldError>{fieldErrors.description}</FieldError>
+            </Field>
+            <div className="sm:col-span-2">
+              <Button type="submit" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? 'Submitting…' : 'Submit request'}
+              </Button>
+            </div>
+          </form>
+        </SectionCard>
+      ) : null}
       <SectionCard
         title="My requests"
         description="Track submitted tasks."

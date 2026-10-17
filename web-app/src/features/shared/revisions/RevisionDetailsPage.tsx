@@ -9,6 +9,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
+import { useCan } from '@/lib/permissions'
 import {
   approveRevision,
   cancelRevision,
@@ -21,7 +22,6 @@ import {
   updateRevision,
 } from '@/services/revisions'
 import { toastApiError, toastSuccess } from '@/services/toast'
-import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 import { revisionStatusTone } from '../tasks/taskDetailsFormat'
@@ -38,9 +38,9 @@ function formatDate(iso: string | null): string {
 
 export function RevisionDetailsPage() {
   const { taskId = '', revisionId = '' } = useParams()
-  const role = useAuthStore((s) => s.user?.role)
-  const isStaff = role === 'admin' || role === 'coordinator' || role === 'super'
-  const isTutor = role === 'tutor'
+  const can = useCan()
+  const canManage = can('manage_revisions')
+  const canSubmitRevisions = can('submit_revisions')
 
   const [revision, setRevision] = useState<RevisionDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -155,9 +155,9 @@ export function RevisionDetailsPage() {
     )
   }
 
-  const canApprove = isStaff && revision.status === 'waiting_coordinator_approval'
-  const canSubmit = isTutor && revision.status === 'in-revision'
-  const canCancelSubmit = isTutor && revision.status === 'waiting_coordinator_approval'
+  const canApprove = canManage && revision.status === 'waiting_coordinator_approval'
+  const canSubmit = canSubmitRevisions && revision.status === 'in-revision'
+  const canCancelSubmit = canSubmitRevisions && revision.status === 'waiting_coordinator_approval'
 
   return (
     <PortalPageShell
@@ -166,7 +166,7 @@ export function RevisionDetailsPage() {
       breadcrumbs={breadcrumbs}
       actions={
         <div className="flex flex-wrap gap-2">
-          {isStaff ? (
+          {canManage ? (
             <>
               <Button type="button" variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
                 Edit revision

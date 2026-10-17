@@ -1,4 +1,4 @@
-import { type AuthActor, isSuper } from '../../authz/index.js'
+import { type AuthActor, hasPermission } from '../../authz/index.js'
 import { forbidden } from '../../errors/app-error.js'
 import { rowsToCsv } from '../_shared/csv.js'
 import { csvExport, type ExportFile } from '../_shared/export-file.js'
@@ -30,11 +30,24 @@ export type ExportsServiceDeps = {
 type Cell = string | number | boolean | null | undefined
 type Table = { headers: string[]; rows: Cell[][] }
 
-const MAX_ROWS = 10000
+/** PostgREST returns at most 1000 rows per request. */
+const PAGE_SIZE = 1000
+
+/** Walks a paged listing to the end. */
+async function allPages<T>(
+  fetchPage: (page: number, limit: number) => Promise<{ items: T[]; total: number }>,
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let page = 1; ; page += 1) {
+    const { items, total } = await fetchPage(page, PAGE_SIZE)
+    rows.push(...items)
+    if (items.length < PAGE_SIZE || rows.length >= total) return rows
+  }
+}
 
 function assertSuper(actor: AuthActor): void {
-  if (!isSuper(actor.roles)) {
-    throw forbidden('Only super admins can export data')
+  if (!hasPermission(actor, 'export_data')) {
+    throw forbidden('You cannot export data')
   }
 }
 
@@ -57,9 +70,9 @@ function createLabels(deps: ExportsServiceDeps) {
       return users
     },
     tasks() {
-      tasks ??= deps.tasksRepository
-        .findPage({ page: 1, limit: MAX_ROWS, scope: { kind: 'all' } })
-        .then(({ items }) => new Map(items.map((row) => [row.id, row])))
+      tasks ??= allPages((page, limit) =>
+        deps.tasksRepository.findPage({ page, limit, scope: { kind: 'all' } }),
+      ).then((items) => new Map(items.map((row) => [row.id, row])))
       return tasks
     },
     payments() {
@@ -356,8 +369,8 @@ export function createExportsService(deps: ExportsServiceDeps): ExportsService {
         }
       }
       case 'feedback': {
-        const [page, tasks, users] = await Promise.all([
-          deps.feedbackRepository.findPage({ page: 1, limit: MAX_ROWS }),
+        const [feedback, tasks, users] = await Promise.all([
+          allPages((page, limit) => deps.feedbackRepository.findPage({ page, limit })),
           labels.tasks(),
           labels.users(),
         ])
@@ -375,7 +388,7 @@ export function createExportsService(deps: ExportsServiceDeps): ExportsService {
             'suggestions',
             'created_at',
           ],
-          rows: page.items.map((row) => [
+          rows: feedback.map((row) => [
             row.id,
             row.taskId,
             taskLabel(tasks, row.taskId),

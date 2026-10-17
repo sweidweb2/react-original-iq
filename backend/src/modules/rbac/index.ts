@@ -1,15 +1,21 @@
 import type { AppConfig } from '../../config/index.js'
 import { loadConfig } from '../../config/index.js'
 import { createRbacController } from './rbac.controller.js'
-import { createRbacRepository } from './rbac.repository.js'
+import { createPermissionResolver } from './rbac.permissions.js'
+import { createRbacRepository, type RbacRepository } from './rbac.repository.js'
 import { createRbacRoutes } from './rbac.routes.js'
-import { createRbacService, type RbacService } from './rbac.service.js'
+import { createRbacService } from './rbac.service.js'
 
-export function createRbacModule(config: AppConfig = loadConfig(), service?: RbacService) {
-  const rbac = service ?? createRbacService(createRbacRepository(config))
-  const controller = createRbacController(rbac)
-  return createRbacRoutes(controller, config)
+export function createRbacModule(
+  config: AppConfig = loadConfig(),
+  repository: RbacRepository = createRbacRepository(config),
+) {
+  const permissions = createPermissionResolver(repository)
+  const service = createRbacService(repository, { onChange: permissions.invalidate })
+  const routes = createRbacRoutes(createRbacController(service), config)
+  return { routes, service, permissions }
 }
 
+export type { PermissionResolver } from './rbac.permissions.js'
 export type { RbacService } from './rbac.service.js'
 export type { RbacPermission, RbacRole } from './rbac.types.js'

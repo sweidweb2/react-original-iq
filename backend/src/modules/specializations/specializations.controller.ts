@@ -18,10 +18,7 @@ export function createSpecializationsController(
 ): SpecializationsController {
   return {
     list: respond(200, async (req) => ({
-      data: await service.list(
-        req.query as unknown as ListSpecializationsQuery,
-        requireActor(req),
-      ),
+      data: await service.list(req.query as unknown as ListSpecializationsQuery, requireActor(req)),
     })),
     create: respond(201, (req) =>
       service.create(req.body as CreateSpecializationBody, requireActor(req)),

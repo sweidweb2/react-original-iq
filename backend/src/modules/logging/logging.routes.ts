@@ -2,7 +2,7 @@ import { Router } from 'express'
 
 import type { AppConfig } from '../../config/index.js'
 import { createAuthenticate } from '../../middleware/authenticate.js'
-import { authorize } from '../../middleware/authorize.js'
+import { requirePermission } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
 import type { LoggingController } from './logging.controller.js'
 import { listActivityQuerySchema, listErrorsQuerySchema } from './logging.schema.js'
@@ -14,14 +14,14 @@ export function createLoggingRoutes(controller: LoggingController, config: AppCo
   router.get(
     '/activity-logs',
     authenticate,
-    authorize('super', 'admin'),
+    requirePermission('view_activity_logs'),
     validate({ query: listActivityQuerySchema }),
     controller.listActivity,
   )
   router.get(
     '/activity-logs/stats',
     authenticate,
-    authorize('super', 'admin'),
+    requirePermission('view_activity_logs'),
     controller.activityStats,
   )
 
@@ -29,11 +29,16 @@ export function createLoggingRoutes(controller: LoggingController, config: AppCo
   router.get(
     '/error-logs',
     authenticate,
-    authorize('super'),
+    requirePermission('view_error_logs'),
     validate({ query: listErrorsQuerySchema }),
     controller.listErrors,
   )
-  router.get('/error-logs/stats', authenticate, authorize('super'), controller.errorStats)
+  router.get(
+    '/error-logs/stats',
+    authenticate,
+    requirePermission('view_error_logs'),
+    controller.errorStats,
+  )
 
   return router
 }

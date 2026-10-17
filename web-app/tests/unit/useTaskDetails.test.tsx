@@ -22,6 +22,8 @@ import { toastApiError, toastInvalid, toastSuccess } from '@/services/toast'
 import { listUsers, type ManagedUser } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
+import { permissionsFor } from '../helpers/permissions'
+
 vi.mock('@/services/tasks', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/services/tasks')>()
   return {
@@ -135,6 +137,7 @@ function signInAs(role: AuthUser['role'], id = `${role}-1`) {
       id,
       email: `${id}@example.com`,
       role,
+      permissions: permissionsFor(role),
       profile: { firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada Lovelace' },
     },
     tokens: null,
@@ -243,10 +246,12 @@ describe('useTaskDetails', () => {
       const model = hook.result.current
 
       expect(model).toMatchObject({
-        isStaff: true,
-        isAdmin: true,
+        canAssignTutors: true,
+        canChangeCoordinator: true,
+        canToggleAllowView: true,
         canViewPayments: true,
-        canManageRevisions: true,
+        canViewRevisions: true,
+        canCreateRevisions: true,
         canEditFields: true,
         canDelete: true,
         canSubmit: false,
@@ -272,8 +277,9 @@ describe('useTaskDetails', () => {
       const { hook } = await renderLoaded()
       await waitFor(() => expect(hook.result.current.tutorsLoading).toBe(false))
 
-      expect(hook.result.current.isStaff).toBe(true)
-      expect(hook.result.current.isAdmin).toBe(false)
+      expect(hook.result.current.canAssignTutors).toBe(true)
+      expect(hook.result.current.canChangeCoordinator).toBe(false)
+      expect(hook.result.current.canToggleAllowView).toBe(false)
       expect(listUsers).toHaveBeenCalledTimes(1)
       expect(vi.mocked(listUsers).mock.calls[0]?.[0].role).toBe('tutor')
     })
@@ -293,14 +299,17 @@ describe('useTaskDetails', () => {
       const { hook } = await renderLoaded('/client/tasks/task-1')
 
       expect(hook.result.current).toMatchObject({
-        isClient: true,
-        isStaff: false,
+        canAssignTutors: false,
         canViewPayments: true,
         canEditFields: true,
-        canManageRevisions: false,
+        canViewRevisions: false,
+        canCreateRevisions: false,
+        canUploadDocs: true,
+        canUploadSolutions: false,
         canDelete: true,
       })
       expect(listUsers).not.toHaveBeenCalled()
+      expect(listRevisionsForTask).not.toHaveBeenCalled()
     })
 
     it('does not let another client delete the task', async () => {
@@ -339,6 +348,9 @@ describe('useTaskDetails', () => {
         expect(hook.result.current).toMatchObject({
           ...expected,
           canViewPayments: false,
+          canViewPaymentSummary: true,
+          canViewRevisions: true,
+          canUploadSolutions: tutorId === 'tutor-1',
           canEditFields: false,
           canDelete: false,
         })

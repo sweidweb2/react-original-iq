@@ -14,6 +14,7 @@ import { StarRating } from '@/components/ui/star-rating'
 import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { useCan } from '@/lib/permissions'
 import {
   createFeedback,
   deleteFeedback,
@@ -39,16 +40,15 @@ function formatDate(iso: string): string {
   }).format(date)
 }
 
-function isAdminRole(role: string | undefined): boolean {
-  return role === 'admin' || role === 'super'
-}
-
 export function FeedbackPage() {
   useDocumentTitle('Feedback')
   const role = useAuthStore((state) => state.user?.role)
-  const isClient = role === 'client'
-  const isAdmin = isAdminRole(role)
-  const canList = isAdmin || role === 'tutor' || isClient
+  const can = useCan()
+  const canSubmit = can('submit_feedback')
+  const canDelete = can('delete_feedback')
+  const canList = can('view_feedback')
+  /** Clients see their own entries and tutors what they received; other viewers see all. */
+  const seesAll = role !== 'client' && role !== 'tutor'
 
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
@@ -76,7 +76,7 @@ export function FeedbackPage() {
   }, [searchInput])
 
   useEffect(() => {
-    if (!isClient) return
+    if (!canSubmit) return
     let cancelled = false
     setTasksLoading(true)
     listTasks({ page: 1, limit: 100, status: 'completed' })
@@ -93,7 +93,7 @@ export function FeedbackPage() {
     return () => {
       cancelled = true
     }
-  }, [isClient])
+  }, [canSubmit])
 
   useEffect(() => {
     setPage(1)
@@ -194,7 +194,7 @@ export function FeedbackPage() {
   const rangeStart = meta && meta.total > 0 ? (meta.page - 1) * meta.limit + 1 : 0
   const rangeEnd = meta ? Math.min(meta.page * meta.limit, meta.total) : 0
 
-  const listTitle = isAdmin
+  const listTitle = seesAll
     ? 'All feedback'
     : role === 'tutor'
       ? 'Your feedback'
@@ -205,15 +205,15 @@ export function FeedbackPage() {
       <PageHeader
         title="Feedback"
         description={
-          isClient
+          canSubmit
             ? 'Rate completed tasks and share comments with the team.'
-            : isAdmin
+            : seesAll
               ? 'Review client feedback across tutors and tasks.'
               : 'Feedback left for your tutoring sessions.'
         }
       />
 
-      {isClient ? (
+      {canSubmit ? (
         <Card>
           <CardContent className="flex flex-col gap-4 pt-6">
             <h2 className="text-lg font-semibold">Submit feedback</h2>
@@ -308,7 +308,7 @@ export function FeedbackPage() {
                           <th className="px-3 py-2 font-medium">Rating</th>
                           <th className="px-3 py-2 font-medium">Comments</th>
                           <th className="px-3 py-2 font-medium">Date</th>
-                          {isAdmin ? (
+                          {canDelete ? (
                             <th className="px-3 py-2 font-medium text-right">Actions</th>
                           ) : null}
                         </tr>
@@ -323,7 +323,7 @@ export function FeedbackPage() {
                             <td className="px-3 py-2 text-muted-foreground">
                               {formatDate(row.createdAt)}
                             </td>
-                            {isAdmin ? (
+                            {canDelete ? (
                               <td className="px-3 py-2">
                                 <div className="flex justify-end">
                                   <IconAction

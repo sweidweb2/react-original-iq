@@ -134,18 +134,20 @@ export const publicEn = {
     paymentBadge: 'Payment Methods',
     paymentTitle: 'Payment Methods',
     paymentIntro:
-      'Ask us about payment by email or WhatsApp. We share the right details for your request.',
-    emailCard: {
-      title: 'Email',
-      description: 'Send payment questions to our team. We reply from the address below.',
-      label: 'Email',
-      feature: 'We reply by email',
+      'Choose from multiple secure payment options that suit your preferences. We offer bank transfers, digital wallet payments, and online payment processing.',
+    bankCard: {
+      title: 'Bank Transfer',
+      description:
+        'Transfer funds directly to our bank account using the IBAN code. Secure and reliable for larger transactions.',
+      label: 'IBAN Code',
+      feature: 'Secure Transfer',
     },
-    whatsappCard: {
-      title: 'WhatsApp',
-      description: 'Message us on WhatsApp for payment help. This is the number we answer.',
-      label: 'WhatsApp',
-      feature: 'Same number as our contact page',
+    whishCard: {
+      title: 'Whish Payment',
+      description:
+        'Send payments instantly using Whish digital wallet. Quick and convenient for mobile users.',
+      label: 'Whish Phone Number',
+      feature: 'Instant Transfer',
     },
     copy: 'Copy',
     copyLabel: (label: string) => `Copy ${label}`,

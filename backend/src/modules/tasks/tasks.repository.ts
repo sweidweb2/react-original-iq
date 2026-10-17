@@ -475,6 +475,7 @@ function createSupabaseTasksRepository(
         .from('tasks')
         .select(TASK_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
       query = scopeQuery(query, filter)
       const { data, error, count } = await query.range(from, to)
       if (error) throw error
@@ -485,16 +486,22 @@ function createSupabaseTasksRepository(
     },
 
     async countStats(filter) {
-      let query = client.from('tasks').select('status')
-      query = scopeQuery(query, filter)
-      const { data, error } = await query
-      if (error) throw error
+      const statuses = filter.status ? [filter.status] : TASK_STATUSES
+      const counts = await Promise.all(
+        statuses.map(async (status) => {
+          const query = scopeQuery(
+            client.from('tasks').select('id', { count: 'exact', head: true }),
+            { ...filter, status },
+          )
+          const { count, error } = await query
+          if (error) throw error
+          return [status, count ?? 0] as const
+        }),
+      )
       const stats = emptyTaskStats()
-      for (const row of data as { status: TaskStatus }[]) {
-        if (TASK_STATUSES.includes(row.status)) {
-          stats[row.status] += 1
-          stats.total += 1
-        }
+      for (const [status, count] of counts) {
+        stats[status] = count
+        stats.total += count
       }
       return stats
     },

@@ -1,8 +1,9 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, Suspense, useState } from 'react'
 import { Menu } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/brand/BrandLogo'
+import { PageFallback } from '@/components/feedback'
 import { buttonVariants } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import { LocalizedLink, LocalizedNavLink, useI18n } from '@/i18n'
@@ -141,7 +142,9 @@ export function PublicLayout({ children }: { children?: ReactNode }) {
         </nav>
       </Sheet>
 
-      <main className="flex flex-1 flex-col">{children ?? <Outlet />}</main>
+      <main className="flex flex-1 flex-col">
+        <Suspense fallback={<PageFallback />}>{children ?? <Outlet />}</Suspense>
+      </main>
       <PublicFooter />
     </div>
   )

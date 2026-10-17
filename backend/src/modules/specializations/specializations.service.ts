@@ -1,5 +1,5 @@
 import type { AuthActor } from '../../authz/index.js'
-import { isAdmin, isOps, isSuper } from '../../authz/index.js'
+import { hasPermission } from '../../authz/index.js'
 import { forbidden, notFound, validationError } from '../../errors/app-error.js'
 import type { UsersService } from '../users/users.service.js'
 import type { SpecializationsRepository } from './specializations.repository.js'
@@ -16,11 +16,11 @@ export type SpecializationsService = {
 }
 
 function canManage(actor: AuthActor): boolean {
-  return isOps(actor.roles) || isSuper(actor.roles) || isAdmin(actor.roles)
+  return hasPermission(actor, 'manage_specializations')
 }
 
 function canReadTutor(actor: AuthActor, tutorId: string): boolean {
-  if (canManage(actor)) return true
+  if (hasPermission(actor, 'manage_specializations', 'view_users')) return true
   return actor.roles.includes('tutor') && actor.id === tutorId
 }
 
@@ -38,7 +38,7 @@ export function createSpecializationsService(
 
     async create(body, actor) {
       if (!canManage(actor)) {
-        throw forbidden('Only staff can manage specializations')
+        throw forbidden('You cannot manage specializations')
       }
       const tutor = await users.findById(body.tutorId)
       if (!tutor || tutor.role !== 'tutor') {
@@ -53,7 +53,7 @@ export function createSpecializationsService(
 
     async remove(id, actor) {
       if (!canManage(actor)) {
-        throw forbidden('Only staff can manage specializations')
+        throw forbidden('You cannot manage specializations')
       }
       const existing = await repository.findById(id)
       if (!existing) {

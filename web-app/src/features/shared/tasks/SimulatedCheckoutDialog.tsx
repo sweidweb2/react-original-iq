@@ -78,7 +78,7 @@ export function SimulatedCheckoutDialog({
     try {
       const payment = await checkoutTaskPayment(taskId, { amount: parsed.data.amount })
       const invoiceNote = payment.invoice
-        ? ` Invoice ${payment.invoice.invoiceNumber} ${payment.invoice.invoiceStatus === 'sent' ? 'was emailed to you' : 'was created'}.`
+        ? ` Invoice ${payment.invoice.invoiceNumber} ${payment.invoice.invoiceStatus === 'sent' ? 'was emailed to you' : 'will be emailed to you shortly'}.`
         : ''
       toastSuccess('Payment completed', `$${payment.amount.toFixed(2)} paid.${invoiceNote}`)
       onPaid()

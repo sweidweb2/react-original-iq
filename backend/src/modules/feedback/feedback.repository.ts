@@ -169,6 +169,7 @@ function createSupabaseFeedbackRepository(config: AppConfig): FeedbackRepository
         .from('feedbacks')
         .select(FEEDBACK_COLUMNS, { count: 'exact' })
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
 
       if (filter.tutorId) query = query.eq('tutor_id', filter.tutorId)
       if (filter.clientId) query = query.eq('client_id', filter.clientId)

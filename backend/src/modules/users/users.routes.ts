@@ -1,9 +1,8 @@
 import { Router } from 'express'
 
-import { USER_ADMIN_ROLES } from '../../authz/index.js'
 import type { AppConfig } from '../../config/index.js'
 import { createAuthenticate } from '../../middleware/authenticate.js'
-import { authorize } from '../../middleware/authorize.js'
+import { requirePermission } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
 import type { UsersController } from './users.controller.js'
 import {
@@ -20,15 +19,15 @@ export function createUsersRoutes(controller: UsersController, config: AppConfig
 
   router.get(
     '/',
-    authorize(...USER_ADMIN_ROLES, 'coordinator'),
+    requirePermission('view_users'),
     validate({ query: listUsersQuerySchema }),
     controller.list,
   )
-  router.get('/stats', authorize(...USER_ADMIN_ROLES), controller.stats)
+  router.get('/stats', requirePermission('view_users'), controller.stats)
   router.get('/:id', validate({ params: userIdParamsSchema }), controller.getById)
   router.post(
     '/',
-    authorize(...USER_ADMIN_ROLES),
+    requirePermission('create_users'),
     validate({ body: createUserBodySchema }),
     controller.create,
   )
@@ -39,13 +38,13 @@ export function createUsersRoutes(controller: UsersController, config: AppConfig
   )
   router.post(
     '/:id/deactivate',
-    authorize(...USER_ADMIN_ROLES),
+    requirePermission('activate_users'),
     validate({ params: userIdParamsSchema }),
     controller.deactivate,
   )
   router.delete(
     '/:id',
-    authorize(...USER_ADMIN_ROLES, 'coordinator'),
+    requirePermission('delete_users'),
     validate({ params: userIdParamsSchema }),
     controller.remove,
   )

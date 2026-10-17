@@ -1,22 +1,12 @@
 import type { AuthActor } from '../../authz/index.js'
-import { assertCanManageRole, assertSelfOrOps, isOps, isUserAdmin } from '../../authz/index.js'
+import { assertCanManageRole, assertPermission, assertSelfOrUserViewer } from '../../authz/index.js'
 import { conflict, forbidden, notFound } from '../../errors/app-error.js'
 import { hashPassword } from '../auth/auth.tokens.js'
 import { getLoggingService } from '../logging/index.js'
 import type { UsersRepository } from './users.repository.js'
 import type { CreateUserBody, ListUsersQuery, UpdateUserBody } from './users.schema.js'
-import type { AccountRecord, CreateAccountInput, User, UserRole, UserStats } from './users.types.js'
+import type { AccountRecord, CreateAccountInput, User, UserStats } from './users.types.js'
 import { toPublicUser } from './users.types.js'
-
-const COORDINATOR_MANAGED_ROLES: readonly UserRole[] = ['tutor', 'client']
-
-/** Admins manage everyone (subject to the super hierarchy); coordinators only tutors and clients. */
-function assertCoordinatorScope(actor: AuthActor, targetRole: UserRole, action: string): void {
-  if (isUserAdmin(actor.roles)) return
-  if (!COORDINATOR_MANAGED_ROLES.includes(targetRole)) {
-    throw forbidden(`Coordinators can only ${action} tutors or clients`)
-  }
-}
 
 export type UserListResult = {
   data: User[]
@@ -31,7 +21,7 @@ export type UsersService = {
   listUsers: (query: ListUsersQuery) => Promise<UserListResult>
   getStats: () => Promise<UserStats>
   getUserById: (id: string) => Promise<User>
-  /** Self or admin may read a user record. */
+  /** Self, or anyone with `view_users`, may read a user record. */
   assertAccessible: (id: string, actor: AuthActor) => Promise<User>
   /** Credential lookup for auth. Includes the password hash. */
   findByEmail: (email: string) => Promise<AccountRecord | null>
@@ -77,7 +67,7 @@ export function createUsersService(
 
   async function assertAccessible(id: string, actor: AuthActor): Promise<User> {
     const user = await loadOrThrow(id)
-    assertSelfOrOps(actor, user.id)
+    assertSelfOrUserViewer(actor, user.id)
     return user
   }
 
@@ -130,9 +120,7 @@ export function createUsersService(
     },
 
     async createUser(input, actor) {
-      if (!isUserAdmin(actor.roles)) {
-        throw forbidden('Only admins can create users')
-      }
+      assertPermission(actor, 'create_users', 'You cannot create users')
       assertCanManageRole(actor, input.role)
 
       const existing = await repository.findByEmail(input.email)
@@ -158,23 +146,22 @@ export function createUsersService(
 
     async updateUser(id, input, actor) {
       const target = await assertAccessible(id, actor)
-      assertCanManageRole(actor, target.role)
-      if (actor.id !== id) {
-        assertCoordinatorScope(actor, target.role, 'edit')
+      const self = actor.id === id
+      if (!self) {
+        assertPermission(actor, 'manage_users', 'You cannot edit other users')
+        assertCanManageRole(actor, target.role)
       }
-      if (input.role !== undefined) {
+      if (input.role !== undefined && input.role !== target.role) {
+        if (self) throw forbidden('You cannot change your own role')
+        assertPermission(actor, 'change_user_roles', 'You cannot change user roles')
         assertCanManageRole(actor, input.role)
       }
-
-      const privileged = input.role !== undefined || input.status !== undefined || input.password
-      if (privileged && !isUserAdmin(actor.roles)) {
-        throw forbidden('Only admins can change role, status, or password')
+      if (input.status !== undefined && input.status !== target.status) {
+        if (self) throw forbidden('You cannot change your own account status')
+        assertPermission(actor, 'activate_users', 'You cannot activate or deactivate users')
       }
-      if (actor.id === id && input.status === 'INACTIVE') {
-        throw forbidden('You cannot deactivate your own account')
-      }
-      if (actor.id === id && input.role && !actor.roles.includes(input.role)) {
-        throw forbidden('You cannot change your own role')
+      if (input.password) {
+        assertPermission(actor, 'reset_user_passwords', 'You cannot reset passwords here')
       }
 
       const updated = await repository.updateAccount(id, {
@@ -205,9 +192,7 @@ export function createUsersService(
     },
 
     async deactivateUser(id, actor) {
-      if (!isUserAdmin(actor.roles)) {
-        throw forbidden('Only admins can deactivate users')
-      }
+      assertPermission(actor, 'activate_users', 'You cannot deactivate users')
       if (actor.id === id) {
         throw forbidden('You cannot deactivate your own account')
       }
@@ -232,11 +217,8 @@ export function createUsersService(
         throw forbidden('You cannot delete your own account')
       }
       const target = await loadOrThrow(id)
-      if (!isUserAdmin(actor.roles) && !isOps(actor.roles)) {
-        throw forbidden('Only admins or coordinators can delete users')
-      }
+      assertPermission(actor, 'delete_users', 'You cannot delete users')
       assertCanManageRole(actor, target.role)
-      assertCoordinatorScope(actor, target.role, 'delete')
       await prepareTasksForDelete(id)
       const deleted = await repository.deleteAccount(id)
       if (!deleted) {

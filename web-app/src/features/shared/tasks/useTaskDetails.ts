@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { toast } from '@/components/ui/toast'
+import { useCan } from '@/lib/permissions'
 import { createRevision, listRevisionsForTask, type RevisionSession } from '@/services/revisions'
 import {
   activateTask,
@@ -60,16 +61,22 @@ export function useTaskDetails() {
   const navigate = useNavigate()
   const role = useAuthStore((s) => s.user?.role)
   const userId = useAuthStore((s) => s.user?.id)
+  const can = useCan()
 
   const tasksBase = pathname.replace(/\/[^/]+\/?$/, '')
   const portalBase = tasksBase.replace(/\/tasks\/?$/, '')
-  const isStaff = role === 'admin' || role === 'coordinator' || role === 'super'
-  const isAdmin = role === 'admin' || role === 'super'
   const isTutor = role === 'tutor'
   const isClient = role === 'client'
-  const canViewPayments = isStaff || isClient
-  const canManageRevisions = isStaff
-  const canEditFields = isStaff || isClient
+  const canAssignTutors = can('assign_tutors')
+  const canChangeCoordinator = can('change_coordinator')
+  const canViewPaymentSummary = can('view_payment_summary')
+  const canViewPayments = can('view_payments')
+  const canSetPrice = can('set_pricing')
+  const canViewRevisions = can('view_revisions')
+  const canCreateRevisions = can('create_revisions')
+  const canCancelTasks = can('cancel_tasks')
+  const canToggleAllowView = can('toggle_allow_view')
+  const canZip = can('bulk_download_files')
 
   const [task, setTask] = useState<TaskDetail | null>(null)
   const [revisions, setRevisions] = useState<RevisionSession[]>([])
@@ -118,9 +125,12 @@ export function useTaskDetails() {
       setIsLoading(true)
       setError(null)
       try {
+        const noRevisions = { data: [] as RevisionSession[] }
         const [detail, revisionList] = await Promise.all([
           getTask(taskId),
-          listRevisionsForTask(taskId).catch(() => ({ data: [] as RevisionSession[] })),
+          canViewRevisions
+            ? listRevisionsForTask(taskId).catch(() => noRevisions)
+            : Promise.resolve(noRevisions),
         ])
         if (cancelled) return
         setTask(detail)
@@ -136,7 +146,7 @@ export function useTaskDetails() {
     return () => {
       cancelled = true
     }
-  }, [taskId, reloadKey, syncForms])
+  }, [taskId, reloadKey, syncForms, canViewRevisions])
 
   /** Merge a task row returned by a mutation; keeps files/solutions as-is. */
   function applyTask(updated: Task) {
@@ -154,7 +164,7 @@ export function useTaskDetails() {
   }
 
   useEffect(() => {
-    if (!isStaff) return
+    if (!canAssignTutors) return
     let cancelled = false
     setTutorsLoading(true)
     listUsers({ page: 1, limit: 100, role: 'tutor', status: 'ACTIVE' })
@@ -170,10 +180,10 @@ export function useTaskDetails() {
     return () => {
       cancelled = true
     }
-  }, [isStaff])
+  }, [canAssignTutors])
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!canChangeCoordinator) return
     let cancelled = false
     setCoordinatorsLoading(true)
     listUsers({ page: 1, limit: 100, role: 'coordinator', status: 'ACTIVE' })
@@ -189,7 +199,7 @@ export function useTaskDetails() {
     return () => {
       cancelled = true
     }
-  }, [isAdmin])
+  }, [canChangeCoordinator])
 
   async function runAction<T>(
     copy: ActionCopy<T>,
@@ -463,13 +473,20 @@ export function useTaskDetails() {
     }
   }
 
-  const assignedTutor = task?.tutorId === userId
+  const assignedTutor = isTutor && task?.tutorId === userId
   const ownClient = isClient && task?.clientId === userId
-  const canSubmit = isTutor && assignedTutor && task?.status === 'in-progress'
-  const canCancelSubmit =
-    isTutor && assignedTutor && task?.status === 'waiting_coordinator_approval'
-  const canApprove = isStaff && task?.status === 'waiting_coordinator_approval'
-  const canDelete = isStaff || (ownClient && task?.status === 'pending' && !task.tutorId)
+  const canSubmitWork = can('submit_work') && assignedTutor
+  const canSubmit = canSubmitWork && task?.status === 'in-progress'
+  const canCancelSubmit = canSubmitWork && task?.status === 'waiting_coordinator_approval'
+  const canApprove = can('approve_deliveries') && task?.status === 'waiting_coordinator_approval'
+  const canEditFields = can('edit_tasks') || (can('edit_own_tasks') && ownClient)
+  const canDelete =
+    can('delete_tasks') ||
+    (can('delete_own_tasks') && ownClient && task?.status === 'pending' && !task.tutorId)
+  const canUploadDocs = can('upload_task_documents') && (!isClient || ownClient)
+  const canRemoveDocs = can('delete_task_documents') && (!isClient || ownClient)
+  const canUploadSolutions = can('upload_solutions') && (!isTutor || assignedTutor)
+  const canRemoveSolutions = can('delete_solutions') && (!isTutor || assignedTutor)
 
   return {
     taskId,
@@ -479,18 +496,26 @@ export function useTaskDetails() {
     isLoading,
     error,
     reload,
-    isStaff,
-    isAdmin,
-    isTutor,
-    isClient,
     userId,
+    canAssignTutors,
+    canChangeCoordinator,
+    canCancelTasks,
+    canToggleAllowView,
+    canViewPaymentSummary,
     canViewPayments,
-    canManageRevisions,
+    canSetPrice,
+    canViewRevisions,
+    canCreateRevisions,
     canEditFields,
     canSubmit,
     canCancelSubmit,
     canApprove,
     canDelete,
+    canUploadDocs,
+    canRemoveDocs,
+    canUploadSolutions,
+    canRemoveSolutions,
+    canZip,
     assignedTutor,
     isActing,
     runTaskAction,

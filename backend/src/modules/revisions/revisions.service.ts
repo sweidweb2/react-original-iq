@@ -1,5 +1,5 @@
 import type { AuthActor } from '../../authz/index.js'
-import { assertTaskRelated, isAdmin, isOps, isSuper, isTutor } from '../../authz/index.js'
+import { assertTaskRelated, hasPermission, isTaskStaff, isTaskTutor } from '../../authz/index.js'
 import { conflict, forbidden, notFound, validationError } from '../../errors/app-error.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task } from '../tasks/tasks.types.js'
@@ -32,9 +32,28 @@ export type RevisionsService = {
   tutorCancelSubmit: (id: string, actor: AuthActor) => Promise<RevisionSession>
 }
 
-function canManageRevisions(actor: AuthActor, task: Task): boolean {
-  if (isAdmin(actor.roles) || isSuper(actor.roles)) return true
-  return isOps(actor.roles) && task.coordinatorId === actor.id
+function canManageRevisions(
+  actor: AuthActor,
+  task: Task,
+  key: 'create_revisions' | 'manage_revisions' = 'manage_revisions',
+): boolean {
+  return hasPermission(actor, key) && isTaskStaff(actor, task)
+}
+
+function assertCanView(actor: AuthActor, task: Task): void {
+  if (!hasPermission(actor, 'view_revisions')) {
+    throw forbidden('You cannot view revisions')
+  }
+  assertTaskRelated(actor, task)
+}
+
+function assertCanSubmit(actor: AuthActor, task: Task, action: string): void {
+  if (!hasPermission(actor, 'submit_revisions')) {
+    throw forbidden(`You cannot ${action} revisions`)
+  }
+  if (!isTaskTutor(actor, task)) {
+    throw forbidden('You are not assigned to this task')
+  }
 }
 
 function isOpen(revision: RevisionSession): boolean {
@@ -69,8 +88,8 @@ export function createRevisionsService(
   return {
     async createForTask(taskId, body, actor) {
       const task = await loadTask(taskId)
-      if (!canManageRevisions(actor, task)) {
-        throw forbidden('Only coordinators or admins can create revisions')
+      if (!canManageRevisions(actor, task, 'create_revisions')) {
+        throw forbidden('You cannot create revisions for this task')
       }
       if (task.status === 'cancelled') {
         throw validationError('Cannot open a revision on a cancelled task')
@@ -89,14 +108,14 @@ export function createRevisionsService(
 
     async listForTask(taskId, actor) {
       const task = await loadTask(taskId)
-      assertTaskRelated(actor, task)
+      assertCanView(actor, task)
       return repository.listByTaskId(taskId)
     },
 
     async getById(id, actor) {
       const revision = await loadRevision(id)
       const task = await loadTask(revision.taskId)
-      assertTaskRelated(actor, task)
+      assertCanView(actor, task)
       return revision
     },
 
@@ -165,14 +184,9 @@ export function createRevisionsService(
     },
 
     async tutorSubmit(id, body, actor) {
-      if (!isTutor(actor.roles)) {
-        throw forbidden('Only tutors can submit revisions')
-      }
       const revision = await loadRevision(id)
       const task = await loadTask(revision.taskId)
-      if (task.tutorId !== actor.id) {
-        throw forbidden('You are not assigned to this task')
-      }
+      assertCanSubmit(actor, task, 'submit')
       if (revision.status !== 'in-revision') {
         throw validationError('Revision is not open for submission')
       }
@@ -195,14 +209,9 @@ export function createRevisionsService(
     },
 
     async tutorCancelSubmit(id, actor) {
-      if (!isTutor(actor.roles)) {
-        throw forbidden('Only tutors can cancel revision submission')
-      }
       const revision = await loadRevision(id)
       const task = await loadTask(revision.taskId)
-      if (task.tutorId !== actor.id) {
-        throw forbidden('You are not assigned to this task')
-      }
+      assertCanSubmit(actor, task, 'withdraw')
       if (revision.status !== 'waiting_coordinator_approval') {
         throw validationError('Revision is not awaiting approval')
       }

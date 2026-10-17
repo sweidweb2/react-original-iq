@@ -26,6 +26,9 @@ export type RbacRepository = {
   listUserPermissionIds: (userId: string) => Promise<string[]>
   setUserPermissions: (userId: string, permissionIds: string[]) => Promise<string[]>
   permissionIdsExist: (ids: string[]) => Promise<boolean>
+  /** Permission keys granted to a role, or `null` when no role row has that key. */
+  findRolePermissionKeys: (roleKey: string) => Promise<string[] | null>
+  listUserPermissionKeys: (userId: string) => Promise<string[]>
 }
 
 type RoleRow = {
@@ -233,7 +236,24 @@ function createMemoryRbacRepository(): RbacRepository {
     async permissionIdsExist(ids) {
       return ids.every((id) => memory.permissions.has(id))
     },
+
+    async findRolePermissionKeys(roleKey) {
+      const role = [...memory.roles.values()].find((row) => row.key === roleKey)
+      if (!role) return null
+      return keysFor(memory.rolePermissions.get(role.id))
+    },
+
+    async listUserPermissionKeys(userId) {
+      return keysFor(memory.userPermissions.get(userId))
+    },
   }
+}
+
+function keysFor(permissionIds: Set<string> | undefined): string[] {
+  return [...(permissionIds ?? [])].flatMap((id) => {
+    const row = memory.permissions.get(id)
+    return row ? [row.key] : []
+  })
 }
 
 function createSupabaseRbacRepository(config: AppConfig): RbacRepository {
@@ -462,7 +482,43 @@ function createSupabaseRbacRepository(config: AppConfig): RbacRepository {
       if (error) throw error
       return (data?.length ?? 0) === unique.length
     },
+
+    async findRolePermissionKeys(roleKey) {
+      const { data: role, error: roleError } = await client
+        .from('roles')
+        .select('id')
+        .eq('key', roleKey)
+        .maybeSingle()
+      if (roleError) throw roleError
+      if (!role) return null
+
+      const { data, error } = await client
+        .from('role_permissions')
+        .select('permissions(key)')
+        .eq('role_id', (role as { id: string }).id)
+      if (error) throw error
+      return embeddedKeys(data)
+    },
+
+    async listUserPermissionKeys(userId) {
+      const { data, error } = await client
+        .from('user_permissions')
+        .select('permissions(key)')
+        .eq('user_id', userId)
+      if (error) throw error
+      return embeddedKeys(data)
+    },
   }
+}
+
+type EmbeddedPermission = { permissions: { key: string } | { key: string }[] | null }
+
+function embeddedKeys(rows: unknown): string[] {
+  return (rows as EmbeddedPermission[]).flatMap((row) => {
+    const embedded = row.permissions
+    if (!embedded) return []
+    return Array.isArray(embedded) ? embedded.map((item) => item.key) : [embedded.key]
+  })
 }
 
 export function createRbacRepository(config: AppConfig = loadConfig()): RbacRepository {

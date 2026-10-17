@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils'
 
 const sources = {
-  mark: '/brand/logo.png',
-  wordmark: '/brand/wordmark.png',
+  mark: { src: '/brand/logo.png', width: 147, height: 126 },
+  wordmark: { src: '/brand/wordmark.png', width: 644, height: 164 },
 } as const
 
 type BrandLogoProps = {
@@ -11,7 +11,14 @@ type BrandLogoProps = {
 }
 
 export function BrandLogo({ variant = 'mark', className }: BrandLogoProps) {
+  const { src, width, height } = sources[variant]
   return (
-    <img src={sources[variant]} alt="Original IQ" className={cn('object-contain', className)} />
+    <img
+      src={src}
+      alt="Original IQ"
+      width={width}
+      height={height}
+      className={cn('object-contain', className)}
+    />
   )
 }

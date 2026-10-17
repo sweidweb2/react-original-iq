@@ -7,10 +7,10 @@ import {
   CircleCheck,
   ClipboardCheck,
   Copy,
+  CreditCard,
   Eye,
   Layers,
   Lock,
-  Mail,
   Phone,
   Shield,
   User,
@@ -25,8 +25,8 @@ import { cn } from '@/lib/utils'
 
 import { usePublicDictionary } from './i18n'
 
-const PAYMENT_EMAIL = 'info@original-iq.com'
-const PAYMENT_PHONE = '+961 70 858 167'
+const PAYMENT_IBAN = 'LB12 3456 7890 1234 5678 9012 3456'
+const PAYMENT_WHISH_PHONE = '+961 3 123 456'
 const APPLY_URL = 'https://forms.gle/1T9au5gptw4bLbPZA'
 
 const statTones = ['text-chart-5', 'text-accent', 'text-warning', 'text-chart-5', 'text-accent']
@@ -52,9 +52,9 @@ const portraits = [
 export function AboutPage() {
   const t = usePublicDictionary().about
   useDocumentTitle(t.documentTitle)
-  const [copied, setCopied] = useState<'email' | 'phone' | null>(null)
+  const [copied, setCopied] = useState<'iban' | 'phone' | null>(null)
 
-  async function copyValue(kind: 'email' | 'phone', value: string) {
+  async function copyValue(kind: 'iban' | 'phone', value: string) {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(kind)
@@ -125,9 +125,12 @@ export function AboutPage() {
             {t.passion}
           </h2>
           <img
-            src="/marketing/about-team.png"
+            src="/marketing/about-team.webp"
             alt={t.teamImageAlt}
-            className="mx-auto mt-10 w-full max-w-4xl rounded-lg object-cover shadow-lg"
+            width={1200}
+            height={799}
+            fetchPriority="high"
+            className="mx-auto mt-10 h-auto w-full max-w-4xl rounded-lg object-cover shadow-lg"
           />
           <dl className="mx-auto mt-10 flex max-w-4xl flex-col items-center justify-around gap-8 rounded-lg border border-border bg-card px-4 py-8 shadow-md sm:flex-row sm:flex-wrap sm:py-12">
             {t.stats.map((stat, index) => (
@@ -160,27 +163,27 @@ export function AboutPage() {
 
           <div className="grid gap-8 md:grid-cols-2">
             <PaymentCard
-              title={t.emailCard.title}
-              description={t.emailCard.description}
-              label={t.emailCard.label}
-              value={PAYMENT_EMAIL}
-              copied={copied === 'email'}
-              onCopy={() => copyValue('email', PAYMENT_EMAIL)}
-              icon={Mail}
+              title={t.bankCard.title}
+              description={t.bankCard.description}
+              label={t.bankCard.label}
+              value={PAYMENT_IBAN}
+              copied={copied === 'iban'}
+              onCopy={() => copyValue('iban', PAYMENT_IBAN.replace(/\s/g, ''))}
+              icon={CreditCard}
               iconClass="bg-gradient-to-br from-primary to-primary-dark"
-              feature={t.emailCard.feature}
+              feature={t.bankCard.feature}
               featureIcon={Shield}
             />
             <PaymentCard
-              title={t.whatsappCard.title}
-              description={t.whatsappCard.description}
-              label={t.whatsappCard.label}
-              value={PAYMENT_PHONE}
+              title={t.whishCard.title}
+              description={t.whishCard.description}
+              label={t.whishCard.label}
+              value={PAYMENT_WHISH_PHONE}
               copied={copied === 'phone'}
-              onCopy={() => copyValue('phone', PAYMENT_PHONE)}
+              onCopy={() => copyValue('phone', PAYMENT_WHISH_PHONE)}
               icon={Phone}
               iconClass="bg-accent"
-              feature={t.whatsappCard.feature}
+              feature={t.whishCard.feature}
               featureIcon={Zap}
             />
           </div>
@@ -221,9 +224,13 @@ export function AboutPage() {
             </ol>
             <div className="lg:sticky lg:top-24">
               <img
-                src="/marketing/payment-online.png"
+                src="/marketing/payment-online.webp"
                 alt={t.paymentImageAlt}
-                className="mx-auto w-full max-w-md rounded-xl object-contain shadow-md"
+                width={896}
+                height={720}
+                loading="lazy"
+                decoding="async"
+                className="mx-auto h-auto w-full max-w-md rounded-xl object-contain shadow-md"
               />
             </div>
           </div>

@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { useCan } from '@/lib/permissions'
 import {
   createTask,
   listTasks,
@@ -77,9 +78,10 @@ export function TasksPage() {
   const { pathname } = useLocation()
   const base = pathname.replace(/\/tasks\/?$/, '') || pathname
   const role = useAuthStore((s) => s.user?.role)
-  const canCreate =
-    role === 'client' || role === 'admin' || role === 'coordinator' || role === 'super'
-  const needsClientPick = role === 'admin' || role === 'coordinator' || role === 'super'
+  const can = useCan()
+  const ownRequest = role === 'client' && can('create_own_tasks')
+  const needsClientPick = !ownRequest && can('create_tasks')
+  const canCreate = ownRequest || needsClientPick
 
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')

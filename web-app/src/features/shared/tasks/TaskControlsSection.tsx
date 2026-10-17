@@ -40,14 +40,16 @@ function ClientViewSwitch({
 
 export function TaskControlsSection({
   task,
-  isAdmin,
+  canToggleAllowView,
+  canCancel,
   isActing,
   onCancel,
   onActivate,
   onToggleAllowView,
 }: {
   task: TaskDetail
-  isAdmin: boolean
+  canToggleAllowView: boolean
+  canCancel: boolean
   isActing: boolean
   onCancel: () => void
   onActivate: () => void
@@ -59,7 +61,7 @@ export function TaskControlsSection({
   return (
     <SectionCard title="Task controls" description="Visibility and lifecycle of this task.">
       <div className="divide-y divide-border">
-        {isAdmin ? (
+        {canToggleAllowView ? (
           <div className="flex items-center justify-between gap-4 pb-4">
             <div className="min-w-0">
               <p className="text-sm font-medium">Client view</p>
@@ -76,39 +78,45 @@ export function TaskControlsSection({
             />
           </div>
         ) : null}
-        <div className={cn('flex items-center justify-between gap-4', isAdmin && 'pt-4')}>
-          <div className="min-w-0">
-            <p className="text-sm font-medium">{isCancelled ? 'Reactivate task' : 'Cancel task'}</p>
-            <p className="text-sm text-muted-foreground">
-              {isCancelled
-                ? 'Bring this task back into the active workflow.'
-                : isCompleted
-                  ? 'Completed tasks cannot be cancelled.'
-                  : 'Stop all work on this task. You can reactivate it later.'}
-            </p>
+        {canCancel ? (
+          <div
+            className={cn('flex items-center justify-between gap-4', canToggleAllowView && 'pt-4')}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {isCancelled ? 'Reactivate task' : 'Cancel task'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {isCancelled
+                  ? 'Bring this task back into the active workflow.'
+                  : isCompleted
+                    ? 'Completed tasks cannot be cancelled.'
+                    : 'Stop all work on this task. You can reactivate it later.'}
+              </p>
+            </div>
+            {isCompleted ? null : isCancelled ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={isActing}
+                onClick={onActivate}
+              >
+                Activate
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="danger-soft"
+                size="sm"
+                disabled={isActing}
+                onClick={onCancel}
+              >
+                Cancel task
+              </Button>
+            )}
           </div>
-          {isCompleted ? null : isCancelled ? (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={isActing}
-              onClick={onActivate}
-            >
-              Activate
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="danger-soft"
-              size="sm"
-              disabled={isActing}
-              onClick={onCancel}
-            >
-              Cancel task
-            </Button>
-          )}
-        </div>
+        ) : null}
       </div>
     </SectionCard>
   )

@@ -14,7 +14,7 @@ import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
-import { canManageRole, ROLE_OPTIONS } from '@/lib/permissions'
+import { canManageRole, ROLE_OPTIONS, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import type { AuthRole } from '@/services/auth'
 import { toastApiError, toastSuccess } from '@/services/toast'
@@ -98,8 +98,9 @@ function formatDate(iso: string): string {
 
 export function ManageUsersPage() {
   useDocumentTitle('Users')
-  const currentUserId = useAuthStore((state) => state.user?.id)
-  const actorRole = useAuthStore((state) => state.user?.role)
+  const actor = useAuthStore((state) => state.user)
+  const currentUserId = actor?.id
+  const can = useCan()
 
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
@@ -247,15 +248,17 @@ export function ManageUsersPage() {
         title="Users"
         description="Create accounts, update roles, and turn access on or off."
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null)
-              setFormMode('create')
-            }}
-          >
-            <UserPlus className="size-4" />
-            Add user
-          </Button>
+          can('create_users') ? (
+            <Button
+              onClick={() => {
+                setEditing(null)
+                setFormMode('create')
+              }}
+            >
+              <UserPlus className="size-4" />
+              Add user
+            </Button>
+          ) : undefined
         }
       />
 
@@ -361,7 +364,9 @@ export function ManageUsersPage() {
                     {users.map((user) => {
                       const name = userDisplayName(user)
                       const isSelf = user.id === currentUserId
-                      const canManage = canManageRole(actorRole, user.role)
+                      const canManage = canManageRole(actor, user.role)
+                      const canToggle = canManage && can('activate_users')
+                      const canEdit = canManage && can('manage_users')
                       return (
                         <tr key={user.id} className="border-b border-border last:border-0">
                           <td className="px-2 py-3 font-medium">
@@ -388,18 +393,18 @@ export function ManageUsersPage() {
                             <div className="flex justify-center">
                               <AccessSwitch
                                 checked={user.status === 'ACTIVE'}
-                                disabled={isSelf || !canManage || isActing}
+                                disabled={isSelf || !canToggle || isActing}
                                 label={
                                   isSelf
                                     ? 'Your account stays active'
-                                    : !canManage
-                                      ? 'Only a super user can change super accounts'
+                                    : !canToggle
+                                      ? `You can't change access for ${name}`
                                       : user.status === 'ACTIVE'
                                         ? `Deactivate ${name}`
                                         : `Activate ${name}`
                                 }
                                 onToggle={() => {
-                                  if (!isSelf && canManage) setPending(user)
+                                  if (!isSelf && canToggle) setPending(user)
                                 }}
                               />
                             </div>
@@ -416,12 +421,8 @@ export function ManageUsersPage() {
                                 </Link>
                               </Tooltip>
                               <IconAction
-                                label={
-                                  canManage
-                                    ? `Edit ${name}`
-                                    : 'Only a super user can edit super accounts'
-                                }
-                                disabled={!canManage}
+                                label={canEdit ? `Edit ${name}` : `You can't edit ${name}`}
+                                disabled={!canEdit}
                                 onClick={() => {
                                   setEditing(user)
                                   setFormMode('edit')

@@ -8,9 +8,10 @@ import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { PORTALS } from '@/features/portals/portalNav'
 import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
 import { type FieldErrors, parseForm } from '@/lib/form'
-import { assignableRoles, canManageRole, ROLE_OPTIONS } from '@/lib/permissions'
+import { assignableRoles, canManageRole, ROLE_OPTIONS, useCan } from '@/lib/permissions'
 import type { AuthRole } from '@/services/auth'
 import {
   assignUserPermissions,
@@ -61,10 +62,18 @@ export function ManageUserProfilePage() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const actor = useAuthStore((s) => s.user)
-  const isAdmin = actor?.role === 'admin' || actor?.role === 'super'
-  const canDelete = isAdmin || actor?.role === 'coordinator'
+  const can = useCan()
+  const canDelete = can('delete_users')
+  const canChangeRole = can('change_user_roles')
+  const canChangeStatus = can('activate_users')
+  const canResetPassword = can('reset_user_passwords')
+  const canManageSpecs = can('manage_specializations')
+  const canAssignPermissions = can('assign_user_permissions')
   const portalBase = pathname.replace(/\/users\/[^/]+\/?$/, '')
-  const hasUsersList = isAdmin
+  const hasUsersList = PORTALS.some(
+    (portal) =>
+      portal.path === portalBase && portal.nav.some((item) => item.to === `${portalBase}/users`),
+  )
   const backTo = hasUsersList ? `${portalBase}/users` : portalBase
 
   const [user, setUser] = useState<ManagedUser | null>(null)
@@ -86,8 +95,10 @@ export function ManageUserProfilePage() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([])
   const [permsBusy, setPermsBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const canManageTarget = !user || user.id === actor?.id || canManageRole(actor?.role, user.role)
-  const roleOptions = canManageTarget ? assignableRoles(actor?.role) : ROLE_OPTIONS
+  const isSelf = Boolean(user && user.id === actor?.id)
+  const canManageTarget =
+    !user || isSelf || (can('manage_users') && canManageRole(actor, user.role))
+  const roleOptions = canManageTarget ? assignableRoles(actor) : ROLE_OPTIONS
 
   const breadcrumbs = usePortalBreadcrumbs([
     ...(hasUsersList ? [{ label: 'Users', path: 'users' }] : []),
@@ -121,7 +132,7 @@ export function ManageUserProfilePage() {
       } else {
         setSpecs([])
       }
-      if (isAdmin) {
+      if (canAssignPermissions) {
         const [catalog, assigned] = await Promise.all([
           listPermissions().catch(() => ({ data: [] as RbacPermission[] })),
           getUserPermissions(data.id).catch(() => ({ permissionIds: [] as string[] })),
@@ -155,11 +166,11 @@ export function ManageUserProfilePage() {
     try {
       const payload: Parameters<typeof updateUser>[1] = {}
       if (parsed.data.name) payload.name = parsed.data.name
-      if (isAdmin) {
-        if (parsed.data.role !== user.role) payload.role = parsed.data.role
-        if (parsed.data.status !== user.status) payload.status = parsed.data.status
-        if (parsed.data.password) payload.password = parsed.data.password
+      if (canChangeRole && parsed.data.role !== user.role) payload.role = parsed.data.role
+      if (canChangeStatus && parsed.data.status !== user.status) {
+        payload.status = parsed.data.status
       }
+      if (canResetPassword && parsed.data.password) payload.password = parsed.data.password
       const updated = await updateUser(user.id, payload)
       setUser(updated)
       setValues((prev) => ({
@@ -178,7 +189,7 @@ export function ManageUserProfilePage() {
   }
 
   async function onDeactivate() {
-    if (!user || !isAdmin) return
+    if (!user || !canChangeStatus) return
     setDeactivating(true)
     try {
       const updated = await deactivateUser(user.id)
@@ -199,11 +210,7 @@ export function ManageUserProfilePage() {
       breadcrumbs={breadcrumbs}
       actions={
         <>
-          {isAdmin &&
-          canManageTarget &&
-          user &&
-          user.status === 'ACTIVE' &&
-          user.id !== actor?.id ? (
+          {canChangeStatus && canManageTarget && user && user.status === 'ACTIVE' && !isSelf ? (
             <Button
               type="button"
               variant="danger-soft"
@@ -236,9 +243,7 @@ export function ManageUserProfilePage() {
               description={
                 canManageTarget
                   ? 'Update profile fields for this account.'
-                  : user.role === 'super'
-                    ? 'Only a super user can change super accounts.'
-                    : "You don't have permission to change this account."
+                  : "You don't have permission to change this account."
               }
             >
               <form id="manage-user-form" onSubmit={onSave} className="grid gap-4 sm:grid-cols-2">
@@ -262,7 +267,7 @@ export function ManageUserProfilePage() {
                   <Select
                     id="user-role"
                     value={values.role}
-                    disabled={!isAdmin || !canManageTarget || user.id === actor?.id}
+                    disabled={!canChangeRole || !canManageTarget || isSelf}
                     onChange={(e) => setValues((p) => ({ ...p, role: e.target.value as AuthRole }))}
                   >
                     {roleOptions.map((option) => (
@@ -278,7 +283,7 @@ export function ManageUserProfilePage() {
                   <Select
                     id="user-status"
                     value={values.status}
-                    disabled={!isAdmin || !canManageTarget || user.id === actor?.id}
+                    disabled={!canChangeStatus || !canManageTarget || isSelf}
                     onChange={(e) =>
                       setValues((p) => ({ ...p, status: e.target.value as UserStatus }))
                     }
@@ -288,7 +293,7 @@ export function ManageUserProfilePage() {
                   </Select>
                   <FieldError>{fieldErrors.status}</FieldError>
                 </Field>
-                {isAdmin && canManageTarget ? (
+                {canResetPassword && canManageTarget ? (
                   <Field data-invalid={Boolean(fieldErrors.password) || undefined}>
                     <FieldLabel htmlFor="user-password">New password (optional)</FieldLabel>
                     <Input
@@ -308,33 +313,35 @@ export function ManageUserProfilePage() {
 
             {user.role === 'tutor' ? (
               <SectionCard title="Specializations" description="Subjects or skills for this tutor.">
-                <form
-                  className="mb-4 flex flex-wrap gap-2"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    const name = specName.trim()
-                    if (!name) return
-                    setSpecBusy(true)
-                    void createSpecialization({ tutorId: user.id, name })
-                      .then(() => {
-                        toastSuccess('Specialization added', `“${name}” added to this tutor.`)
-                        setSpecName('')
-                        return loadSpecs(user.id)
-                      })
-                      .catch((err) => toastApiError(err, `Couldn't add “${name}”`))
-                      .finally(() => setSpecBusy(false))
-                  }}
-                >
-                  <Input
-                    className="max-w-xs"
-                    placeholder="e.g. Calculus"
-                    value={specName}
-                    onChange={(e) => setSpecName(e.target.value)}
-                  />
-                  <Button type="submit" size="sm" disabled={specBusy || !specName.trim()}>
-                    Add
-                  </Button>
-                </form>
+                {canManageSpecs ? (
+                  <form
+                    className="mb-4 flex flex-wrap gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      const name = specName.trim()
+                      if (!name) return
+                      setSpecBusy(true)
+                      void createSpecialization({ tutorId: user.id, name })
+                        .then(() => {
+                          toastSuccess('Specialization added', `“${name}” added to this tutor.`)
+                          setSpecName('')
+                          return loadSpecs(user.id)
+                        })
+                        .catch((err) => toastApiError(err, `Couldn't add “${name}”`))
+                        .finally(() => setSpecBusy(false))
+                    }}
+                  >
+                    <Input
+                      className="max-w-xs"
+                      placeholder="e.g. Calculus"
+                      value={specName}
+                      onChange={(e) => setSpecName(e.target.value)}
+                    />
+                    <Button type="submit" size="sm" disabled={specBusy || !specName.trim()}>
+                      Add
+                    </Button>
+                  </form>
+                ) : null}
                 {specs.length === 0 ? (
                   <EmptyState
                     title="No specializations"
@@ -348,24 +355,28 @@ export function ManageUserProfilePage() {
                         className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
                       >
                         <span className="font-medium">{spec.name}</span>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          disabled={specBusy}
-                          onClick={() => {
-                            setSpecBusy(true)
-                            void deleteSpecialization(spec.id)
-                              .then(() => {
-                                toastSuccess('Specialization removed', `“${spec.name}” removed.`)
-                                return loadSpecs(user.id)
-                              })
-                              .catch((err) => toastApiError(err, `Couldn't remove “${spec.name}”`))
-                              .finally(() => setSpecBusy(false))
-                          }}
-                        >
-                          Remove
-                        </Button>
+                        {canManageSpecs ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={specBusy}
+                            onClick={() => {
+                              setSpecBusy(true)
+                              void deleteSpecialization(spec.id)
+                                .then(() => {
+                                  toastSuccess('Specialization removed', `“${spec.name}” removed.`)
+                                  return loadSpecs(user.id)
+                                })
+                                .catch((err) =>
+                                  toastApiError(err, `Couldn't remove “${spec.name}”`),
+                                )
+                                .finally(() => setSpecBusy(false))
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
@@ -388,10 +399,10 @@ export function ManageUserProfilePage() {
               />
             </SectionCard>
 
-            {isAdmin ? (
+            {canAssignPermissions ? (
               <SectionCard
                 title="Permissions"
-                description="Fine-grained permissions for this user (admin only)."
+                description="Direct permissions for this user, on top of their role's."
               >
                 {allPermissions.length === 0 ? (
                   <EmptyState
@@ -453,34 +464,38 @@ export function ManageUserProfilePage() {
               </SectionCard>
             ) : null}
 
-            <SectionCard
-              title="Danger zone"
-              description="Safe delete when the user has no active tasks or money rows."
-            >
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                disabled={!canDelete || !canManageTarget || deleting || user.id === actor?.id}
-                onClick={() => {
-                  if (!window.confirm(`Permanently delete ${userDisplayName(user)}?`)) return
-                  setDeleting(true)
-                  void deleteUser(user.id)
-                    .then(() => {
-                      toastSuccess(
-                        'User deleted',
-                        `${userDisplayName(user)} was permanently removed.`,
-                      )
-                      navigate(backTo)
-                    })
-                    .catch((err) => toastApiError(err, `Couldn't delete ${userDisplayName(user)}`))
-                    .finally(() => setDeleting(false))
-                }}
+            {canDelete ? (
+              <SectionCard
+                title="Danger zone"
+                description="Safe delete when the user has no active tasks or money rows."
               >
-                {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-                Delete user
-              </Button>
-            </SectionCard>
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  disabled={!canManageRole(actor, user.role) || deleting || isSelf}
+                  onClick={() => {
+                    if (!window.confirm(`Permanently delete ${userDisplayName(user)}?`)) return
+                    setDeleting(true)
+                    void deleteUser(user.id)
+                      .then(() => {
+                        toastSuccess(
+                          'User deleted',
+                          `${userDisplayName(user)} was permanently removed.`,
+                        )
+                        navigate(backTo)
+                      })
+                      .catch((err) =>
+                        toastApiError(err, `Couldn't delete ${userDisplayName(user)}`),
+                      )
+                      .finally(() => setDeleting(false))
+                  }}
+                >
+                  {deleting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+                  Delete user
+                </Button>
+              </SectionCard>
+            ) : null}
           </>
         ) : (
           <EmptyState title="User not found" description="This account may have been removed." />

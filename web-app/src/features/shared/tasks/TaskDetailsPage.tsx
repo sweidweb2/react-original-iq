@@ -90,14 +90,16 @@ export function TaskDetailsPage() {
   }
 
   const { task } = model
-  const canUploadDocs = model.isStaff || (model.isClient && task.clientId === model.userId)
-  const canManageSolutions = model.isStaff || (model.isTutor && model.assignedTutor)
+  const showControls = model.canCancelTasks || model.canToggleAllowView
   const tabs: TabItem<TaskTab>[] = [
     { id: 'details', label: 'Details' },
     { id: 'documents', label: 'Documents', count: task.files.length + task.solutions.length },
-    { id: 'payments', label: 'Payments' },
-    { id: 'revision', label: 'Revision', count: model.revisions.length },
+    ...(model.canViewPaymentSummary ? [{ id: 'payments' as const, label: 'Payments' }] : []),
+    ...(model.canViewRevisions
+      ? [{ id: 'revision' as const, label: 'Revision', count: model.revisions.length }]
+      : []),
   ]
+  const visibleTab = tabs.some((tab) => tab.id === activeTab) ? activeTab : 'details'
 
   return (
     <PortalPageShell
@@ -164,13 +166,13 @@ export function TaskDetailsPage() {
 
       <Tabs
         items={tabs}
-        value={activeTab}
+        value={visibleTab}
         onChange={onTabChange}
         label="Task sections"
         idPrefix={TABS_ID}
       />
 
-      {activeTab === 'details' ? (
+      {visibleTab === 'details' ? (
         <TabPanel idPrefix={TABS_ID} id="details">
           <div className="flex flex-col gap-6">
             <TaskInfoSection
@@ -181,24 +183,26 @@ export function TaskDetailsPage() {
               onEdit={() => model.setEditOpen(true)}
               onDelete={() => void model.onDeleteTask()}
             />
-            {model.isStaff ? (
+            {model.canAssignTutors || model.canChangeCoordinator ? (
               <div className="grid gap-6 lg:grid-cols-2">
-                <TaskTutorSection
-                  task={task}
-                  tutors={model.tutors}
-                  isLoading={model.tutorsLoading}
-                  isActing={model.isActing}
-                  selectedTutorId={model.selectedTutorId}
-                  onSelectedTutorIdChange={model.setSelectedTutorId}
-                  onAssignTutor={(event) => void model.onAssignTutor(event)}
-                  onRemoveTutor={() =>
-                    void model.runTaskAction(
-                      { success: 'Tutor removed', failure: "Couldn't remove the tutor" },
-                      () => model.removeTutor(task.id),
-                    )
-                  }
-                />
-                {model.isAdmin ? (
+                {model.canAssignTutors ? (
+                  <TaskTutorSection
+                    task={task}
+                    tutors={model.tutors}
+                    isLoading={model.tutorsLoading}
+                    isActing={model.isActing}
+                    selectedTutorId={model.selectedTutorId}
+                    onSelectedTutorIdChange={model.setSelectedTutorId}
+                    onAssignTutor={(event) => void model.onAssignTutor(event)}
+                    onRemoveTutor={() =>
+                      void model.runTaskAction(
+                        { success: 'Tutor removed', failure: "Couldn't remove the tutor" },
+                        () => model.removeTutor(task.id),
+                      )
+                    }
+                  />
+                ) : null}
+                {model.canChangeCoordinator ? (
                   <TaskCoordinatorSection
                     task={task}
                     coordinators={model.coordinators}
@@ -211,10 +215,11 @@ export function TaskDetailsPage() {
                 ) : null}
               </div>
             ) : null}
-            {model.isStaff ? (
+            {showControls ? (
               <TaskControlsSection
                 task={task}
-                isAdmin={model.isAdmin}
+                canToggleAllowView={model.canToggleAllowView}
+                canCancel={model.canCancelTasks}
                 isActing={model.isActing}
                 onCancel={() =>
                   model.runTaskAction(
@@ -250,12 +255,14 @@ export function TaskDetailsPage() {
         </TabPanel>
       ) : null}
 
-      {activeTab === 'documents' ? (
+      {visibleTab === 'documents' ? (
         <TabPanel idPrefix={TABS_ID} id="documents">
           <div className="grid gap-6 lg:grid-cols-2">
             <TaskDocumentsSection
               task={task}
-              canUpload={Boolean(canUploadDocs)}
+              canUpload={model.canUploadDocs}
+              canRemove={model.canRemoveDocs}
+              canZip={model.canZip}
               isActing={model.isActing}
               uploadProgress={model.uploadTarget === 'documents' ? model.uploadProgress : null}
               isZipping={model.zipping === 'documents'}
@@ -266,7 +273,9 @@ export function TaskDetailsPage() {
             />
             <TaskSolutionsSection
               task={task}
-              canManage={Boolean(canManageSolutions)}
+              canUpload={model.canUploadSolutions}
+              canRemove={model.canRemoveSolutions}
+              canZip={model.canZip}
               isActing={model.isActing}
               uploadProgress={model.uploadTarget === 'solutions' ? model.uploadProgress : null}
               isZipping={model.zipping === 'solutions'}
@@ -279,7 +288,7 @@ export function TaskDetailsPage() {
         </TabPanel>
       ) : null}
 
-      {activeTab === 'payments' ? (
+      {visibleTab === 'payments' ? (
         <TabPanel idPrefix={TABS_ID} id="payments">
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <TaskPaymentsSection
@@ -287,7 +296,7 @@ export function TaskDetailsPage() {
               taskId={model.taskId}
               tasksBase={model.tasksBase}
               canViewPayments={model.canViewPayments}
-              canEditPrice={model.isStaff}
+              canEditPrice={model.canSetPrice}
               onEditPrice={() => model.setPriceOpen(true)}
             />
             <aside aria-label="Currency conversion">
@@ -297,13 +306,13 @@ export function TaskDetailsPage() {
         </TabPanel>
       ) : null}
 
-      {activeTab === 'revision' ? (
+      {visibleTab === 'revision' ? (
         <TabPanel idPrefix={TABS_ID} id="revision">
           <TaskRevisionSection
             taskId={model.taskId}
             tasksBase={model.tasksBase}
             revisions={model.revisions}
-            canManageRevisions={model.canManageRevisions}
+            canCreateRevisions={model.canCreateRevisions}
             onCreateRevision={() => model.setRevisionOpen(true)}
           />
         </TabPanel>

@@ -90,3 +90,29 @@ describe('PortalShell account menu', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeVisible()
   })
 })
+
+describe('PortalShell navigation', () => {
+  afterEach(() => {
+    cleanup()
+    useAuthStore.setState({ user: null, tokens: null })
+  })
+
+  it('hides nav items the user has no permission for', () => {
+    useAuthStore.setState({
+      user: {
+        id: 'user-1',
+        email: 'ada@example.com',
+        role: 'admin',
+        permissions: ['view_tasks', 'manage_leads'],
+        profile: null,
+      },
+      tokens: null,
+      isHydrated: true,
+    })
+    renderPortal()
+
+    const nav = screen.getByRole('navigation')
+    const labels = [...nav.querySelectorAll('a')].map((link) => link.textContent)
+    expect(labels).toEqual(['Tasks', 'Leads', 'Profile'])
+  })
+})

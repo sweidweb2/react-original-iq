@@ -30,7 +30,17 @@ export type RbacService = {
   ) => Promise<{ permissionIds: string[] }>
 }
 
-export function createRbacService(repository: RbacRepository): RbacService {
+export type RbacServiceDeps = {
+  /** Called after any write that can change someone's effective permissions. */
+  onChange?: () => void
+}
+
+export function createRbacService(
+  repository: RbacRepository,
+  deps: RbacServiceDeps = {},
+): RbacService {
+  const changed = () => deps.onChange?.()
+
   async function assertPermissionIds(ids: string[]) {
     const unique = [...new Set(ids)]
     if (unique.length !== ids.length) {
@@ -61,6 +71,7 @@ export function createRbacService(repository: RbacRepository): RbacService {
           description: input.description,
           sortOrder: input.sortOrder,
         })
+        changed()
         getLoggingService().recordActivitySafe({
           action: 'rbac.role.create',
           entity: 'role',
@@ -95,6 +106,7 @@ export function createRbacService(repository: RbacRepository): RbacService {
       }
       const deleted = await repository.deleteRole(id)
       if (!deleted) throw notFound('Role not found', 'ROLE_NOT_FOUND')
+      changed()
       getLoggingService().recordActivitySafe({
         action: 'rbac.role.delete',
         entity: 'role',
@@ -107,6 +119,7 @@ export function createRbacService(repository: RbacRepository): RbacService {
       await assertPermissionIds(input.permissionIds)
       const updated = await repository.setRolePermissions(id, input.permissionIds)
       if (!updated) throw notFound('Role not found', 'ROLE_NOT_FOUND')
+      changed()
       getLoggingService().recordActivitySafe({
         action: 'rbac.role.assign_permissions',
         entity: 'role',
@@ -157,6 +170,7 @@ export function createRbacService(repository: RbacRepository): RbacService {
     async deletePermission(id) {
       const deleted = await repository.deletePermission(id)
       if (!deleted) throw notFound('Permission not found', 'PERMISSION_NOT_FOUND')
+      changed()
       getLoggingService().recordActivitySafe({
         action: 'rbac.permission.delete',
         entity: 'permission',
@@ -172,6 +186,7 @@ export function createRbacService(repository: RbacRepository): RbacService {
     async assignUserPermissions(userId, input) {
       await assertPermissionIds(input.permissionIds)
       const permissionIds = await repository.setUserPermissions(userId, input.permissionIds)
+      changed()
       getLoggingService().recordActivitySafe({
         action: 'rbac.user.assign_permissions',
         entity: 'user',

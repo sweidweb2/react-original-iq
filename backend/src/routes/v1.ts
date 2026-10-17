@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { setPermissionSource } from '../authz/index.js'
 import type { AppConfig } from '../config/index.js'
 import { loadConfig } from '../config/index.js'
 import { getMailer, withSendGate } from '../mail/index.js'
@@ -39,6 +40,9 @@ export type V1Deps = {
 export function createV1Router(deps: V1Deps = {}): Router {
   const router = Router()
   const config = deps.config ?? loadConfig()
+
+  const rbacModule = createRbacModule(config)
+  setPermissionSource(rbacModule.permissions.resolve)
 
   const settingsModule = createSettingsModule(config, deps.settings)
   const settings = settingsModule.service
@@ -109,7 +113,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
       contactRepository,
     }),
   )
-  router.use('/rbac', createRbacModule(config))
+  router.use('/rbac', rbacModule.routes)
   router.use('/backups', createBackupsModule(config))
   router.use('/analytics', createAnalyticsModule(config))
 

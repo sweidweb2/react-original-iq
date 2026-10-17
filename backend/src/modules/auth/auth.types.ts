@@ -15,6 +15,8 @@ export type AuthUserDto = {
   id: string
   email: string
   role: RoleName
+  /** Effective permission keys (role grants plus direct grants). */
+  permissions: string[]
   phone: string | null
   profile: AuthProfileDto | null
 }

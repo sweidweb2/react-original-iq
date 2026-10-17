@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
-import { getSupabaseAdmin } from '../../database/index.js'
+import { getSupabaseAdmin, selectAllPages } from '../../database/index.js'
 import { notFound } from '../../errors/app-error.js'
 import { fromMinor, sumMinor, toMinor } from '../_shared/money.js'
 import {
@@ -513,20 +513,24 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
       return sumAmounts('refunds', taskId)
     },
     async exportAllPayments() {
-      const { data, error } = await client
-        .from('payments')
-        .select(PAYMENT_COLUMNS)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      return (data as PaymentRow[]).map(fromPaymentRow)
+      const rows = await selectAllPages<PaymentRow>(() =>
+        client
+          .from('payments')
+          .select(PAYMENT_COLUMNS)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false }),
+      )
+      return rows.map(fromPaymentRow)
     },
     async exportAllRefunds() {
-      const { data, error } = await client
-        .from('refunds')
-        .select(REFUND_COLUMNS)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      return (data as RefundRow[]).map(fromRefundRow)
+      const rows = await selectAllPages<RefundRow>(() =>
+        client
+          .from('refunds')
+          .select(REFUND_COLUMNS)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false }),
+      )
+      return rows.map(fromRefundRow)
     },
   }
 }

@@ -1,4 +1,4 @@
-import { type AuthActor, isAdmin, isSuper } from '../../authz/index.js'
+import { type AuthActor, hasPermission } from '../../authz/index.js'
 import { forbidden } from '../../errors/app-error.js'
 import type { AnalyticsRepository, AnalyticsSnapshot } from './analytics.repository.js'
 import type {
@@ -202,8 +202,8 @@ export function createAnalyticsService(
 ): AnalyticsService {
   return {
     async getOverview(actor) {
-      if (!isSuper(actor.roles) && !isAdmin(actor.roles)) {
-        throw forbidden('Only admins can view analytics')
+      if (!hasPermission(actor, 'view_reports')) {
+        throw forbidden('You cannot view analytics')
       }
       const now = clock()
       const since = new Date(now.getTime() - RECENT_DAYS * 24 * 60 * 60 * 1000)

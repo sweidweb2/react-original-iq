@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
-import { getSupabaseAdmin } from '../../database/index.js'
+import { getSupabaseAdmin, selectAllPages } from '../../database/index.js'
 import { ilikeAny } from '../_shared/query.js'
 import type {
   AccountRecord,
@@ -236,13 +236,14 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
 
   return {
     async findMany() {
-      const { data, error } = await client
-        .from('users')
-        .select(PUBLIC_USER_COLUMNS)
-        .order('created_at', { ascending: true })
-
-      if (error) throw error
-      return (data as PublicUserRow[]).map(toUser)
+      const rows = await selectAllPages<PublicUserRow>(() =>
+        client
+          .from('users')
+          .select(PUBLIC_USER_COLUMNS)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true }),
+      )
+      return rows.map(toUser)
     },
 
     async findActiveByRole(role) {
@@ -280,13 +281,24 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
     },
 
     async countStats() {
-      const { data, error } = await client.from('users').select('role, is_active')
-      if (error) throw error
-      const rows = (data as { role: UserRole; is_active: boolean }[]).map((row) => ({
-        role: row.role,
-        status: (row.is_active ? 'ACTIVE' : 'INACTIVE') as UserStatus,
-      }))
-      return summarize(rows)
+      const count = async (column?: 'role' | 'is_active', value?: string | boolean) => {
+        let query = client.from('users').select('id', { count: 'exact', head: true })
+        if (column) query = query.eq(column, value)
+        const { count: total, error } = await query
+        if (error) throw error
+        return total ?? 0
+      }
+      const roles = Object.keys(EMPTY_ROLE_COUNTS) as UserRole[]
+      const [total, active, ...roleCounts] = await Promise.all([
+        count(),
+        count('is_active', true),
+        ...roles.map((role) => count('role', role)),
+      ])
+      const byRole = { ...EMPTY_ROLE_COUNTS }
+      roles.forEach((role, index) => {
+        byRole[role] = roleCounts[index] ?? 0
+      })
+      return { total, active, inactive: total - active, byRole }
     },
 
     async findById(id) {

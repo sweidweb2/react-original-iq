@@ -1,10 +1,12 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, TriangleAlert } from 'lucide-react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/brand/BrandLogo'
+import { PageFallback } from '@/components/feedback'
 import { Button } from '@/components/ui/button'
+import { type PermissionCheck, useCan } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import type { AuthUser } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
@@ -18,6 +20,8 @@ export type PortalNavItem = {
   label: string
   icon: LucideIcon
   end?: boolean
+  /** Hidden unless the user has this permission (or any of the list). */
+  permission?: PermissionCheck
 }
 
 type PortalShellProps = {
@@ -161,6 +165,7 @@ function SidebarLabel({ collapsed, children }: { collapsed: boolean; children: R
 
 export function PortalShell({ title, nav, profilePath, children }: PortalShellProps) {
   const user = useAuthStore((s) => s.user)
+  const can = useCan()
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -232,27 +237,29 @@ export function PortalShell({ title, nav, profilePath, children }: PortalShellPr
             collapsed && 'md:px-2',
           )}
         >
-          {nav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              title={item.label}
-              onClick={() => setMobileOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  'flex h-9 shrink-0 items-center overflow-hidden rounded-lg text-sm',
-                  collapsed ? 'md:justify-center md:gap-0 md:px-0' : 'gap-2 px-3',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'hover:bg-sidebar-accent/70',
-                )
-              }
-            >
-              <item.icon className="size-4 shrink-0" />
-              <SidebarLabel collapsed={collapsed}>{item.label}</SidebarLabel>
-            </NavLink>
-          ))}
+          {nav
+            .filter((item) => !item.permission || can(item.permission))
+            .map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                title={item.label}
+                onClick={() => setMobileOpen(false)}
+                className={({ isActive }) =>
+                  cn(
+                    'flex h-9 shrink-0 items-center overflow-hidden rounded-lg text-sm',
+                    collapsed ? 'md:justify-center md:gap-0 md:px-0' : 'gap-2 px-3',
+                    isActive
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      : 'hover:bg-sidebar-accent/70',
+                  )
+                }
+              >
+                <item.icon className="size-4 shrink-0" />
+                <SidebarLabel collapsed={collapsed}>{item.label}</SidebarLabel>
+              </NavLink>
+            ))}
         </nav>
         <div className={cn('shrink-0 border-t border-sidebar-border p-3', collapsed && 'md:px-2')}>
           <div
@@ -332,7 +339,9 @@ export function PortalShell({ title, nav, profilePath, children }: PortalShellPr
             </Link>
           </div>
         ) : null}
-        <main className="flex-1 p-4 md:p-6">{children ?? <Outlet />}</main>
+        <main className="flex-1 p-4 md:p-6">
+          <Suspense fallback={<PageFallback />}>{children ?? <Outlet />}</Suspense>
+        </main>
       </div>
     </div>
   )

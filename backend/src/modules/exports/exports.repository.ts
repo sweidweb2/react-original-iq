@@ -1,5 +1,5 @@
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
-import { getSupabaseAdmin } from '../../database/index.js'
+import { getSupabaseAdmin, selectAllPages } from '../../database/index.js'
 
 /** Read-only bulk rows for admin exports of tables without a dedicated listing API. */
 
@@ -107,14 +107,14 @@ function createSupabaseExportsRepository(config: AppConfig): ExportsRepository {
   }
   const client = supabase
 
-  async function selectAll<T>(table: string, columns: string): Promise<T[]> {
-    const { data, error } = await client
-      .from(table)
-      .select(columns)
-      .order('created_at', { ascending: false })
-      .limit(50000)
-    if (error) throw error
-    return (data ?? []) as unknown as T[]
+  function selectAll<T>(table: string, columns: string): Promise<T[]> {
+    return selectAllPages<T>(() =>
+      client
+        .from(table)
+        .select(columns)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false }),
+    )
   }
 
   return {

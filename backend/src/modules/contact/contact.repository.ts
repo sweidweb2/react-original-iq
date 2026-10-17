@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
-import { getSupabaseAdmin } from '../../database/index.js'
+import { getSupabaseAdmin, selectAllPages } from '../../database/index.js'
 import { ilikeAny, isUniqueViolation, nowIso } from '../_shared/query.js'
 import type {
   ContactListFilter,
@@ -290,6 +290,19 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
     throw new Error('Supabase admin client is not available')
   }
 
+  const exportQuery = (table: string, columns: string, searchFields: string[], search?: string) => {
+    let query = client
+      .from(table)
+      .select(columns)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+    if (search) {
+      const clause = ilikeAny(searchFields, search)
+      if (clause) query = query.or(clause)
+    }
+    return query
+  }
+
   return {
     async createMessage(input) {
       const { error } = await client.from('contact_messages').insert({
@@ -356,17 +369,10 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       return (count ?? 0) > 0
     },
     async exportLeads(search) {
-      let query = client
-        .from('leads')
-        .select(LEAD_COLUMNS)
-        .order('created_at', { ascending: false })
-      if (search) {
-        const clause = ilikeAny(LEAD_SEARCH_FIELDS, search)
-        if (clause) query = query.or(clause)
-      }
-      const { data, error } = await query
-      if (error) throw error
-      return (data as LeadRow[]).map(toLead)
+      const rows = await selectAllPages<LeadRow>(() =>
+        exportQuery('leads', LEAD_COLUMNS, LEAD_SEARCH_FIELDS, search),
+      )
+      return rows.map(toLead)
     },
     async listNewsletter(filter) {
       const from = (filter.page - 1) * filter.limit
@@ -405,17 +411,10 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       return (count ?? 0) > 0
     },
     async exportNewsletter(search) {
-      let query = client
-        .from('stay_updated')
-        .select(NEWSLETTER_COLUMNS)
-        .order('created_at', { ascending: false })
-      if (search) {
-        const clause = ilikeAny(NEWSLETTER_SEARCH_FIELDS, search)
-        if (clause) query = query.or(clause)
-      }
-      const { data, error } = await query
-      if (error) throw error
-      return (data as StayUpdatedRow[]).map(toNewsletter)
+      const rows = await selectAllPages<StayUpdatedRow>(() =>
+        exportQuery('stay_updated', NEWSLETTER_COLUMNS, NEWSLETTER_SEARCH_FIELDS, search),
+      )
+      return rows.map(toNewsletter)
     },
     async listMessages(filter) {
       const from = (filter.page - 1) * filter.limit
@@ -468,17 +467,10 @@ function createSupabaseContactRepository(config: AppConfig): ContactRepository {
       return (count ?? 0) > 0
     },
     async exportMessages(search) {
-      let query = client
-        .from('contact_messages')
-        .select(MESSAGE_COLUMNS)
-        .order('created_at', { ascending: false })
-      if (search) {
-        const clause = ilikeAny(MESSAGE_SEARCH_FIELDS, search)
-        if (clause) query = query.or(clause)
-      }
-      const { data, error } = await query
-      if (error) throw error
-      return (data as MessageRow[]).map(toMessage)
+      const rows = await selectAllPages<MessageRow>(() =>
+        exportQuery('contact_messages', MESSAGE_COLUMNS, MESSAGE_SEARCH_FIELDS, search),
+      )
+      return rows.map(toMessage)
     },
   }
 }

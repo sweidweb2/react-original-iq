@@ -1,9 +1,8 @@
 import { Router } from 'express'
 
-import { SUPER_ROLES } from '../../authz/index.js'
 import type { AppConfig } from '../../config/index.js'
 import { createAuthenticate } from '../../middleware/authenticate.js'
-import { authorize } from '../../middleware/authorize.js'
+import { requirePermission } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
 import type { SettingsController } from './settings.controller.js'
 import { updateSettingsBodySchema } from './settings.schema.js'
@@ -14,11 +13,11 @@ export function createSettingsRoutes(controller: SettingsController, config: App
 
   router.get('/status', controller.getStatus)
 
-  router.get('/', authenticate, authorize(...SUPER_ROLES), controller.get)
+  router.get('/', authenticate, requirePermission('manage_system'), controller.get)
   router.patch(
     '/',
     authenticate,
-    authorize(...SUPER_ROLES),
+    requirePermission('manage_system'),
     validate({ body: updateSettingsBodySchema }),
     controller.update,
   )

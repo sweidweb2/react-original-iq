@@ -1,5 +1,5 @@
 import type { AuthActor } from '../../authz/index.js'
-import { hasAnyRole, isAdmin, isSuper } from '../../authz/index.js'
+import { hasPermission, isClient, isTutor } from '../../authz/index.js'
 import { conflict, forbidden, notFound } from '../../errors/app-error.js'
 import { type ListResult, toListResult } from '../_shared/list-result.js'
 import type { Task } from '../tasks/tasks.types.js'
@@ -15,10 +15,6 @@ export type FeedbackService = {
   deleteFeedback: (id: string, actor: AuthActor) => Promise<void>
 }
 
-function isPlatformAdmin(roles: readonly string[]): boolean {
-  return isSuper(roles) || isAdmin(roles)
-}
-
 export type FeedbackServiceDeps = {
   findTask: (taskId: string) => Promise<Pick<Task, 'clientId' | 'tutorId' | 'status'> | null>
 }
@@ -29,7 +25,7 @@ export function createFeedbackService(
 ): FeedbackService {
   return {
     async createFeedback(input, actor) {
-      if (!hasAnyRole(actor.roles, ['client'])) {
+      if (!hasPermission(actor, 'submit_feedback') || !isClient(actor.roles)) {
         throw forbidden('Only clients can submit feedback')
       }
 
@@ -57,21 +53,21 @@ export function createFeedbackService(
       })
     },
 
+    /** Clients see their own, tutors what they received, other viewers everything. */
     async listFeedback(query, actor) {
+      if (!hasPermission(actor, 'view_feedback')) {
+        throw forbidden()
+      }
       const filter: Parameters<FeedbackRepository['findPage']>[0] = {
         page: query.page,
         limit: query.limit,
         search: query.search,
       }
 
-      if (isPlatformAdmin(actor.roles)) {
-        // no scope filter
-      } else if (hasAnyRole(actor.roles, ['tutor'])) {
+      if (isTutor(actor.roles)) {
         filter.tutorId = actor.id
-      } else if (hasAnyRole(actor.roles, ['client'])) {
+      } else if (isClient(actor.roles)) {
         filter.clientId = actor.id
-      } else {
-        throw forbidden()
       }
 
       const page = await repository.findPage(filter)
@@ -79,7 +75,7 @@ export function createFeedbackService(
     },
 
     async deleteFeedback(id, actor) {
-      if (!isPlatformAdmin(actor.roles)) {
+      if (!hasPermission(actor, 'delete_feedback')) {
         throw forbidden()
       }
       const deleted = await repository.deleteById(id)

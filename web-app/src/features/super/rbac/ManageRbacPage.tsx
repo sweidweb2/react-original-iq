@@ -103,7 +103,7 @@ export function ManageRbacPage() {
     <div className="space-y-6">
       <PageHeader
         title="Roles & permissions"
-        description="Seeded RBAC catalog — edit roles, permissions, and assignments. Runtime auth still uses users.role until you wire enforcement."
+        description="Roles grant permissions; the API and portals enforce them. Edits apply within about 30 seconds and at each user's next page load."
         actions={
           tab === 'roles' ? (
             <Button type="button" onClick={() => setRoleForm({ mode: 'create', role: null })}>

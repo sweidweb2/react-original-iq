@@ -1,7 +1,18 @@
 import { ZipArchive } from 'archiver'
 
-import type { AuthActor } from '../../authz/index.js'
-import { assertTaskRelated, isAdmin, isClient, isOps, isSuper, isTutor } from '../../authz/index.js'
+import type { AuthActor, PermissionKey } from '../../authz/index.js'
+import {
+  assertTaskRelated,
+  hasPermission,
+  isAdmin,
+  isClient,
+  isOps,
+  isSuper,
+  isTaskClient,
+  isTaskStaff,
+  isTaskTutor,
+  isTutor,
+} from '../../authz/index.js'
 import {
   AppError,
   conflict,
@@ -135,46 +146,39 @@ function uniqueEntryName(raw: string, used: Set<string>): string {
 }
 
 function scopeForActor(actor: AuthActor): TaskListFilter['scope'] {
-  if (isSuper(actor.roles) || isAdmin(actor.roles)) {
+  if (hasPermission(actor, 'view_all_tasks')) {
     return { kind: 'all' }
   }
-  if (isOps(actor.roles)) {
-    return { kind: 'coordinator', coordinatorId: actor.id }
+  if (hasPermission(actor, 'view_tasks')) {
+    if (isOps(actor.roles)) {
+      return { kind: 'coordinator', coordinatorId: actor.id }
+    }
+    if (isTutor(actor.roles)) {
+      return { kind: 'tutor', tutorId: actor.id }
+    }
+    if (isClient(actor.roles)) {
+      return { kind: 'client', clientId: actor.id }
+    }
   }
-  if (isTutor(actor.roles)) {
-    return { kind: 'tutor', tutorId: actor.id }
-  }
-  if (isClient(actor.roles)) {
-    return { kind: 'client', clientId: actor.id }
-  }
-  throw forbidden('Your role cannot access tasks')
+  throw forbidden('You cannot access tasks')
 }
 
-function assertOps(actor: AuthActor): void {
-  if (!isOps(actor.roles) && !isSuper(actor.roles)) {
-    throw forbidden('Only coordinators or admins can perform this action')
+/** Staff action on a task: needs the permission and the task in the actor's staff scope. */
+function assertStaffAction(
+  actor: AuthActor,
+  task: Task,
+  key: PermissionKey,
+  message = 'You cannot manage this task',
+): void {
+  if (!hasPermission(actor, key) || !isTaskStaff(actor, task)) {
+    throw forbidden(message)
   }
-}
-
-function assertAdmin(actor: AuthActor): void {
-  if (!isAdmin(actor.roles)) {
-    throw forbidden('Only admins can perform this action')
-  }
-}
-
-function canManageTask(actor: AuthActor, task: Task): boolean {
-  if (isAdmin(actor.roles) || isSuper(actor.roles)) return true
-  return isOps(actor.roles) && task.coordinatorId === actor.id
 }
 
 function canViewSolutions(actor: AuthActor, task: Task): boolean {
-  if (isAdmin(actor.roles) || isSuper(actor.roles)) return true
-  if (isOps(actor.roles) && task.coordinatorId === actor.id) return true
-  if (isTutor(actor.roles) && task.tutorId === actor.id) return true
-  if (isClient(actor.roles) && task.clientId === actor.id) {
-    return task.allowView
-  }
-  return false
+  if (!hasPermission(actor, 'download_solutions')) return false
+  if (isTaskStaff(actor, task) || isTaskTutor(actor, task)) return true
+  return isTaskClient(actor, task) && task.allowView
 }
 
 function filterSolutionsForActor(task: TaskDetail, actor: AuthActor): TaskDetail {
@@ -184,16 +188,18 @@ function filterSolutionsForActor(task: TaskDetail, actor: AuthActor): TaskDetail
   return { ...task, solutions: [] }
 }
 
-function assertCanManageDocuments(actor: AuthActor, task: Task, action: string): void {
-  const ownClient = isClient(actor.roles) && task.clientId === actor.id
-  if (!canManageTask(actor, task) && !ownClient) {
+function assertCanManageDocuments(actor: AuthActor, task: Task, action: 'upload' | 'delete') {
+  const key = action === 'upload' ? 'upload_task_documents' : 'delete_task_documents'
+  const party = isTaskStaff(actor, task) || isTaskClient(actor, task)
+  if (!hasPermission(actor, key) || !party) {
     throw forbidden(`You cannot ${action} files for this task`)
   }
 }
 
-function assertCanManageSolutions(actor: AuthActor, task: Task, action: string): void {
-  const assignedTutor = isTutor(actor.roles) && task.tutorId === actor.id
-  if (!canManageTask(actor, task) && !assignedTutor) {
+function assertCanManageSolutions(actor: AuthActor, task: Task, action: 'upload' | 'delete') {
+  const key = action === 'upload' ? 'upload_solutions' : 'delete_solutions'
+  const party = isTaskStaff(actor, task) || isTaskTutor(actor, task)
+  if (!hasPermission(actor, key) || !party) {
     throw forbidden(`You cannot ${action} solutions for this task`)
   }
 }
@@ -389,18 +395,20 @@ export function createTasksService(
     },
 
     async createTask(body, actor) {
-      const privileged = isOps(actor.roles) || isAdmin(actor.roles) || isSuper(actor.roles)
+      const privileged = hasPermission(actor, 'create_tasks')
+      const ownRequest = isClient(actor.roles) && hasPermission(actor, 'create_own_tasks')
 
       let clientId = actor.id
       if (body.clientId !== undefined) {
         if (!privileged) {
-          throw forbidden('Only staff can set clientId')
+          throw forbidden('You cannot create tasks for other clients')
         }
         clientId = body.clientId
-      } else if (privileged && !isClient(actor.roles)) {
-        throw validationError('clientId is required when staff creates a task')
-      } else if (!isClient(actor.roles) && !privileged) {
-        throw forbidden('Clients create their own tasks')
+      } else if (!ownRequest) {
+        if (privileged) {
+          throw validationError('clientId is required when staff creates a task')
+        }
+        throw forbidden('You cannot create tasks')
       }
 
       const clientUser = await users.findById(clientId)
@@ -417,9 +425,10 @@ export function createTasksService(
         throw validationError('No active coordinator is available to assign')
       }
 
-      if (body.tutorId && !privileged) {
-        throw forbidden('Only staff can assign a tutor on create')
+      if (body.tutorId && !(privileged && hasPermission(actor, 'assign_tutors'))) {
+        throw forbidden('You cannot assign a tutor on create')
       }
+      const canPrice = privileged && hasPermission(actor, 'set_pricing')
       if (body.tutorId) {
         const tutor = await users.findById(body.tutorId)
         if (!tutor || tutor.role !== 'tutor' || tutor.status !== 'ACTIVE') {
@@ -436,7 +445,7 @@ export function createTasksService(
         category: body.category,
         description: body.description,
         deadline: body.deadline,
-        price: privileged ? body.price : 0,
+        price: canPrice ? body.price : 0,
         status: privileged && body.tutorId ? 'in-progress' : 'pending',
       })
 
@@ -454,8 +463,8 @@ export function createTasksService(
       const task = await loadOrThrow(id)
       assertTaskRelated(actor, task)
 
-      const staff = canManageTask(actor, task)
-      const ownClient = isClient(actor.roles) && task.clientId === actor.id
+      const staff = hasPermission(actor, 'edit_tasks') && isTaskStaff(actor, task)
+      const ownClient = hasPermission(actor, 'edit_own_tasks') && isTaskClient(actor, task)
 
       if (!staff && !ownClient) {
         throw forbidden('You cannot edit this task')
@@ -484,11 +493,8 @@ export function createTasksService(
     },
 
     async updatePrice(id, price, actor) {
-      assertOps(actor)
       const task = await loadOrThrow(id)
-      if (!canManageTask(actor, task)) {
-        throw forbidden('You cannot edit this task')
-      }
+      assertStaffAction(actor, task, 'set_pricing', 'You cannot set the price of this task')
       const updated = await repository.update(id, { price: roundMoney(price) })
       if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
       if (deps.recomputePaymentStatus) {
@@ -509,11 +515,8 @@ export function createTasksService(
     },
 
     async assignTutor(id, tutorId, actor) {
-      assertOps(actor)
       const task = await loadOrThrow(id)
-      if (!canManageTask(actor, task)) {
-        throw forbidden('You cannot manage this task')
-      }
+      assertStaffAction(actor, task, 'assign_tutors')
       if (task.tutorId) {
         throw conflict('Task already has a tutor assigned')
       }
@@ -534,11 +537,8 @@ export function createTasksService(
     },
 
     async removeTutor(id, actor) {
-      assertOps(actor)
       const task = await loadOrThrow(id)
-      if (!canManageTask(actor, task)) {
-        throw forbidden('You cannot manage this task')
-      }
+      assertStaffAction(actor, task, 'assign_tutors')
       if (!task.tutorId) {
         throw validationError('Task has no assigned tutor')
       }
@@ -555,8 +555,8 @@ export function createTasksService(
     },
 
     async changeCoordinator(id, coordinatorId, actor) {
-      assertAdmin(actor)
-      await loadOrThrow(id)
+      const task = await loadOrThrow(id)
+      assertStaffAction(actor, task, 'change_coordinator')
       const coordinator = await users.findById(coordinatorId)
       if (!coordinator || coordinator.role !== 'coordinator' || coordinator.status !== 'ACTIVE') {
         throw validationError('coordinatorId must reference an active coordinator')
@@ -567,11 +567,11 @@ export function createTasksService(
     },
 
     async submitTask(id, actor) {
-      if (!isTutor(actor.roles)) {
-        throw forbidden('Only tutors can submit tasks')
+      if (!hasPermission(actor, 'submit_work')) {
+        throw forbidden('You cannot submit work')
       }
       const task = await loadOrThrow(id)
-      if (task.tutorId !== actor.id) {
+      if (!isTaskTutor(actor, task)) {
         throw forbidden('You are not assigned to this task')
       }
       if (task.status !== 'in-progress') {
@@ -586,11 +586,11 @@ export function createTasksService(
     },
 
     async cancelSubmit(id, actor) {
-      if (!isTutor(actor.roles)) {
-        throw forbidden('Only tutors can cancel submission')
+      if (!hasPermission(actor, 'submit_work')) {
+        throw forbidden('You cannot withdraw submissions')
       }
       const task = await loadOrThrow(id)
-      if (task.tutorId !== actor.id) {
+      if (!isTaskTutor(actor, task)) {
         throw forbidden('You are not assigned to this task')
       }
       if (task.status !== 'waiting_coordinator_approval') {
@@ -605,11 +605,8 @@ export function createTasksService(
     },
 
     async approveTask(id, actor) {
-      assertOps(actor)
       const task = await loadOrThrow(id)
-      if (!canManageTask(actor, task)) {
-        throw forbidden('You cannot manage this task')
-      }
+      assertStaffAction(actor, task, 'approve_deliveries')
       if (task.status !== 'waiting_coordinator_approval') {
         throw validationError('Task must be waiting for coordinator approval')
       }
@@ -630,11 +627,8 @@ export function createTasksService(
     },
 
     async disapproveTask(id, actor) {
-      assertOps(actor)
       const task = await loadOrThrow(id)
-      if (!canManageTask(actor, task)) {
-        throw forbidden('You cannot manage this task')
-      }
+      assertStaffAction(actor, task, 'approve_deliveries')
       if (task.status !== 'waiting_coordinator_approval') {
         throw validationError('Task must be waiting for coordinator approval')
       }
@@ -647,11 +641,8 @@ export function createTasksService(
     },
 
     async cancelTask(id, actor) {
-      assertOps(actor)
       const task = await loadOrThrow(id)
-      if (!canManageTask(actor, task)) {
-        throw forbidden('You cannot manage this task')
-      }
+      assertStaffAction(actor, task, 'cancel_tasks')
       if (!isActiveStatus(task.status)) {
         throw validationError('Only open tasks can be cancelled')
       }
@@ -666,11 +657,8 @@ export function createTasksService(
     },
 
     async activateTask(id, actor) {
-      assertOps(actor)
       const task = await loadOrThrow(id)
-      if (!canManageTask(actor, task)) {
-        throw forbidden('You cannot manage this task')
-      }
+      assertStaffAction(actor, task, 'cancel_tasks')
       if (task.status !== 'cancelled') {
         throw validationError('Only cancelled tasks can be activated')
       }
@@ -684,7 +672,8 @@ export function createTasksService(
     },
 
     async setAllowView(id, allowView, actor) {
-      assertAdmin(actor)
+      const task = await loadOrThrow(id)
+      assertStaffAction(actor, task, 'toggle_allow_view')
       const updated = await repository.update(id, { allowView })
       if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
       return updated
@@ -692,8 +681,8 @@ export function createTasksService(
 
     async deleteTask(id, actor) {
       const task = await loadOrThrow(id)
-      const staff = canManageTask(actor, task)
-      const ownClient = isClient(actor.roles) && task.clientId === actor.id
+      const staff = hasPermission(actor, 'delete_tasks') && isTaskStaff(actor, task)
+      const ownClient = hasPermission(actor, 'delete_own_tasks') && isTaskClient(actor, task)
       if (!staff && !ownClient) {
         throw forbidden('You cannot delete this task')
       }
@@ -744,6 +733,9 @@ export function createTasksService(
     },
 
     async getFileDownloadUrl(id, fileId, actor) {
+      if (!hasPermission(actor, 'download_task_documents')) {
+        throw forbidden('You cannot download task documents')
+      }
       const detail = await loadDetailOrThrow(id, actor)
       const file = detail.files.find((item) => item.id === fileId)
       if (!file) {
@@ -804,9 +796,15 @@ export function createTasksService(
     },
 
     async buildZip(id, kind, ids, actor) {
+      if (!hasPermission(actor, 'bulk_download_files')) {
+        throw forbidden('You cannot download files as a ZIP')
+      }
       const detail = await loadDetailOrThrow(id, actor)
       if (kind === 'solutions' && !canViewSolutions(actor, detail)) {
         throw forbidden('You cannot download solutions for this task')
+      }
+      if (kind === 'documents' && !hasPermission(actor, 'download_task_documents')) {
+        throw forbidden('You cannot download task documents')
       }
 
       const available = kind === 'documents' ? detail.files : detail.solutions

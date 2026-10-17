@@ -38,6 +38,10 @@ export function FeaturesSection() {
             <img
               src="/marketing/about.jpg"
               alt={t.imageAlt}
+              width={735}
+              height={415}
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 size-full object-cover transition duration-300 hover:scale-105"
             />
             <figcaption className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-primary/80 via-primary-light/70 to-accent/80 p-8 text-center text-white">

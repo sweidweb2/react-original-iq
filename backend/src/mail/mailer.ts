@@ -30,6 +30,9 @@ export type Mailer = {
   send: (message: MailMessage) => Promise<MailResult>
 }
 
+const SMTP_CONNECT_TIMEOUT_MS = 10_000
+const SMTP_SOCKET_TIMEOUT_MS = 20_000
+
 function createSmtpMailer(config: AppConfig): Mailer {
   const mail = config.mail
   const port = mail.port ?? 587
@@ -41,6 +44,10 @@ function createSmtpMailer(config: AppConfig): Mailer {
     secure: port === 465 || encryption === 'ssl',
     requireTLS: encryption === 'tls',
     auth: mail.username ? { user: mail.username, pass: mail.password ?? '' } : undefined,
+    // Nodemailer defaults wait minutes on a dead SMTP host.
+    connectionTimeout: SMTP_CONNECT_TIMEOUT_MS,
+    greetingTimeout: SMTP_CONNECT_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
   })
   const from = mail.fromName ? `"${mail.fromName}" <${mail.fromAddress}>` : String(mail.fromAddress)
 

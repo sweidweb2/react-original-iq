@@ -2,6 +2,7 @@ import { Router } from 'express'
 
 import type { AppConfig } from '../../config/index.js'
 import { createAuthenticate } from '../../middleware/authenticate.js'
+import { requirePermission } from '../../middleware/authorize.js'
 import { createAuthEmailRateLimiter, createAuthRateLimiter } from '../../middleware/rate-limit.js'
 import { validate } from '../../middleware/validate.js'
 import type { AuthController } from './auth.controller.js'
@@ -63,7 +64,13 @@ export function createAuthRoutes(controller: AuthController, config: AppConfig):
   )
 
   router.get('/me', authenticate, controller.getMe)
-  router.patch('/me', authenticate, validate({ body: updateMeBodySchema }), controller.updateMe)
+  router.patch(
+    '/me',
+    authenticate,
+    requirePermission('manage_own_profile'),
+    validate({ body: updateMeBodySchema }),
+    controller.updateMe,
+  )
 
   return router
 }

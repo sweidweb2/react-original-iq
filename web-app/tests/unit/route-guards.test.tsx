@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { GuestOnly, RequireAuth, RequireRole } from '@/components/auth'
+import { GuestOnly, RequireAuth, RequirePermission, RequireRole } from '@/components/auth'
 import type { AuthUser } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -103,6 +103,36 @@ describe('route guards', () => {
       'href',
       '/client',
     )
+  })
+
+  it('shows a page only when the user has one of its permissions', async () => {
+    useAuthStore.setState({
+      user: { ...user('coordinator'), permissions: ['view_tasks'] },
+      tokens: null,
+      isHydrated: true,
+    })
+    const page = (permission: Parameters<typeof RequirePermission>[0]['permission']) =>
+      render(
+        <MemoryRouter initialEntries={['/coordinator']}>
+          <Routes>
+            <Route
+              path="/coordinator"
+              element={
+                <RequirePermission permission={permission}>
+                  <h1>Gated page</h1>
+                </RequirePermission>
+              }
+            />
+          </Routes>
+        </MemoryRouter>,
+      )
+
+    page(['view_all_tasks', 'view_tasks'])
+    expect(await screen.findByRole('heading', { name: 'Gated page' })).toBeVisible()
+    cleanup()
+
+    page('manage_payments')
+    expect(await screen.findByRole('heading', { name: 'Access denied' })).toBeVisible()
   })
 
   it('keeps a signed-out user on a guest screen', async () => {

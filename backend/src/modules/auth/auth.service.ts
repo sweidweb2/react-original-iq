@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
 
+import { resolvePermissions } from '../../authz/permissions.js'
 import { isSuper } from '../../authz/roles.js'
 import { type AppConfig, isSupabaseConfigured } from '../../config/index.js'
 import {
@@ -67,11 +68,12 @@ export type AuthService = {
   updateMe: (userId: string, input: UpdateMeBody, sessionId?: string) => Promise<AuthUserDto>
 }
 
-function toUserDto(user: AccountRecord): AuthUserDto {
+async function toUserDto(user: AccountRecord): Promise<AuthUserDto> {
   return {
     id: user.id,
     email: user.email,
     role: user.role as RoleName,
+    permissions: [...(await resolvePermissions({ id: user.id, role: user.role }))],
     phone: user.phone,
     profile: user.profile
       ? {
@@ -209,7 +211,7 @@ export function createAuthService(
       })
 
       return {
-        user: toUserDto(user),
+        user: await toUserDto(user),
         tokens: await startSession(user),
       }
     },
@@ -231,7 +233,7 @@ export function createAuthService(
       })
 
       return {
-        user: toUserDto(user),
+        user: await toUserDto(user),
         tokens: await startSession(user),
       }
     },
@@ -321,7 +323,7 @@ export function createAuthService(
       if (!user || user.status !== 'ACTIVE') {
         throw unauthorized('Invalid or expired access token')
       }
-      return toUserDto(user)
+      return await toUserDto(user)
     },
 
     async updateMe(userId, input, sessionId) {
@@ -361,7 +363,7 @@ export function createAuthService(
         },
       })
 
-      return toUserDto(updated)
+      return await toUserDto(updated)
     },
   }
 }

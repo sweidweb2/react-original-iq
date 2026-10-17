@@ -25,7 +25,7 @@ test.describe('auth flows', () => {
     await page.getByRole('textbox', { name: 'Password' }).fill('password1')
     await page.getByRole('button', { name: 'Sign up' }).click()
 
-    await expect(page.getByRole('heading', { name: 'Client home' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Client dashboard' })).toBeVisible()
     await expect(page).toHaveURL(/\/client$/)
   })
 
@@ -33,14 +33,18 @@ test.describe('auth flows', () => {
     test.setTimeout(60_000)
     const portals = [
       { email: 'admin@original-iq.com', heading: 'Home', path: /\/admin$/ },
-      { email: 'coordinator@original-iq.com', heading: 'Coordinator home', path: /\/coordinator$/ },
-      { email: 'tutor@original-iq.com', heading: 'Tutor home', path: /\/tutor$/ },
-      { email: 'client@original-iq.com', heading: 'Client home', path: /\/client$/ },
+      {
+        email: 'coordinator@original-iq.com',
+        heading: 'Coordinator dashboard',
+        path: /\/coordinator$/,
+      },
+      { email: 'tutor@original-iq.com', heading: 'Tutor dashboard', path: /\/tutor$/ },
+      { email: 'client@original-iq.com', heading: 'Client dashboard', path: /\/client$/ },
     ]
 
     for (const portal of portals) {
       await signIn(page, portal.email)
-      await expect(page.getByRole('heading', { name: portal.heading })).toBeVisible()
+      await expect(page.getByRole('heading', { name: portal.heading, exact: true })).toBeVisible()
       await expect(page).toHaveURL(portal.path)
       await page.evaluate(() => localStorage.clear())
     }
@@ -48,7 +52,7 @@ test.describe('auth flows', () => {
 
   test('a client cannot open the admin portal', async ({ page }) => {
     await signIn(page, 'client@original-iq.com')
-    await expect(page.getByRole('heading', { name: 'Client home' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Client dashboard' })).toBeVisible()
 
     await page.goto('/admin')
     await expect(page.getByRole('heading', { name: 'Access denied' })).toBeVisible()
@@ -61,7 +65,7 @@ test.describe('auth flows', () => {
 
   test('sign out returns to sign in', async ({ page }) => {
     await signIn(page, 'client@original-iq.com')
-    await expect(page.getByRole('heading', { name: 'Client home' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Client dashboard' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Account menu for Client User' }).click()
     await page.getByRole('menuitem', { name: 'Sign out' }).click()

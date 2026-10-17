@@ -3,12 +3,18 @@ import { Route } from 'react-router-dom'
 import { NotFoundPage } from '@/features/errors/NotFoundPage'
 import { HomePage } from '@/features/home/HomePage'
 import { LocaleGate, LocaleRedirect } from '@/i18n'
+import { lazyPage } from '@/lib/lazyPage'
 
-import { FaqPage } from './FaqPage'
-import { AboutPage, ContactPage, ServicesPage } from './pages'
-import { PrivacyPage, RefundsPage, TermsPage } from './policyPages'
 import { PublicLayout } from './PublicLayout'
 import { LOCALIZED_PUBLIC_PATHS } from './publicNav'
+
+const AboutPage = lazyPage(() => import('./AboutPage'), 'AboutPage')
+const ServicesPage = lazyPage(() => import('./ServicesPage'), 'ServicesPage')
+const FaqPage = lazyPage(() => import('./FaqPage'), 'FaqPage')
+const ContactPage = lazyPage(() => import('./contact/ContactPage'), 'ContactPage')
+const TermsPage = lazyPage(() => import('./policyPages'), 'TermsPage')
+const PrivacyPage = lazyPage(() => import('./policyPages'), 'PrivacyPage')
+const RefundsPage = lazyPage(() => import('./policyPages'), 'RefundsPage')
 
 /** Bilingual marketing pages under `/:lang`, plus redirects from the unprefixed URLs. */
 export function localizedPublicRoutes() {

@@ -12,6 +12,8 @@ import { useZipSelection } from './useZipSelection'
 export function TaskDocumentsSection({
   task,
   canUpload,
+  canRemove,
+  canZip,
   isActing,
   uploadProgress,
   isZipping,
@@ -22,6 +24,8 @@ export function TaskDocumentsSection({
 }: {
   task: TaskDetail
   canUpload: boolean
+  canRemove: boolean
+  canZip: boolean
   isActing: boolean
   uploadProgress: UploadProgress | null
   isZipping: boolean
@@ -31,22 +35,24 @@ export function TaskDocumentsSection({
   onDownloadZip: (ids?: string[]) => Promise<boolean>
 }) {
   const selection = useZipSelection(task.files)
-  const selectable = task.files.length > 1
+  const selectable = canZip && task.files.length > 1
 
   return (
     <SectionCard
       title="Documents"
       description="Task files shared by the client and staff."
       actions={
-        <TaskZipActions
-          total={task.files.length}
-          selectedCount={selection.selected.length}
-          busy={isZipping}
-          onDownloadAll={() => void onDownloadZip()}
-          onDownloadSelected={async () => {
-            if (await onDownloadZip(selection.selected)) selection.clear()
-          }}
-        />
+        canZip ? (
+          <TaskZipActions
+            total={task.files.length}
+            selectedCount={selection.selected.length}
+            busy={isZipping}
+            onDownloadAll={() => void onDownloadZip()}
+            onDownloadSelected={async () => {
+              if (await onDownloadZip(selection.selected)) selection.clear()
+            }}
+          />
+        ) : undefined
       }
     >
       {canUpload ? (
@@ -66,7 +72,7 @@ export function TaskDocumentsSection({
               key={file.id}
               name={storedFileName(file, 'Document')}
               details={[formatFileSize(file.sizeBytes), file.note]}
-              canRemove={canUpload}
+              canRemove={canRemove}
               isActing={isActing}
               removeLabel="Remove document"
               onOpen={() => onOpenFile(file.id)}

@@ -1,5 +1,5 @@
 import type { AuthActor } from '../../authz/index.js'
-import { isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
+import { hasPermission, isTaskClient, isTaskStaff } from '../../authz/index.js'
 import { conflict, forbidden, notFound, serviceUnavailable } from '../../errors/app-error.js'
 import { reportError } from '../../errors/report-error.js'
 import type { Mailer } from '../../mail/index.js'
@@ -27,6 +27,8 @@ export type InvoiceDownload = {
 }
 
 export type InvoicesService = {
+  /** Create the pending invoice row for a paid payment (no PDF or email yet). Never throws. */
+  prepareForPayment: (payment: PaymentRecord) => Promise<InvoiceSummary | null>
   /** Create (or finish) the invoice for a paid payment: PDF to storage, email client. Never throws. */
   issueForPayment: (paymentId: string) => Promise<InvoiceSummary | null>
   resend: (invoiceId: string, actor: AuthActor) => Promise<InvoiceSummary>
@@ -206,9 +208,8 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
   }
 
   async function assertCanDownload(actor: AuthActor, task: Task) {
-    if (isSuper(actor.roles) || isAdmin(actor.roles)) return
-    if (isClient(actor.roles) && task.clientId === actor.id) return
-    if (isOps(actor.roles) && task.coordinatorId === actor.id) return
+    const party = isTaskStaff(actor, task) || isTaskClient(actor, task)
+    if (hasPermission(actor, 'download_invoices') && party) return
     throw forbidden('You cannot access this invoice')
   }
 
@@ -218,24 +219,38 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
     return invoice
   }
 
+  async function ensureInvoice(payment: PaymentRecord): Promise<InvoiceRecord> {
+    const existing = await repository.findActiveByPaymentId(payment.id)
+    if (existing) return existing
+    const invoice = await repository.create({
+      paymentId: payment.id,
+      amount: payment.amount,
+      currency: payment.currency,
+    })
+    await logPaymentEvent(payment.id, 'invoice.created', {
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+    })
+    return invoice
+  }
+
   return {
+    async prepareForPayment(payment) {
+      if (payment.status !== 'paid') return null
+      try {
+        return toInvoiceSummary(await ensureInvoice(payment))
+      } catch (error) {
+        reportError(error, { source: 'invoices.prepare', meta: { paymentId: payment.id } })
+        return null
+      }
+    },
+
     async issueForPayment(paymentId) {
       try {
         const ctx = await loadContext(paymentId)
         if (ctx.payment.status !== 'paid') return null
-        let invoice = await repository.findActiveByPaymentId(paymentId)
-        if (invoice?.invoiceStatus === 'sent') return toInvoiceSummary(invoice)
-        if (!invoice) {
-          invoice = await repository.create({
-            paymentId,
-            amount: ctx.payment.amount,
-            currency: ctx.payment.currency,
-          })
-          await logPaymentEvent(paymentId, 'invoice.created', {
-            invoiceId: invoice.id,
-            invoiceNumber: invoice.invoiceNumber,
-          })
-        }
+        const invoice = await ensureInvoice(ctx.payment)
+        if (invoice.invoiceStatus === 'sent') return toInvoiceSummary(invoice)
         return toInvoiceSummary(await deliver(invoice, ctx))
       } catch (error) {
         reportError(error, { source: 'invoices.issue', meta: { paymentId } })
@@ -244,14 +259,17 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
     },
 
     async resend(invoiceId, actor) {
-      if (!isAdmin(actor.roles) && !isSuper(actor.roles)) {
-        throw forbidden('Only admins can resend invoices')
+      if (!hasPermission(actor, 'manage_invoices')) {
+        throw forbidden('You cannot resend invoices')
       }
       const invoice = await loadInvoice(invoiceId)
       if (invoice.voidedAt) {
         throw conflict('Voided invoices cannot be resent', 'INVOICE_VOIDED')
       }
       const ctx = await loadContext(invoice.paymentId)
+      if (!isTaskStaff(actor, ctx.task)) {
+        throw forbidden('You cannot resend invoices for this task')
+      }
       const updated = await deliver(invoice, ctx)
       getLoggingService().recordActivitySafe({
         userId: actor.id,

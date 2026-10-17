@@ -6,6 +6,8 @@ export type AuthUser = {
   id: string
   email: string
   role: AuthRole
+  /** Effective permission keys. Missing on sessions persisted before permissions shipped. */
+  permissions?: string[]
   phone?: string | null
   profile: {
     firstName: string | null

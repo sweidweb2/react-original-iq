@@ -3,7 +3,7 @@ import { Readable, Transform, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { ZipArchive } from 'archiver'
 
-import { type AuthActor, isSuper } from '../../authz/index.js'
+import { type AuthActor, hasPermission } from '../../authz/index.js'
 import { forbidden, notFound, serviceUnavailable, validationError } from '../../errors/app-error.js'
 import { reportError } from '../../errors/report-error.js'
 import type { StorageService } from '../../storage/index.js'
@@ -80,8 +80,8 @@ type Plan = {
 type ZipEntry = { name: string; body: Buffer | string }
 
 function assertSuper(actor: AuthActor): void {
-  if (!isSuper(actor.roles)) {
-    throw forbidden('Only super admins can manage backups')
+  if (!hasPermission(actor, 'manage_backups')) {
+    throw forbidden('You cannot manage backups')
   }
 }
 

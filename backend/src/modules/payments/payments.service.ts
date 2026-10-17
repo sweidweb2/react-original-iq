@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
 import type { AuthActor } from '../../authz/index.js'
-import { assertTaskRelated, isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
+import { hasPermission, isTaskClient, isTaskStaff } from '../../authz/index.js'
+import { runInBackground } from '../../background/index.js'
 import {
   conflict,
   forbidden,
@@ -93,9 +94,12 @@ function positiveMinor(amount: number): number {
   return minor
 }
 
-function canManagePayments(actor: AuthActor, task: Task): boolean {
-  if (isAdmin(actor.roles) || isSuper(actor.roles)) return true
-  return isOps(actor.roles) && task.coordinatorId === actor.id
+function canManage(
+  actor: AuthActor,
+  task: Task,
+  key: 'manage_payments' | 'manage_refunds',
+): boolean {
+  return hasPermission(actor, key) && isTaskStaff(actor, task)
 }
 
 const CAP_MESSAGES: Record<PaymentCapReason, string> = {
@@ -171,11 +175,11 @@ export function createPaymentsService(
     return payment
   }
 
+  /** Task staff and the paying client with `view_payments`; tutors never see the ledger. */
   function assertCanView(actor: AuthActor, task: Task) {
-    assertTaskRelated(actor, task)
-    if (isClient(actor.roles) && task.clientId !== actor.id) {
-      throw forbidden()
-    }
+    const party = isTaskStaff(actor, task) || isTaskClient(actor, task)
+    if (hasPermission(actor, 'view_payments') && party) return
+    throw forbidden('You cannot view payments for this task')
   }
 
   type Totals = { paidMinor: number; refundedMinor: number }
@@ -224,11 +228,15 @@ export function createPaymentsService(
     return { ...payment, ...(map.get(payment.id) ?? NO_INVOICES) }
   }
 
-  /** Issue the invoice when a payment is paid; invoice failures never undo the payment. */
+  /**
+   * Paid payments get a pending invoice now; PDF, upload and email run after the response.
+   * Invoice failures never undo the payment (a failed or stuck invoice can be resent).
+   */
   async function finalize(payment: PaymentRecord, task: Task): Promise<PaymentWithInvoice> {
     await recomputeTaskPaymentStatus(tasksRepository, repository, task)
     if (payment.status === 'paid') {
-      await invoices.issueForPayment(payment.id)
+      await invoices.prepareForPayment(payment)
+      runInBackground('invoices.issue', () => invoices.issueForPayment(payment.id))
     }
     return withInvoice(payment)
   }
@@ -266,14 +274,16 @@ export function createPaymentsService(
       assertCanView(actor, task)
       const payment = await loadPayment(taskId, paymentId)
       const detail = await withInvoice(payment)
-      const logs = canManagePayments(actor, task) ? await repository.listPaymentLogs(paymentId) : []
+      const logs = canManage(actor, task, 'manage_payments')
+        ? await repository.listPaymentLogs(paymentId)
+        : []
       return { ...detail, logs }
     },
 
     async createManualPayment(taskId, body, actor) {
       const task = await loadTask(taskId)
-      if (!canManagePayments(actor, task)) {
-        throw forbidden('Only coordinators or admins can record manual payments')
+      if (!canManage(actor, task, 'manage_payments')) {
+        throw forbidden('You cannot record payments for this task')
       }
       const status = body.status ?? 'paid'
       const amountMinor = positiveMinor(body.amount)
@@ -319,8 +329,8 @@ export function createPaymentsService(
 
     async updatePayment(taskId, paymentId, body, actor) {
       const task = await loadTask(taskId)
-      if (!canManagePayments(actor, task)) {
-        throw forbidden('Only coordinators or admins can edit payments')
+      if (!canManage(actor, task, 'manage_payments')) {
+        throw forbidden('You cannot edit payments for this task')
       }
       const current = await loadPayment(taskId, paymentId)
       const nextStatus = body.status ?? current.status
@@ -381,7 +391,7 @@ export function createPaymentsService(
 
     async checkout(taskId, body, actor) {
       const task = await loadTask(taskId)
-      if (!isClient(actor.roles) || task.clientId !== actor.id) {
+      if (!hasPermission(actor, 'pay_own_tasks') || !isTaskClient(actor, task)) {
         throw forbidden('Only the task client can start checkout')
       }
       if (gatewayMode !== 'simulated') {
@@ -430,8 +440,8 @@ export function createPaymentsService(
 
     async deletePayment(taskId, paymentId, actor) {
       const task = await loadTask(taskId)
-      if (!canManagePayments(actor, task)) {
-        throw forbidden('Only coordinators or admins can delete payments')
+      if (!canManage(actor, task, 'manage_payments')) {
+        throw forbidden('You cannot delete payments for this task')
       }
       const payment = await loadPayment(taskId, paymentId)
       if (await invoices.hasInvoices(paymentId)) {
@@ -460,8 +470,8 @@ export function createPaymentsService(
 
     async createRefund(taskId, body, actor) {
       const task = await loadTask(taskId)
-      if (!canManagePayments(actor, task)) {
-        throw forbidden('Only coordinators or admins can create refunds')
+      if (!canManage(actor, task, 'manage_refunds')) {
+        throw forbidden('You cannot create refunds for this task')
       }
       const amountMinor = positiveMinor(body.amount)
       const [{ paidMinor }, committedMinor] = await Promise.all([
@@ -495,8 +505,8 @@ export function createPaymentsService(
 
     async updateRefundStatus(taskId, refundId, status, actor) {
       const task = await loadTask(taskId)
-      if (!canManagePayments(actor, task)) {
-        throw forbidden('Only coordinators or admins can update refunds')
+      if (!canManage(actor, task, 'manage_refunds')) {
+        throw forbidden('You cannot update refunds for this task')
       }
       const existing = await repository.findRefundById(refundId)
       if (!existing || existing.taskId !== taskId) {
@@ -522,8 +532,8 @@ export function createPaymentsService(
 
     async deleteRefund(taskId, refundId, actor) {
       const task = await loadTask(taskId)
-      if (!canManagePayments(actor, task)) {
-        throw forbidden('Only coordinators or admins can delete refunds')
+      if (!canManage(actor, task, 'manage_refunds')) {
+        throw forbidden('You cannot delete refunds for this task')
       }
       const existing = await repository.findRefundById(refundId)
       if (!existing || existing.taskId !== taskId) {

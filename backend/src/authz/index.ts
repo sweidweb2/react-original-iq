@@ -1,9 +1,10 @@
 /**
- * Authorization helpers — role gates + resource ownership.
- * Not a permission-matrix RBAC system: no `resource:action` ACL strings.
+ * Authorization helpers — permission checks + resource ownership.
  *
- * - Route: `authenticate` then `authorize(...roles)` for vertical (role) checks
- * - Service: `assertOwner` / `assertOwnerOrAdmin` / `assertSelfOrAdmin` for horizontal checks
+ * - Route: `authenticate` then `requirePermission(...keys)` for vertical checks
+ * - Service: `assertPermission` / `hasPermission` for action checks, plus
+ *   `assertTaskRelated` / `isTaskStaff` / `assertCanManageRole` / `assertOwner` for scope
+ * - Roles still decide scope (own / assigned tasks) and which portal a user lands in.
  */
 
 export {
@@ -11,12 +12,33 @@ export {
   assertOwner,
   assertOwnerOrAdmin,
   assertSelfOrAdmin,
-  assertSelfOrOps,
+  assertSelfOrUserViewer,
   assertTaskRelated,
   type AuthActor,
+  canManageRole,
   isOps,
+  isTaskClient,
+  isTaskStaff,
+  isTaskTutor,
   type TaskParties,
 } from './ownership.js'
+export {
+  LOCKOUT_GUARD,
+  type PermissionKey,
+  permissionKeysForRole,
+  RBAC_PERMISSIONS,
+  RBAC_ROLES,
+} from './permission-catalog.js'
+export {
+  assertPermission,
+  hasPermission,
+  type PermissionHolder,
+  type PermissionSource,
+  type PermissionSubject,
+  resolvePermissions,
+  setPermissionSource,
+  withLockoutGuard,
+} from './permissions.js'
 export {
   ADMIN_ROLES,
   CLIENT_ROLES,

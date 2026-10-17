@@ -8,7 +8,7 @@ export function requireActor(req: Request): AuthActor {
   if (!req.user) {
     throw unauthorized()
   }
-  return { id: req.user.id, roles: req.user.roles }
+  return { id: req.user.id, roles: req.user.roles, permissions: req.user.permissions }
 }
 
 /** Send a JSON body. Errors go to the shared error middleware. */

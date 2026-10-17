@@ -181,9 +181,9 @@ describe('revision body schemas', () => {
   const start = '2026-11-10T00:00:00.000Z'
 
   it('rejects a create whose deadline is not after the start date', () => {
-    expect(
-      createRevisionBodySchema.safeParse({ startDate: start, deadline: start }).success,
-    ).toBe(false)
+    expect(createRevisionBodySchema.safeParse({ startDate: start, deadline: start }).success).toBe(
+      false,
+    )
     expect(
       createRevisionBodySchema.safeParse({ startDate: start, deadline: '2026-11-11T00:00:00Z' })
         .success,

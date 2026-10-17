@@ -11,7 +11,9 @@ import { useZipSelection } from './useZipSelection'
 
 export function TaskSolutionsSection({
   task,
-  canManage,
+  canUpload,
+  canRemove,
+  canZip,
   isActing,
   uploadProgress,
   isZipping,
@@ -21,7 +23,9 @@ export function TaskSolutionsSection({
   onDownloadZip,
 }: {
   task: TaskDetail
-  canManage: boolean
+  canUpload: boolean
+  canRemove: boolean
+  canZip: boolean
   isActing: boolean
   uploadProgress: UploadProgress | null
   isZipping: boolean
@@ -31,25 +35,27 @@ export function TaskSolutionsSection({
   onDownloadZip: (ids?: string[]) => Promise<boolean>
 }) {
   const selection = useZipSelection(task.solutions)
-  const selectable = task.solutions.length > 1
+  const selectable = canZip && task.solutions.length > 1
 
   return (
     <SectionCard
       title="Solutions"
       description="Submitted work."
       actions={
-        <TaskZipActions
-          total={task.solutions.length}
-          selectedCount={selection.selected.length}
-          busy={isZipping}
-          onDownloadAll={() => void onDownloadZip()}
-          onDownloadSelected={async () => {
-            if (await onDownloadZip(selection.selected)) selection.clear()
-          }}
-        />
+        canZip ? (
+          <TaskZipActions
+            total={task.solutions.length}
+            selectedCount={selection.selected.length}
+            busy={isZipping}
+            onDownloadAll={() => void onDownloadZip()}
+            onDownloadSelected={async () => {
+              if (await onDownloadZip(selection.selected)) selection.clear()
+            }}
+          />
+        ) : undefined
       }
     >
-      {canManage ? (
+      {canUpload ? (
         <FileUploadButton
           label="Upload solution"
           progress={uploadProgress}
@@ -69,7 +75,7 @@ export function TaskSolutionsSection({
               key={solution.id}
               name={storedFileName(solution, 'Solution')}
               details={[formatFileSize(solution.sizeBytes)]}
-              canRemove={canManage}
+              canRemove={canRemove}
               isActing={isActing}
               removeLabel="Remove solution"
               onOpen={() => onOpenSolution(solution.id)}

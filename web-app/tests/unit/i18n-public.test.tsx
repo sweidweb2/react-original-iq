@@ -45,33 +45,38 @@ describe('locale paths', () => {
 })
 
 describe('localized public routes', () => {
-  it('renders Arabic pages right-to-left', () => {
+  it('renders Arabic pages right-to-left', async () => {
     renderAt('/ar/about')
     expect(document.documentElement.lang).toBe('ar')
     expect(document.documentElement.dir).toBe('rtl')
     expect(
-      screen.getByRole('heading', { level: 1, name: 'تعرّف على OriginaliQ' }),
+      await screen.findByRole('heading', { level: 1, name: 'تعرّف على OriginaliQ' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('navigation', { name: 'التنقل الرئيسي' })).toBeInTheDocument()
   })
 
-  it('restores left-to-right for English', () => {
+  it('restores left-to-right for English', async () => {
     renderAt('/en/faq')
     expect(document.documentElement.lang).toBe('en')
     expect(document.documentElement.dir).toBe('ltr')
-    expect(screen.getByRole('heading', { name: 'Frequently Asked Questions' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Frequently Asked Questions' }),
+    ).toBeInTheDocument()
   })
 
   it('switches language while keeping the path and hash', async () => {
     const user = userEvent.setup()
     renderAt('/en/faq#pricing')
 
+    await screen.findByRole('heading', { name: 'Frequently Asked Questions' })
     const arabic = screen.getByRole('link', { name: 'العربية' })
     expect(arabic).toHaveAttribute('href', '/ar/faq#pricing')
 
     await user.click(arabic)
     expect(screen.getByTestId('location')).toHaveTextContent('/ar/faq#pricing')
-    expect(screen.getByRole('heading', { level: 1, name: 'الأسئلة الشائعة' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'الأسئلة الشائعة' }),
+    ).toBeInTheDocument()
     expect(document.documentElement.dir).toBe('rtl')
     expect(useLocaleStore.getState().preferredLocale).toBe('ar')
   })

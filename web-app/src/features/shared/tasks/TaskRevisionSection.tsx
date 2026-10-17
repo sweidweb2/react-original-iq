@@ -13,13 +13,13 @@ export function TaskRevisionSection({
   taskId,
   tasksBase,
   revisions,
-  canManageRevisions,
+  canCreateRevisions,
   onCreateRevision,
 }: {
   taskId: string
   tasksBase: string
   revisions: RevisionSession[]
-  canManageRevisions: boolean
+  canCreateRevisions: boolean
   onCreateRevision: () => void
 }) {
   return (
@@ -27,7 +27,7 @@ export function TaskRevisionSection({
       title="Revision"
       description="Revision sessions for this task."
       actions={
-        canManageRevisions ? (
+        canCreateRevisions ? (
           <Button type="button" size="sm" onClick={onCreateRevision}>
             <Plus className="size-4" aria-hidden />
             Create revision

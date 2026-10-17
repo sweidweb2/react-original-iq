@@ -4,6 +4,7 @@ import request from 'supertest'
 import { describe, expect, it } from 'vitest'
 
 import { createApp } from '../../src/app.js'
+import { permissionKeysForRole } from '../../src/authz/index.js'
 import type { AppConfig } from '../../src/config/index.js'
 import { errorHandler } from '../../src/errors/error.middleware.js'
 import { createAuthenticate } from '../../src/middleware/authenticate.js'
@@ -76,6 +77,7 @@ describe('authenticate middleware', () => {
     expect(res.body.user).toEqual({
       id: 'user-1',
       roles: ['admin'],
+      permissions: permissionKeysForRole('admin'),
     })
   })
 
