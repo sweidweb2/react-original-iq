@@ -2,7 +2,6 @@ import { Router } from 'express'
 
 import type { AppConfig } from '../config/index.js'
 import { loadConfig } from '../config/index.js'
-import { conflict } from '../errors/app-error.js'
 import { getMailer, withSendGate } from '../mail/index.js'
 import { createMaintenanceGuard } from '../middleware/maintenance.js'
 import { createAnalyticsModule } from '../modules/analytics/index.js'
@@ -72,22 +71,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
   const revisionsModule = createRevisionsModule(config, tasksRepository)
 
   const users = createUsersService(usersRepository, {
-    assertDeletable: async (userId) => {
-      const active = await tasksRepository.countActiveInvolvingUser(userId)
-      if (active > 0) {
-        throw conflict('User still has active tasks and cannot be deleted')
-      }
-      const clientTaskIds = await tasksRepository.listTaskIdsForClient(userId)
-      for (const taskId of clientTaskIds) {
-        if (await tasksRepository.hasPayments(taskId)) {
-          throw conflict('User has tasks with payments or refunds and cannot be deleted')
-        }
-      }
-      // tasks.client_id is ON DELETE RESTRICT, so the account delete needs these gone first.
-      if (clientTaskIds.length > 0) {
-        await tasksRepository.deleteForClient(userId)
-      }
-    },
+    tasks: tasksRepository,
     revokeSessions: (userId) => authSessions.revokeAllForUser(userId),
   })
 
@@ -102,7 +86,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
   )
   router.use('/fx', createFxModule(config))
   router.use('/auth', createAuthModule(config, users, authSessions, settings))
-  router.use(createLoggingModule())
+  router.use(createLoggingModule(config))
   router.use('/users', createUsersModule(config, users))
   router.use('/specializations', createSpecializationsModule(config, users))
   router.use(

@@ -31,8 +31,12 @@ export const ROLE_OPTIONS: { value: AuthRole; label: string }[] = [
   { value: 'client', label: 'Client' },
 ]
 
-/** Super accounts are managed only by super; admins manage every role below super. */
+/**
+ * Super accounts are managed only by super; admins manage every role below super;
+ * coordinators manage only tutors and clients.
+ */
 export function canManageRole(actorRole: AuthRole | null | undefined, role: AuthRole): boolean {
+  if (actorRole === 'coordinator') return role === 'tutor' || role === 'client'
   return role !== 'super' || actorRole === 'super'
 }
 

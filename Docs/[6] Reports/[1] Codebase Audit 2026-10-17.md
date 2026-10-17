@@ -13,7 +13,7 @@ All recommendations stay inside the locked stack (`Docs/[1] Main App/[1] Tech St
 | Severity | Total | Done | Partial | Open |
 | -------- | ----- | ---- | ------- | ---- |
 | Critical | 6     | 1    | 1       | 4    |
-| High     | 33    | 23   | 4       | 6    |
+| High     | 33    | 23   | 5       | 5    |
 | Medium   | 98    | 2    | 22      | 74   |
 | Low      | ~114  | 3    | ~13     | ~98  |
 
@@ -248,11 +248,13 @@ All recommendations stay inside the locked stack (`Docs/[1] Main App/[1] Tech St
 
 ### 2.6 Architecture
 
-- **H28. Business rule + N+1 loop in the composition root**
+- **H28. Business rule + N+1 loop in the composition root** ✅
+  - Done: rule lives in `users.service` `deleteUser` behind a `UserTasksPort` (wired to `tasksRepository` in `v1.ts`); per-task loop replaced by `tasksRepository.hasPaymentsForClient` (two `head: true` counts joined on `tasks.client_id`, constant regardless of task count).
   - Files: `backend/src/routes/v1.ts` L62–75 (`assertDeletable` loops `hasPayments` per task).
   - Fix: move into `users.service` (or a tasks-service port) and replace the loop with one `EXISTS` query.
 
-- **H29. `authenticate` re-parses env on every request and turns misconfig into 401**
+- **H29. `authenticate` re-parses env on every request and turns misconfig into 401** ✅
+  - Done: `createAuthenticate(config)` built once per router at boot (route factories take `config`, same as `createAuthRateLimiter`); only `JsonWebTokenError` (incl. expired / bad payload) maps to 401, missing secrets surface as 500; `ensureTestJwtEnv` workaround removed.
   - Files: `backend/src/middleware/authenticate.ts` L22, L29–35; workaround in `backend/tests/helpers/test-config.ts`.
   - Fix: `createAuthenticate(config)` factory built once in `v1.ts` (matches `createAuthRateLimiter(config)`); only map JWT errors to 401.
 
@@ -276,7 +278,9 @@ All recommendations stay inside the locked stack (`Docs/[1] Main App/[1] Tech St
   - Files: `backend/tests/unit/*`, `backend/tests/integration/*`.
   - Fix: service tests for `revisions`, `feedback`, `exports`; Supertest role-matrix tests (CLIENT/TUTOR/COORDINATOR/ADMIN/SUPER) for `/tasks`, `/payments`, `/revisions`, `/invoices`, seeded from `Docs/[5] Transfer docs/10-acceptance-test-scenarios.md`.
 
-- **H33. Web feature tests missing for the largest areas**
+- **H33. Web feature tests missing for the largest areas** ✅ (partial)
+  - Done: `tests/unit/useTaskDetails.test.tsx` (load/error/retry, role permissions, price, status-change toasts, file removal, delete + redirect, upload size guard / progress / partial batch), `tests/unit/payments.schema.test.ts` (checkout + manual payment rules, fixed clock for expiry), `tests/unit/usePagedAdminList.test.ts` (paging, debounced search, last-page clamp, stale responses, delete flows), and `tests/e2e/task-payment.spec.ts` (client creates task → admin sets price → client pays simulated checkout → paid status + `INV-` invoice).
+  - Remaining: nothing for revisions, users, rbac, dashboard. `tests/e2e/auth.spec.ts` still expects the old "Client home" / "Coordinator home" headings (now "… dashboard"), so 4 of its 5 tests fail.
   - Files: `web-app/tests/unit/*` cover schemas, i18n, guards, shell; nothing for tasks, payments, revisions, users, rbac, dashboard. E2E has no task/payment journey.
   - Fix: start with `useTaskDetails`, `payments.schema.ts`, `usePagedAdminList`, and one e2e "create task → simulated pay → invoice".
 
@@ -589,7 +593,7 @@ All recommendations stay inside the locked stack (`Docs/[1] Main App/[1] Tech St
 1. Vercel config for both apps + security headers/CSP (H30, C3 partial). ✅ (partial — root `vercel.json` added; headers/CSP remain)
 2. Refresh-token rotation/revocation; stop persisting the access token (C3). ✅ (partial — revocation + 7-day sessions done; access token still persisted)
 3. Fix `.env.example` boot crash (H14); malformed JSON 400 (H15); `headersSent` guard. ✅
-4. `createAuthenticate(config)`; move `assertDeletable` out of `v1.ts` (H28, H29).
+4. `createAuthenticate(config)`; move `assertDeletable` out of `v1.ts` (H28, H29). ✅
 5. Async invoice issuance + SMTP timeouts (H26); paginated/streamed exports, real counts (H27). ✅ (partial — `selectAllRows` for analytics/backups; H26, task stats and exports remain)
 6. Make CI green (H31); add `build` to CI (M96); Node 22 pin (M94); `.gitattributes` (M97). ✅ (partial — lint green; Prettier fails on 2 files; M94/M96/M97 remain)
 

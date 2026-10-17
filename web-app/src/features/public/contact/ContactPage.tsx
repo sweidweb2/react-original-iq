@@ -16,7 +16,12 @@ import { sendContactMessage, subscribeNewsletter } from '@/services/contact'
 import { usePublicDictionary } from '../i18n'
 import { publicContainerClass } from '../publicContainer'
 import { SocialLinks } from '../SocialLinks'
-import { type ContactMessageValues, createContactSchemas } from './contact.schema'
+import {
+  CONTACT_MESSAGE_MAX,
+  CONTACT_NAME_MAX,
+  type ContactMessageValues,
+  createContactSchemas,
+} from './contact.schema'
 
 const emptyMessage: ContactMessageValues = {
   name: '',
@@ -195,7 +200,7 @@ function MessageForm() {
           <Input
             id="name"
             name="name"
-            maxLength={20}
+            maxLength={CONTACT_NAME_MAX}
             placeholder={t.namePlaceholder}
             autoComplete="name"
             value={values.name}
@@ -240,7 +245,7 @@ function MessageForm() {
             id="message"
             name="message"
             rows={6}
-            maxLength={245}
+            maxLength={CONTACT_MESSAGE_MAX}
             placeholder={t.messagePlaceholder}
             value={values.message}
             aria-invalid={Boolean(fieldErrors.message) || undefined}

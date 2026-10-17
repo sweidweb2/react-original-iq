@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
 import { notFound } from '../../errors/app-error.js'
+import { fromMinor, sumMinor, toMinor } from '../_shared/money.js'
 import {
   type CreatePaymentInput,
   type CreateRefundInput,
@@ -28,8 +29,6 @@ export class PaymentCapError extends Error {
 
 /** Task price: paid payments − paid refunds may never exceed this. */
 export type PaymentGuard = { maxNet: number }
-
-const CAP_TOLERANCE = 0.005
 
 export type PaymentLogRecord = {
   id: string
@@ -176,8 +175,9 @@ function fromLogRow(row: PaymentLogRow): PaymentLogRecord {
   }
 }
 
+/** Minor units, like the guard checks below. */
 function memoryTotals(taskId: string) {
-  const sum = (rows: { amount: number }[]) => rows.reduce((total, row) => total + row.amount, 0)
+  const sum = (rows: { amount: number }[]) => sumMinor(rows.map((row) => row.amount))
   const payments = memoryPayments.filter((row) => row.taskId === taskId && row.status === 'paid')
   const refunds = memoryRefunds.filter((row) => row.taskId === taskId)
   return {
@@ -212,8 +212,8 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
       if (input.status === 'paid') {
         const totals = memoryTotals(input.taskId)
         if (
-          totals.paidPayments - totals.paidRefunds + input.amount >
-          guard.maxNet + CAP_TOLERANCE
+          totals.paidPayments - totals.paidRefunds + toMinor(input.amount) >
+          toMinor(guard.maxNet)
         ) {
           throw new PaymentCapError('overpay')
         }
@@ -243,14 +243,14 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
       const nextAmount = input.amount ?? current.amount
       const nextStatus = input.status ?? current.status
       const totals = memoryTotals(current.taskId)
-      const others = totals.paidPayments - (current.status === 'paid' ? current.amount : 0)
-      const nextPaid = others + (nextStatus === 'paid' ? nextAmount : 0)
-      if (nextStatus === 'paid' && nextPaid - totals.paidRefunds > guard.maxNet + CAP_TOLERANCE) {
+      const others = totals.paidPayments - (current.status === 'paid' ? toMinor(current.amount) : 0)
+      const nextPaid = others + (nextStatus === 'paid' ? toMinor(nextAmount) : 0)
+      if (nextStatus === 'paid' && nextPaid - totals.paidRefunds > toMinor(guard.maxNet)) {
         throw new PaymentCapError('overpay')
       }
       if (
         nextPaid < totals.paidPayments &&
-        nextPaid < totals.paidRefunds + totals.pendingRefunds - CAP_TOLERANCE
+        nextPaid < totals.paidRefunds + totals.pendingRefunds
       ) {
         throw new PaymentCapError('refund_uncovered')
       }
@@ -291,7 +291,7 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
     async createRefund(input) {
       const totals = memoryTotals(input.taskId)
       const refundable = totals.paidPayments - totals.paidRefunds - totals.pendingRefunds
-      if (input.amount > refundable + CAP_TOLERANCE) {
+      if (toMinor(input.amount) > refundable) {
         throw new PaymentCapError('refund_cap')
       }
       const stamp = nowIso()
@@ -331,14 +331,10 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
       return true
     },
     async sumPaidByTask(taskId) {
-      return memoryPayments
-        .filter((row) => row.taskId === taskId && row.status === 'paid')
-        .reduce((sum, row) => sum + row.amount, 0)
+      return fromMinor(memoryTotals(taskId).paidPayments)
     },
     async sumRefundedByTask(taskId) {
-      return memoryRefunds
-        .filter((row) => row.taskId === taskId && row.status === 'paid')
-        .reduce((sum, row) => sum + row.amount, 0)
+      return fromMinor(memoryTotals(taskId).paidRefunds)
     },
     async exportAllPayments() {
       return [...memoryPayments].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -377,7 +373,7 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
       .eq('task_id', taskId)
       .eq('status', 'paid')
     if (error) throw error
-    return (data as { amount: number | string }[]).reduce((sum, row) => sum + Number(row.amount), 0)
+    return fromMinor(sumMinor((data as { amount: number | string }[]).map((row) => Number(row.amount))))
   }
 
   return {

@@ -13,19 +13,23 @@ import type {
   TaskSolution,
   TaskStats,
   TaskStatus,
+  TaskWriteGuard,
   UpdateTaskInput,
 } from './tasks.types.js'
-import { emptyTaskStats, TASK_STATUSES } from './tasks.types.js'
+import { ACTIVE_TASK_STATUSES, emptyTaskStats, TASK_STATUSES } from './tasks.types.js'
 
 export type TasksRepository = {
   findPage: (filter: TaskListFilter) => Promise<{ items: Task[]; total: number }>
   countStats: (filter: TaskListFilter) => Promise<TaskStats>
   findById: (id: string) => Promise<Task | null>
   findDetailById: (id: string) => Promise<TaskDetail | null>
-  countActiveByCoordinator: (coordinatorId: string) => Promise<number>
+  /** Active-task count per coordinator id; coordinators with no active tasks are omitted. */
+  countActiveByCoordinators: (coordinatorIds: string[]) => Promise<Map<string, number>>
   create: (input: CreateTaskInput) => Promise<Task>
-  update: (id: string, input: UpdateTaskInput) => Promise<Task | null>
-  delete: (id: string) => Promise<boolean>
+  /** Returns null when the row is missing or no longer matches `guard`. */
+  update: (id: string, input: UpdateTaskInput, guard?: TaskWriteGuard) => Promise<Task | null>
+  /** Returns false when the row is missing or no longer matches `guard`. */
+  delete: (id: string, guard?: TaskWriteGuard) => Promise<boolean>
   addFile: (taskId: string, input: AddFileInput) => Promise<TaskFile>
   listFiles: (taskId: string) => Promise<TaskFile[]>
   deleteFile: (taskId: string, fileId: string) => Promise<TaskFile | null>
@@ -195,6 +199,12 @@ function statsOf(tasks: Task[], filter: TaskListFilter): TaskStats {
   return stats
 }
 
+function matchesGuard(task: Task, guard: TaskWriteGuard | undefined): boolean {
+  if (guard?.status && !guard.status.includes(task.status)) return false
+  if (guard?.tutorId !== undefined && task.tutorId !== guard.tutorId) return false
+  return true
+}
+
 function applyTaskUpdate(task: Task, input: UpdateTaskInput): Task {
   const tutorId = input.tutorId !== undefined ? input.tutorId : task.tutorId
   return {
@@ -255,14 +265,15 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
       }
     },
 
-    async countActiveByCoordinator(coordinatorId) {
-      let count = 0
+    async countActiveByCoordinators(coordinatorIds) {
+      const wanted = new Set(coordinatorIds)
+      const counts = new Map<string, number>()
       for (const task of memoryTasksById.values()) {
-        if (task.coordinatorId === coordinatorId && task.status !== 'cancelled') {
-          count += 1
-        }
+        if (!task.coordinatorId || !wanted.has(task.coordinatorId)) continue
+        if (!ACTIVE_TASK_STATUSES.includes(task.status)) continue
+        counts.set(task.coordinatorId, (counts.get(task.coordinatorId) ?? 0) + 1)
       }
-      return count
+      return counts
     },
 
     async create(input) {
@@ -294,20 +305,22 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
       return task
     },
 
-    async update(id, input) {
+    async update(id, input, guard) {
       const current = memoryTasksById.get(id)
-      if (!current) return null
+      if (!current || !matchesGuard(current, guard)) return null
       const updated = applyTaskUpdate(current, input)
       memoryTasksById.set(id, updated)
       return updated
     },
 
-    async delete(id) {
-      const existed = memoryTasksById.delete(id)
+    async delete(id, guard) {
+      const current = memoryTasksById.get(id)
+      if (!current || !matchesGuard(current, guard)) return false
+      memoryTasksById.delete(id)
       memoryFilesByTaskId.delete(id)
       memorySolutionsByTaskId.delete(id)
       memoryPaymentsByTaskId.delete(id)
-      return existed
+      return true
     },
 
     async addFile(taskId, input) {
@@ -380,10 +393,9 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
     hasPayments,
 
     async countActiveInvolvingUser(userId) {
-      const active: TaskStatus[] = ['pending', 'in-progress', 'waiting_coordinator_approval']
       let count = 0
       for (const task of memoryTasksById.values()) {
-        if (!active.includes(task.status)) continue
+        if (!ACTIVE_TASK_STATUSES.includes(task.status)) continue
         if (task.clientId === userId || task.tutorId === userId || task.coordinatorId === userId) {
           count += 1
         }
@@ -393,7 +405,7 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
 
     async hasPaymentsForClient(clientId) {
       for (const task of memoryTasksById.values()) {
-        if (task.clientId === clientId && (await this.hasPayments(task.id))) return true
+        if (task.clientId === clientId && (await hasPayments(task.id))) return true
       }
       return false
     },
@@ -434,6 +446,15 @@ function scopeQuery(query: any, filter: TaskListFilter) {
       q = q.or(`topic.ilike.%${safe}%,description.ilike.%${safe}%,category.ilike.%${safe}%`)
     }
   }
+  return q
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function guardQuery(query: any, guard: TaskWriteGuard | undefined) {
+  let q = query
+  if (guard?.status) q = q.in('status', guard.status)
+  if (guard?.tutorId === null) q = q.is('tutor_id', null)
+  else if (guard?.tutorId !== undefined) q = q.eq('tutor_id', guard.tutorId)
   return q
 }
 
@@ -496,14 +517,17 @@ function createSupabaseTasksRepository(
       return { ...task, files, solutions }
     },
 
-    async countActiveByCoordinator(coordinatorId) {
-      const { count, error } = await client
-        .from('tasks')
-        .select('id', { count: 'exact', head: true })
-        .eq('coordinator_id', coordinatorId)
-        .neq('status', 'cancelled')
+    async countActiveByCoordinators(coordinatorIds) {
+      const counts = new Map<string, number>()
+      if (coordinatorIds.length === 0) return counts
+      const { data, error } = await client.rpc('coordinator_active_task_counts', {
+        p_coordinator_ids: coordinatorIds,
+      })
       if (error) throw error
-      return count ?? 0
+      for (const row of (data ?? []) as { coordinator_id: string; active_count: number }[]) {
+        counts.set(row.coordinator_id, Number(row.active_count))
+      }
+      return counts
     },
 
     async create(input) {
@@ -530,7 +554,7 @@ function createSupabaseTasksRepository(
       return toTask(data as TaskRow)
     },
 
-    async update(id, input) {
+    async update(id, input, guard) {
       const patch: Record<string, unknown> = {}
       if (input.topic !== undefined) patch.topic = input.topic
       if (input.type !== undefined) patch.type = input.type
@@ -548,18 +572,15 @@ function createSupabaseTasksRepository(
       if (input.coordinatorId !== undefined) patch.coordinator_id = input.coordinatorId
       if (input.allowView !== undefined) patch.allow_view = input.allowView
 
-      const { data, error } = await client
-        .from('tasks')
-        .update(patch)
-        .eq('id', id)
-        .select(TASK_COLUMNS)
-        .maybeSingle()
+      const query = guardQuery(client.from('tasks').update(patch).eq('id', id), guard)
+      const { data, error } = await query.select(TASK_COLUMNS).maybeSingle()
       if (error) throw error
       return data ? toTask(data as TaskRow) : null
     },
 
-    async delete(id) {
-      const { error, count } = await client.from('tasks').delete({ count: 'exact' }).eq('id', id)
+    async delete(id, guard) {
+      const query = guardQuery(client.from('tasks').delete({ count: 'exact' }).eq('id', id), guard)
+      const { error, count } = await query
       if (error) throw error
       return (count ?? 0) > 0
     },
@@ -654,11 +675,10 @@ function createSupabaseTasksRepository(
     },
 
     async countActiveInvolvingUser(userId) {
-      const active = ['pending', 'in-progress', 'waiting_coordinator_approval']
       const { count, error } = await client
         .from('tasks')
         .select('id', { count: 'exact', head: true })
-        .in('status', active)
+        .in('status', ACTIVE_TASK_STATUSES)
         .or(`client_id.eq.${userId},tutor_id.eq.${userId},coordinator_id.eq.${userId}`)
       if (error) throw error
       return count ?? 0

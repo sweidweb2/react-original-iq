@@ -6,7 +6,7 @@ const roleSchema = z.enum(['super', 'admin', 'coordinator', 'tutor', 'client'])
 const statusSchema = z.enum(['ACTIVE', 'INACTIVE'])
 
 export const userIdParamsSchema = z.object({
-  id: z.string().trim().min(1),
+  id: z.string().trim().uuid(),
 })
 
 export const listUsersQuerySchema = paginationQuerySchema.extend({

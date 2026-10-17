@@ -15,7 +15,10 @@ import {
   updateRefundStatusBodySchema,
 } from './payments.schema.js'
 
-export function createTaskPaymentsRoutes(controller: PaymentsController, config: AppConfig): Router {
+export function createTaskPaymentsRoutes(
+  controller: PaymentsController,
+  config: AppConfig,
+): Router {
   const router = Router({ mergeParams: true })
 
   router.use(createAuthenticate(config))

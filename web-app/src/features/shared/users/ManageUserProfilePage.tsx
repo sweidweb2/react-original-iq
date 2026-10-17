@@ -86,7 +86,8 @@ export function ManageUserProfilePage() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([])
   const [permsBusy, setPermsBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const canManageTarget = !user || canManageRole(actor?.role, user.role)
+  const canManageTarget =
+    !user || user.id === actor?.id || canManageRole(actor?.role, user.role)
   const roleOptions = canManageTarget ? assignableRoles(actor?.role) : ROLE_OPTIONS
 
   const breadcrumbs = usePortalBreadcrumbs([
@@ -236,7 +237,9 @@ export function ManageUserProfilePage() {
               description={
                 canManageTarget
                   ? 'Update profile fields for this account.'
-                  : 'Only a super user can change super accounts.'
+                  : user.role === 'super'
+                    ? 'Only a super user can change super accounts.'
+                    : "You don't have permission to change this account."
               }
             >
               <form id="manage-user-form" onSubmit={onSave} className="grid gap-4 sm:grid-cols-2">

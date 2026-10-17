@@ -16,12 +16,28 @@ export const revisionIdParamsSchema = z.object({
   id: z.string().trim().uuid(),
 })
 
-export const createRevisionBodySchema = z.object({
-  title: z.string().trim().max(255).optional(),
-  description: z.string().trim().max(10000).optional(),
-  startDate: z.string().datetime({ offset: true }).optional(),
-  deadline: z.string().datetime({ offset: true }).optional(),
-})
+/** True unless both dates are set and the deadline is not after the start. */
+export function isDeadlineAfterStart(
+  startDate: string | null | undefined,
+  deadline: string | null | undefined,
+): boolean {
+  if (!startDate || !deadline) return true
+  return new Date(deadline).getTime() > new Date(startDate).getTime()
+}
+
+const deadlineAfterStart = {
+  message: 'Deadline must be after the start date',
+  path: ['deadline'],
+}
+
+export const createRevisionBodySchema = z
+  .object({
+    title: z.string().trim().max(255).optional(),
+    description: z.string().trim().max(10000).optional(),
+    startDate: z.string().datetime({ offset: true }).optional(),
+    deadline: z.string().datetime({ offset: true }).optional(),
+  })
+  .refine((value) => isDeadlineAfterStart(value.startDate, value.deadline), deadlineAfterStart)
 
 export const updateRevisionBodySchema = z
   .object({
@@ -33,6 +49,7 @@ export const updateRevisionBodySchema = z
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field is required',
   })
+  .refine((value) => isDeadlineAfterStart(value.startDate, value.deadline), deadlineAfterStart)
 
 export const tutorSubmitRevisionBodySchema = z.object({
   solutionIds: z.array(z.string().uuid()).optional(),

@@ -6,14 +6,18 @@ import type {
   AccountRecord,
   CreateAccountInput,
   UpdateAccountInput,
+  User,
   UserListFilter,
   UserRole,
   UserStats,
   UserStatus,
 } from './users.types.js'
+import { toPublicUser } from './users.types.js'
 
 export type UsersRepository = {
   findMany: () => Promise<AccountRecord[]>
+  /** Active users of one role, oldest first, without credentials. */
+  findActiveByRole: (role: UserRole) => Promise<User[]>
   findPage: (filter: UserListFilter) => Promise<{ items: AccountRecord[]; total: number }>
   countStats: () => Promise<UserStats>
   findById: (id: string) => Promise<AccountRecord | null>
@@ -24,10 +28,9 @@ export type UsersRepository = {
   incrementNbDone: (id: string) => Promise<void>
 }
 
-type UserRow = {
+type PublicUserRow = {
   id: string
   email: string
-  password_hash: string
   role: UserRole
   is_active: boolean
   name: string
@@ -36,8 +39,12 @@ type UserRow = {
   updated_at: string
 }
 
-const USER_COLUMNS =
-  'id, email, password_hash, role, is_active, name, phone, created_at, updated_at'
+type UserRow = PublicUserRow & {
+  password_hash: string
+}
+
+const PUBLIC_USER_COLUMNS = 'id, email, role, is_active, name, phone, created_at, updated_at'
+const USER_COLUMNS = `${PUBLIC_USER_COLUMNS}, password_hash`
 
 function splitName(name: string): {
   firstName: string | null
@@ -129,11 +136,10 @@ function searchOr(search: string): string | null {
   return `email.ilike.%${safe}%,name.ilike.%${safe}%`
 }
 
-function toRecord(row: UserRow): AccountRecord {
+function toUser(row: PublicUserRow): User {
   return {
     id: row.id,
     email: row.email,
-    passwordHash: row.password_hash,
     role: row.role,
     status: row.is_active ? 'ACTIVE' : 'INACTIVE',
     phone: row.phone ?? null,
@@ -141,6 +147,10 @@ function toRecord(row: UserRow): AccountRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+function toRecord(row: UserRow): AccountRecord {
+  return { ...toUser(row), passwordHash: row.password_hash }
 }
 
 /** Shared store so seeds and createApp() see the same accounts when Supabase is off. */
@@ -151,6 +161,13 @@ function createMemoryUsersRepository(): UsersRepository {
   return {
     async findMany() {
       return [...memoryUsersById.values()]
+    },
+
+    async findActiveByRole(role) {
+      return [...memoryUsersById.values()]
+        .filter((user) => user.role === role && user.status === 'ACTIVE')
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map(toPublicUser)
     },
 
     async findPage(filter) {
@@ -231,6 +248,17 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
 
       if (error) throw error
       return (data as UserRow[]).map(toRecord)
+    },
+
+    async findActiveByRole(role) {
+      const { data, error } = await client
+        .from('users')
+        .select(PUBLIC_USER_COLUMNS)
+        .eq('role', role)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return (data as PublicUserRow[]).map(toUser)
     },
 
     async findPage(filter) {
@@ -338,18 +366,7 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
     },
 
     async incrementNbDone(id) {
-      const { data, error: readError } = await client
-        .from('users')
-        .select('nb_done')
-        .eq('id', id)
-        .maybeSingle()
-      if (readError) throw readError
-      if (!data) return
-      const current = (data as { nb_done: number }).nb_done ?? 0
-      const { error } = await client
-        .from('users')
-        .update({ nb_done: current + 1 })
-        .eq('id', id)
+      const { error } = await client.rpc('increment_user_nb_done', { p_user_id: id })
       if (error) throw error
     },
   }

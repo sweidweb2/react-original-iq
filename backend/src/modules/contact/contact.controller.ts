@@ -2,7 +2,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express'
 
 import { respond, respondEmpty } from '../../middleware/respond.js'
 import { type ExportFile, sendExport } from '../_shared/export-file.js'
-import type { ListContactQuery } from './contact.schema.js'
+import type { ExportContactQuery, ListContactQuery } from './contact.schema.js'
 import type { ContactService, ExportOptions } from './contact.service.js'
 
 type ExportHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>
@@ -29,11 +29,8 @@ export type ContactController = {
 }
 
 function exportOptions(req: Request): ExportOptions {
-  const search = req.query.search
-  return {
-    search: typeof search === 'string' && search.trim() ? search.trim() : undefined,
-    actorId: req.user?.id ?? null,
-  }
+  const { search } = req.query as unknown as ExportContactQuery
+  return { search, actorId: req.user?.id ?? null }
 }
 
 function exportHandler(build: (options: ExportOptions) => Promise<ExportFile>): ExportHandler {

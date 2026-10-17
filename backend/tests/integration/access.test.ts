@@ -6,6 +6,8 @@ import { hashPassword } from '../../src/modules/auth/auth.tokens.js'
 import { createUsersRepository } from '../../src/modules/users/users.repository.js'
 import { loadTestConfig } from '../helpers/test-config.js'
 
+const MISSING_USER_ID = '00000000-0000-4000-8000-000000000000'
+
 describe('users and logs HTTP', () => {
   const config = loadTestConfig()
   const app = createApp({ config })
@@ -81,7 +83,7 @@ describe('users and logs HTTP', () => {
 
   it('returns 404 for an unknown user and lets an admin create one', async () => {
     const missing = await request(app)
-      .get('/api/v1/users/missing-user')
+      .get(`/api/v1/users/${MISSING_USER_ID}`)
       .set('Authorization', `Bearer ${adminToken}`)
     expect(missing.status).toBe(404)
     expect(missing.body).toMatchObject({ code: 'USER_NOT_FOUND' })
@@ -195,19 +197,19 @@ describe('users and logs HTTP', () => {
 
   it('returns 404 when update or deactivate targets a missing user', async () => {
     const update = await request(app)
-      .patch('/api/v1/users/missing-user')
+      .patch(`/api/v1/users/${MISSING_USER_ID}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: 'Updated' })
     expect(update.status).toBe(404)
     expect(update.body).toMatchObject({ code: 'USER_NOT_FOUND' })
 
     const clientDeactivate = await request(app)
-      .post('/api/v1/users/missing-user/deactivate')
+      .post(`/api/v1/users/${MISSING_USER_ID}/deactivate`)
       .set('Authorization', `Bearer ${clientToken}`)
     expect(clientDeactivate.status).toBe(403)
 
     const adminDeactivate = await request(app)
-      .post('/api/v1/users/missing-user/deactivate')
+      .post(`/api/v1/users/${MISSING_USER_ID}/deactivate`)
       .set('Authorization', `Bearer ${adminToken}`)
     expect(adminDeactivate.status).toBe(404)
     expect(adminDeactivate.body).toMatchObject({ code: 'USER_NOT_FOUND' })

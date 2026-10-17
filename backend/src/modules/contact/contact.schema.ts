@@ -10,8 +10,11 @@ const emailSchema = z
   .email()
   .transform((value) => value.toLowerCase())
 
+const NAME_MAX = 120
+const MESSAGE_MAX = 5000
+
 export const contactMessageBodySchema = z.object({
-  name: z.string().trim().min(1).max(20),
+  name: z.string().trim().min(1).max(NAME_MAX),
   email: emailSchema,
   subject: z
     .string()
@@ -19,7 +22,7 @@ export const contactMessageBodySchema = z.object({
     .max(120)
     .optional()
     .transform((value) => value || undefined),
-  message: z.string().trim().min(1).max(245),
+  message: z.string().trim().min(1).max(MESSAGE_MAX),
 })
 
 export const newsletterBodySchema = z.object({
@@ -37,8 +40,14 @@ export const leadBodySchema = z.object({
     .regex(/^[0-9\s()-]+$/),
 })
 
+const searchSchema = z.string().trim().max(120).optional()
+
 export const listContactQuerySchema = paginationQuerySchema.extend({
-  search: z.string().trim().max(120).optional(),
+  search: searchSchema,
+})
+
+export const exportContactQuerySchema = z.object({
+  search: searchSchema.transform((value) => value || undefined),
 })
 
 export const contactIdParamsSchema = z.object({
@@ -58,10 +67,10 @@ export const updateLeadBodySchema = z
 
 export const updateMessageBodySchema = z
   .object({
-    name: z.string().trim().min(1).max(20).optional(),
+    name: z.string().trim().min(1).max(NAME_MAX).optional(),
     email: emailSchema.optional(),
     subject: z.string().trim().max(120).nullable().optional(),
-    message: z.string().trim().min(1).max(245).optional(),
+    message: z.string().trim().min(1).max(MESSAGE_MAX).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'At least one field is required' })
 
@@ -73,6 +82,7 @@ export type ContactMessageBody = z.infer<typeof contactMessageBodySchema>
 export type NewsletterBody = z.infer<typeof newsletterBodySchema>
 export type LeadBody = z.infer<typeof leadBodySchema>
 export type ListContactQuery = z.infer<typeof listContactQuerySchema>
+export type ExportContactQuery = z.infer<typeof exportContactQuerySchema>
 export type UpdateLeadBody = z.infer<typeof updateLeadBodySchema>
 export type UpdateMessageBody = z.infer<typeof updateMessageBodySchema>
 export type UpdateNewsletterBody = z.infer<typeof updateNewsletterBodySchema>

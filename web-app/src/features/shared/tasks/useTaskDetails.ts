@@ -469,7 +469,8 @@ export function useTaskDetails() {
   const canCancelSubmit =
     isTutor && assignedTutor && task?.status === 'waiting_coordinator_approval'
   const canApprove = isStaff && task?.status === 'waiting_coordinator_approval'
-  const canDelete = isStaff || ownClient
+  const canDelete =
+    isStaff || (ownClient && task?.status === 'pending' && !task.tutorId)
 
   return {
     taskId,

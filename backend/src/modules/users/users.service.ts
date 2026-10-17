@@ -5,8 +5,18 @@ import { hashPassword } from '../auth/auth.tokens.js'
 import { getLoggingService } from '../logging/index.js'
 import type { UsersRepository } from './users.repository.js'
 import type { CreateUserBody, ListUsersQuery, UpdateUserBody } from './users.schema.js'
-import type { AccountRecord, CreateAccountInput, User, UserStats } from './users.types.js'
+import type { AccountRecord, CreateAccountInput, User, UserRole, UserStats } from './users.types.js'
 import { toPublicUser } from './users.types.js'
+
+const COORDINATOR_MANAGED_ROLES: readonly UserRole[] = ['tutor', 'client']
+
+/** Admins manage everyone (subject to the super hierarchy); coordinators only tutors and clients. */
+function assertCoordinatorScope(actor: AuthActor, targetRole: UserRole, action: string): void {
+  if (isUserAdmin(actor.roles)) return
+  if (!COORDINATOR_MANAGED_ROLES.includes(targetRole)) {
+    throw forbidden(`Coordinators can only ${action} tutors or clients`)
+  }
+}
 
 export type UserListResult = {
   data: User[]
@@ -149,6 +159,9 @@ export function createUsersService(
     async updateUser(id, input, actor) {
       const target = await assertAccessible(id, actor)
       assertCanManageRole(actor, target.role)
+      if (actor.id !== id) {
+        assertCoordinatorScope(actor, target.role, 'edit')
+      }
       if (input.role !== undefined) {
         assertCanManageRole(actor, input.role)
       }
@@ -219,18 +232,11 @@ export function createUsersService(
         throw forbidden('You cannot delete your own account')
       }
       const target = await loadOrThrow(id)
-      const adminActor = isUserAdmin(actor.roles)
-      const coordActor = isOps(actor.roles) && !adminActor
-      if (!adminActor && !coordActor) {
+      if (!isUserAdmin(actor.roles) && !isOps(actor.roles)) {
         throw forbidden('Only admins or coordinators can delete users')
       }
       assertCanManageRole(actor, target.role)
-      if (
-        coordActor &&
-        (target.role === 'admin' || target.role === 'super' || target.role === 'coordinator')
-      ) {
-        throw forbidden('Coordinators can only delete tutors or clients')
-      }
+      assertCoordinatorScope(actor, target.role, 'delete')
       await prepareTasksForDelete(id)
       const deleted = await repository.deleteAccount(id)
       if (!deleted) {

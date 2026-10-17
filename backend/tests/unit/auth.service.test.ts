@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAuthService } from '../../src/modules/auth/auth.service.js'
+import { verifyPassword } from '../../src/modules/auth/auth.tokens.js'
 import {
   type AuthSessionsRepository,
   createAuthSessionsRepository,
@@ -17,6 +18,7 @@ import type { AccountRecord } from '../../src/modules/users/users.types.js'
 import { loadTestConfig } from '../helpers/test-config.js'
 
 vi.mock('../../src/modules/auth/auth.tokens.js', () => ({
+  DUMMY_PASSWORD_HASH: 'dummy-hash',
   hashPassword: vi.fn(async (password: string) => `hash:${password}`),
   verifyPassword: vi.fn(
     async (password: string, passwordHash: string) => passwordHash === `hash:${password}`,
@@ -150,6 +152,17 @@ describe('auth.service', () => {
     await expect(
       service.login({ email: 'user@example.com', password: 'wrong' }),
     ).rejects.toMatchObject({ status: 401, code: 'UNAUTHORIZED' })
+  })
+
+  it('still runs a password check when the email is unknown', async () => {
+    vi.mocked(users.findByEmail).mockResolvedValue(null)
+    vi.mocked(verifyPassword).mockClear()
+    const service = createAuthService(users, config)
+
+    await expect(
+      service.login({ email: 'nobody@example.com', password: 'secret123' }),
+    ).rejects.toMatchObject({ status: 401, message: 'Invalid email or password' })
+    expect(verifyPassword).toHaveBeenCalledWith('secret123', 'dummy-hash')
   })
 
   it('rejects login for inactive users', async () => {

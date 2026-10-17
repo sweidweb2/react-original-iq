@@ -1,20 +1,17 @@
 import express from 'express'
 import request from 'supertest'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { errorHandler } from '../../src/errors/error.middleware.js'
-import { authenticate } from '../../src/middleware/authenticate.js'
+import { createAuthenticate } from '../../src/middleware/authenticate.js'
 import { authorize } from '../../src/middleware/authorize.js'
 import type { RoleName } from '../../src/modules/auth/auth.schema.js'
 import { signAccessToken } from '../../src/modules/auth/auth.tokens.js'
-import { ensureTestJwtEnv, loadTestConfig } from '../helpers/test-config.js'
+import { loadTestConfig } from '../helpers/test-config.js'
 
 describe('authorize middleware', () => {
   const config = loadTestConfig()
-
-  beforeAll(() => {
-    ensureTestJwtEnv()
-  })
+  const authenticate = createAuthenticate(config)
 
   function gatedApp(...roles: RoleName[]) {
     const app = express()

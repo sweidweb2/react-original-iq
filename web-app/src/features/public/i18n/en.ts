@@ -104,10 +104,10 @@ export const publicEn = {
       emailTooLong: 'Email must be 100 characters or fewer',
       emailInvalid: 'Enter a valid email',
       nameRequired: 'Your name is required',
-      nameTooLong: 'Name must be 20 characters or fewer',
+      nameTooLong: 'Name must be 120 characters or fewer',
       subjectTooLong: 'Subject must be 120 characters or fewer',
       messageRequired: 'Message is required',
-      messageTooLong: 'Message must be 245 characters or fewer',
+      messageTooLong: 'Message must be 5000 characters or fewer',
     },
   },
   about: {

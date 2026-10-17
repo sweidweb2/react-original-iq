@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthActor } from '../../src/authz/index.js'
 import { hashPassword } from '../../src/modules/auth/auth.tokens.js'
 import type { UsersRepository } from '../../src/modules/users/users.repository.js'
-import { createUsersService } from '../../src/modules/users/users.service.js'
+import { createUsersService, type UserTasksPort } from '../../src/modules/users/users.service.js'
 import type { AccountRecord } from '../../src/modules/users/users.types.js'
 import { toPublicUser } from '../../src/modules/users/users.types.js'
 
@@ -326,14 +326,24 @@ describe('users.service', () => {
     })
   })
 
-  it('lets an admin hard-delete a user when assertDeletable passes', async () => {
+  function makeTasksPort(overrides: Partial<UserTasksPort> = {}): UserTasksPort {
+    return {
+      countActiveInvolvingUser: vi.fn().mockResolvedValue(0),
+      hasPaymentsForClient: vi.fn().mockResolvedValue(false),
+      deleteForClient: vi.fn().mockResolvedValue(0),
+      ...overrides,
+    }
+  }
+
+  it('lets an admin hard-delete a user, clearing their payment-free tasks first', async () => {
     vi.mocked(repository.findById).mockResolvedValue(makeAccount())
     vi.mocked(repository.deleteAccount).mockResolvedValue(true)
-    const assertDeletable = vi.fn().mockResolvedValue(undefined)
-    const service = createUsersService(repository, { assertDeletable })
+    const tasks = makeTasksPort()
+    const service = createUsersService(repository, { tasks })
 
     await expect(service.deleteUser('user-1', admin)).resolves.toBeUndefined()
-    expect(assertDeletable).toHaveBeenCalledWith('user-1')
+    expect(tasks.hasPaymentsForClient).toHaveBeenCalledWith('user-1')
+    expect(tasks.deleteForClient).toHaveBeenCalledWith('user-1')
     expect(repository.deleteAccount).toHaveBeenCalledWith('user-1')
   })
 
@@ -357,12 +367,23 @@ describe('users.service', () => {
     await expect(service.deleteUser('user-1', coordinator)).rejects.toMatchObject({ status: 403 })
   })
 
-  it('propagates assertDeletable conflicts', async () => {
+  it('refuses to delete a user with active tasks', async () => {
     vi.mocked(repository.findById).mockResolvedValue(makeAccount())
-    const assertDeletable = vi.fn().mockRejectedValue({ status: 409, code: 'CONFLICT' })
-    const service = createUsersService(repository, { assertDeletable })
+    const tasks = makeTasksPort({ countActiveInvolvingUser: vi.fn().mockResolvedValue(2) })
+    const service = createUsersService(repository, { tasks })
 
     await expect(service.deleteUser('user-1', admin)).rejects.toMatchObject({ status: 409 })
+    expect(tasks.deleteForClient).not.toHaveBeenCalled()
+    expect(repository.deleteAccount).not.toHaveBeenCalled()
+  })
+
+  it('refuses to delete a client whose tasks have payments or refunds', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeAccount())
+    const tasks = makeTasksPort({ hasPaymentsForClient: vi.fn().mockResolvedValue(true) })
+    const service = createUsersService(repository, { tasks })
+
+    await expect(service.deleteUser('user-1', admin)).rejects.toMatchObject({ status: 409 })
+    expect(tasks.deleteForClient).not.toHaveBeenCalled()
     expect(repository.deleteAccount).not.toHaveBeenCalled()
   })
 })

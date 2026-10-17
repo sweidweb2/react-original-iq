@@ -8,6 +8,12 @@ import type { RoleName } from './auth.schema.js'
 
 const BCRYPT_ROUNDS = 12
 
+/**
+ * Hash of a discarded random secret at BCRYPT_ROUNDS. Compared against when no account
+ * matches so a missing email costs the same time as a wrong password.
+ */
+export const DUMMY_PASSWORD_HASH = '$2b$12$s5Nuv4S85saJftlzg6oOZ.63zm/B1qNAucvfngMojzSapOJ4Z9fyW'
+
 const VERIFY_OPTIONS: VerifyOptions = { algorithms: ['HS256'] }
 
 export type AccessTokenPayload = {

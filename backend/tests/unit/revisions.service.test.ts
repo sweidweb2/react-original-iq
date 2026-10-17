@@ -7,6 +7,10 @@ import {
   type RevisionsRepository,
 } from '../../src/modules/revisions/revisions.repository.js'
 import {
+  createRevisionBodySchema,
+  updateRevisionBodySchema,
+} from '../../src/modules/revisions/revisions.schema.js'
+import {
   createRevisionsService,
   type RevisionsService,
 } from '../../src/modules/revisions/revisions.service.js'
@@ -156,5 +160,41 @@ describe('revisions.service lifecycle guards', () => {
     expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(1)
     const rejected = results.find((row) => row.status === 'rejected') as PromiseRejectedResult
     expect(rejected.reason).toMatchObject({ status: 409 })
+  })
+
+  it('rejects an update that moves the deadline before the stored start date', async () => {
+    const revision = await service.createForTask(
+      TASK_ID,
+      { startDate: '2026-11-10T00:00:00.000Z', deadline: '2026-11-20T00:00:00.000Z' },
+      coordinator,
+    )
+    await expect(
+      service.update(revision.id, { deadline: '2026-11-05T00:00:00.000Z' }, coordinator),
+    ).rejects.toMatchObject({ status: 400 })
+    await expect(
+      service.update(revision.id, { deadline: '2026-11-25T00:00:00.000Z' }, coordinator),
+    ).resolves.toMatchObject({ deadline: expect.stringContaining('2026-11-25') })
+  })
+})
+
+describe('revision body schemas', () => {
+  const start = '2026-11-10T00:00:00.000Z'
+
+  it('rejects a create whose deadline is not after the start date', () => {
+    expect(
+      createRevisionBodySchema.safeParse({ startDate: start, deadline: start }).success,
+    ).toBe(false)
+    expect(
+      createRevisionBodySchema.safeParse({ startDate: start, deadline: '2026-11-11T00:00:00Z' })
+        .success,
+    ).toBe(true)
+    expect(createRevisionBodySchema.safeParse({ deadline: start }).success).toBe(true)
+  })
+
+  it('rejects an update carrying both dates in the wrong order', () => {
+    expect(
+      updateRevisionBodySchema.safeParse({ startDate: start, deadline: '2026-11-01T00:00:00Z' })
+        .success,
+    ).toBe(false)
   })
 })

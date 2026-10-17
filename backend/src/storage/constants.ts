@@ -41,3 +41,6 @@ export const ALLOWED_UPLOAD_EXTENSIONS = Object.keys(ALLOWED_UPLOAD_MIME_BY_EXT)
 export const DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
 export const DEFAULT_MAX_TASK_BYTES = 100 * 1024 * 1024
 export const DEFAULT_SIGNED_URL_TTL_SEC = 900
+
+/** Hard ceiling for any single upload, regardless of STORAGE_MAX_FILE_BYTES (5 GiB). */
+export const UPLOAD_SIZE_CEILING_BYTES = 5 * 1024 * 1024 * 1024

@@ -105,10 +105,10 @@ export const publicAr: PublicDictionary = {
       emailTooLong: 'يجب ألّا يتجاوز البريد الإلكتروني 100 حرف',
       emailInvalid: 'أدخل بريدًا إلكترونيًا صحيحًا',
       nameRequired: 'يرجى إدخال اسمك',
-      nameTooLong: 'يجب ألّا يتجاوز الاسم 20 حرفًا',
+      nameTooLong: 'يجب ألّا يتجاوز الاسم 120 حرفًا',
       subjectTooLong: 'يجب ألّا يتجاوز الموضوع 120 حرفًا',
       messageRequired: 'يرجى كتابة رسالتك',
-      messageTooLong: 'يجب ألّا تتجاوز الرسالة 245 حرفًا',
+      messageTooLong: 'يجب ألّا تتجاوز الرسالة 5000 حرف',
     },
   },
   about: {

@@ -97,7 +97,7 @@ describe('tasks.service', () => {
       deleteSolution: vi.fn(),
       hasPayments: vi.fn().mockResolvedValue(false),
       countActiveInvolvingUser: vi.fn().mockResolvedValue(0),
-      listTaskIdsForClient: vi.fn().mockResolvedValue([]),
+      hasPaymentsForClient: vi.fn().mockResolvedValue(false),
       deleteForClient: vi.fn().mockResolvedValue(0),
     }
     users = {

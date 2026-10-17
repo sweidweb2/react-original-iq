@@ -1,10 +1,11 @@
 import type { AuthActor } from '../../authz/index.js'
 import { isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
-import { forbidden, notFound, serviceUnavailable } from '../../errors/app-error.js'
+import { conflict, forbidden, notFound, serviceUnavailable } from '../../errors/app-error.js'
 import { reportError } from '../../errors/report-error.js'
 import type { Mailer } from '../../mail/index.js'
 import { renderInvoicePdf } from '../../pdf/index.js'
 import type { StorageService } from '../../storage/index.js'
+import { formatAmount } from '../_shared/money.js'
 import { getLoggingService } from '../logging/index.js'
 import type { PaymentsRepository } from '../payments/payments.repository.js'
 import type { PaymentRecord } from '../payments/payments.types.js'
@@ -12,7 +13,12 @@ import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task } from '../tasks/tasks.types.js'
 import type { UsersRepository } from '../users/users.repository.js'
 import type { InvoicesRepository } from './invoices.repository.js'
-import { type InvoiceRecord, type InvoiceSummary, toInvoiceSummary } from './invoices.types.js'
+import {
+  type InvoiceRecord,
+  type InvoiceSummary,
+  type PaymentInvoices,
+  toInvoiceSummary,
+} from './invoices.types.js'
 
 export type InvoiceDownload = {
   url: string
@@ -25,9 +31,11 @@ export type InvoicesService = {
   issueForPayment: (paymentId: string) => Promise<InvoiceSummary | null>
   resend: (invoiceId: string, actor: AuthActor) => Promise<InvoiceSummary>
   getDownloadUrl: (invoiceId: string, actor: AuthActor) => Promise<InvoiceDownload>
-  /** Remove the stored PDF and the invoice row (before a payment is deleted). */
-  purgeForPayment: (paymentId: string) => Promise<void>
-  summariesForPayments: (paymentIds: string[]) => Promise<Map<string, InvoiceSummary>>
+  /** Void the payment's current invoice (row and PDF are kept); a new one is issued if still paid. */
+  voidForPayment: (paymentId: string, reason: string) => Promise<void>
+  /** True if the payment ever had an invoice, voided or not. */
+  hasInvoices: (paymentId: string) => Promise<boolean>
+  forPayments: (paymentIds: string[]) => Promise<Map<string, PaymentInvoices>>
 }
 
 export type InvoicesServiceDeps = {
@@ -95,8 +103,8 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
         task: { id: ctx.task.id, topic: ctx.task.topic },
         payment: {
           id: ctx.payment.id,
-          amount: ctx.payment.amount,
-          currency: ctx.payment.currency,
+          amount: invoice.amount,
+          currency: invoice.currency,
           method: ctx.payment.paymentMethod,
           gateway: ctx.payment.gateway,
           status: ctx.payment.status,
@@ -133,7 +141,7 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
       problems.push('Client has no email address')
     } else {
       try {
-        const amountLabel = `${ctx.payment.amount.toFixed(2)} ${ctx.payment.currency}`
+        const amountLabel = `${formatAmount(invoice.amount, invoice.currency)} ${invoice.currency}`
         const topic = ctx.task.topic ?? 'your task'
         const result = await mailer.send({
           to: ctx.client.email,
@@ -215,10 +223,14 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
       try {
         const ctx = await loadContext(paymentId)
         if (ctx.payment.status !== 'paid') return null
-        let invoice = await repository.findByPaymentId(paymentId)
+        let invoice = await repository.findActiveByPaymentId(paymentId)
         if (invoice?.invoiceStatus === 'sent') return toInvoiceSummary(invoice)
         if (!invoice) {
-          invoice = await repository.create(paymentId)
+          invoice = await repository.create({
+            paymentId,
+            amount: ctx.payment.amount,
+            currency: ctx.payment.currency,
+          })
           await logPaymentEvent(paymentId, 'invoice.created', {
             invoiceId: invoice.id,
             invoiceNumber: invoice.invoiceNumber,

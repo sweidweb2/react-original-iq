@@ -9,6 +9,7 @@ import type { ContactController } from './contact.controller.js'
 import {
   contactIdParamsSchema,
   contactMessageBodySchema,
+  exportContactQuerySchema,
   leadBodySchema,
   listContactQuerySchema,
   newsletterBodySchema,
@@ -24,6 +25,11 @@ export function createContactRoutes(controller: ContactController, config: AppCo
   const router = Router()
   const limiter = createAuthRateLimiter(config)
   const authenticate = createAuthenticate(config)
+  const exportGuard = [
+    authenticate,
+    authorize(...EXPORT_GATE),
+    validate({ query: exportContactQuerySchema }),
+  ]
 
   router.post(
     '/messages',
@@ -31,7 +37,7 @@ export function createContactRoutes(controller: ContactController, config: AppCo
     validate({ body: contactMessageBodySchema }),
     controller.createMessage,
   )
-  router.get('/messages/export', authenticate, authorize(...EXPORT_GATE), controller.exportMessages)
+  router.get('/messages/export', ...exportGuard, controller.exportMessages)
   router.get(
     '/messages',
     authenticate,
@@ -67,18 +73,8 @@ export function createContactRoutes(controller: ContactController, config: AppCo
     validate({ body: newsletterBodySchema }),
     controller.subscribe,
   )
-  router.get(
-    '/newsletter/export',
-    authenticate,
-    authorize(...EXPORT_GATE),
-    controller.exportNewsletter,
-  )
-  router.get(
-    '/newsletter/export.pdf',
-    authenticate,
-    authorize(...EXPORT_GATE),
-    controller.exportNewsletterPdf,
-  )
+  router.get('/newsletter/export', ...exportGuard, controller.exportNewsletter)
+  router.get('/newsletter/export.pdf', ...exportGuard, controller.exportNewsletterPdf)
   router.get(
     '/newsletter',
     authenticate,
@@ -102,13 +98,8 @@ export function createContactRoutes(controller: ContactController, config: AppCo
   )
 
   router.post('/leads', limiter, validate({ body: leadBodySchema }), controller.createLead)
-  router.get('/leads/export', authenticate, authorize(...EXPORT_GATE), controller.exportLeads)
-  router.get(
-    '/leads/export.pdf',
-    authenticate,
-    authorize(...EXPORT_GATE),
-    controller.exportLeadsPdf,
-  )
+  router.get('/leads/export', ...exportGuard, controller.exportLeads)
+  router.get('/leads/export.pdf', ...exportGuard, controller.exportLeadsPdf)
   router.get(
     '/leads',
     authenticate,

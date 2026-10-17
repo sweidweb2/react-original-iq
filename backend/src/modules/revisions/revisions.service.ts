@@ -4,10 +4,11 @@ import { conflict, forbidden, notFound, validationError } from '../../errors/app
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task } from '../tasks/tasks.types.js'
 import { OPEN_REVISION_STATUSES, type RevisionsRepository } from './revisions.repository.js'
-import type {
-  CreateRevisionBody,
-  TutorSubmitRevisionBody,
-  UpdateRevisionBody,
+import {
+  type CreateRevisionBody,
+  isDeadlineAfterStart,
+  type TutorSubmitRevisionBody,
+  type UpdateRevisionBody,
 } from './revisions.schema.js'
 import type { RevisionDetail, RevisionSession } from './revisions.types.js'
 
@@ -107,6 +108,11 @@ export function createRevisionsService(
       }
       if (!isOpen(revision)) {
         throw validationError('Only open revisions can be edited')
+      }
+      const startDate = body.startDate === undefined ? revision.startDate : body.startDate
+      const deadline = body.deadline === undefined ? revision.deadline : body.deadline
+      if (!isDeadlineAfterStart(startDate, deadline)) {
+        throw validationError('Deadline must be after the start date')
       }
       const updated = await repository.update(id, body, OPEN_REVISION_STATUSES)
       return updated ?? statusChanged()

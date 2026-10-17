@@ -4,10 +4,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { createApp } from '../../src/app.js'
 import { hashPassword } from '../../src/modules/auth/auth.tokens.js'
 import { createUsersRepository } from '../../src/modules/users/users.repository.js'
-import { ensureTestJwtEnv, loadTestConfig } from '../helpers/test-config.js'
+import { loadTestConfig } from '../helpers/test-config.js'
 
 describe('Zod request validation', () => {
-  ensureTestJwtEnv()
   const config = loadTestConfig()
   const app = createApp({ config })
   let superAccessToken = ''
@@ -67,6 +66,25 @@ describe('Zod request validation', () => {
       code: 'VALIDATION_ERROR',
       message: 'Validation failed',
     })
+  })
+
+  it('rejects a non-UUID user id with 400 instead of reaching the database', async () => {
+    const res = await request(app)
+      .get('/api/v1/users/not-a-uuid')
+      .set('Authorization', `Bearer ${superAccessToken}`)
+
+    expect(res.status).toBe(400)
+    expect(res.body).toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
+
+  it('rejects an unbounded page number', async () => {
+    const res = await request(app)
+      .get('/api/v1/activity-logs')
+      .set('Authorization', `Bearer ${superAccessToken}`)
+      .query({ page: '10001' })
+
+    expect(res.status).toBe(400)
+    expect(res.body).toMatchObject({ code: 'VALIDATION_ERROR' })
   })
 
   it('accepts valid query and returns list meta', async () => {

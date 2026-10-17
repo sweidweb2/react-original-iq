@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { UPLOAD_SIZE_CEILING_BYTES } from '../storage/constants.js'
+
 const nodeEnvSchema = z.enum(['development', 'test', 'staging', 'production'])
 
 const DURATION_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
@@ -58,6 +60,7 @@ const baseEnvSchema = z.object({
     .number()
     .int()
     .positive()
+    .max(UPLOAD_SIZE_CEILING_BYTES)
     .default(25 * 1024 * 1024),
   /** Soft cap for total bytes under one task (default 100 MiB). */
   STORAGE_MAX_TASK_BYTES: z.coerce

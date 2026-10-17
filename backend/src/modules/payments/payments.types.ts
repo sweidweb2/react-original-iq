@@ -1,4 +1,4 @@
-import type { InvoiceSummary } from '../invoices/invoices.types.js'
+import type { PaymentInvoices } from '../invoices/invoices.types.js'
 
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'canceled' | 'refunded'
 
@@ -24,9 +24,7 @@ export type PaymentRecord = {
   updatedAt: string
 }
 
-export type PaymentWithInvoice = PaymentRecord & {
-  invoice: InvoiceSummary | null
-}
+export type PaymentWithInvoice = PaymentRecord & PaymentInvoices
 
 export type RefundRecord = {
   id: string

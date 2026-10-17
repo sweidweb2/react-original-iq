@@ -80,6 +80,12 @@ export type CreateTaskInput = {
   status?: TaskStatus
 }
 
+/** A guarded write only applies while the row still matches; otherwise the repository returns null. */
+export type TaskWriteGuard = {
+  status?: readonly TaskStatus[]
+  tutorId?: string | null
+}
+
 export type UpdateTaskInput = {
   topic?: string
   type?: TaskType
@@ -144,6 +150,13 @@ export const TASK_STATUSES: TaskStatus[] = [
   'waiting_coordinator_approval',
   'completed',
   'cancelled',
+]
+
+/** Open work: counts toward coordinator load and blocks user deletion. */
+export const ACTIVE_TASK_STATUSES: TaskStatus[] = [
+  'pending',
+  'in-progress',
+  'waiting_coordinator_approval',
 ]
 
 export function emptyTaskStats(): TaskStats {

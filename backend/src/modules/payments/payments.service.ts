@@ -2,10 +2,19 @@ import { randomUUID } from 'node:crypto'
 
 import type { AuthActor } from '../../authz/index.js'
 import { assertTaskRelated, isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
-import { forbidden, notFound, notImplemented, validationError } from '../../errors/app-error.js'
+import {
+  conflict,
+  forbidden,
+  notFound,
+  notImplemented,
+  validationError,
+} from '../../errors/app-error.js'
 import { reportError } from '../../errors/report-error.js'
+import { formatAmount, fromMinor, sumMinor, toMinor } from '../_shared/money.js'
 import type { InvoicesService } from '../invoices/invoices.service.js'
+import type { PaymentInvoices } from '../invoices/invoices.types.js'
 import { getLoggingService } from '../logging/index.js'
+import { derivePaymentStatus } from '../tasks/payment-status.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task, TaskPaymentStatus } from '../tasks/tasks.types.js'
 import {
@@ -75,10 +84,13 @@ export type PaymentsServiceOptions = {
   gatewayMode?: 'simulated' | 'montypay'
 }
 
-const CENT = 0.005
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100
+/** Positive amount in minor units; rejects amounts that round to zero. */
+function positiveMinor(amount: number): number {
+  const minor = toMinor(amount)
+  if (minor <= 0) {
+    throw validationError(`Amount must be at least ${formatAmount(fromMinor(1))}`)
+  }
+  return minor
 }
 
 function canManagePayments(actor: AuthActor, task: Task): boolean {
@@ -104,27 +116,33 @@ async function guarded<T>(write: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Doc 06: net = paid payments − paid refunds. */
+/** The only writer of `tasks.payment_status` once money exists (see `derivePaymentStatus`). */
 export async function recomputeTaskPaymentStatus(
   tasksRepository: TasksRepository,
   paymentsRepository: PaymentsRepository,
   task: Task,
 ): Promise<TaskPaymentStatus> {
-  const [paidTotal, refundedTotal, refunds] = await Promise.all([
+  const [paidTotal, refunds] = await Promise.all([
     paymentsRepository.sumPaidByTask(task.id),
-    paymentsRepository.sumRefundedByTask(task.id),
     paymentsRepository.listRefundsByTask(task.id),
   ])
-  const net = roundMoney(paidTotal - refundedTotal)
-  const hasPendingRefund = refunds.some((row) => row.status === 'pending')
-  let paymentStatus: TaskPaymentStatus = 'unpaid'
-  if (hasPendingRefund || (task.price > 0 && net > task.price)) {
-    paymentStatus = 'refund_pending'
-  } else if (task.price > 0 && net === task.price) {
-    paymentStatus = 'paid'
-  } else if (task.price === 0 && net === 0) {
-    paymentStatus = 'paid'
+  const paidMinor = toMinor(paidTotal)
+  const refundedMinor = sumMinor(
+    refunds.filter((row) => row.status === 'paid').map((row) => row.amount),
+  )
+  if (refundedMinor > paidMinor) {
+    reportError(new Error('Paid refunds exceed paid payments'), {
+      source: 'payments.recompute',
+      level: 'warning',
+      meta: { taskId: task.id, paidMinor, refundedMinor },
+    })
   }
+  const paymentStatus = derivePaymentStatus({
+    priceMinor: toMinor(task.price),
+    paidMinor,
+    refundedMinor,
+    hasPendingRefund: refunds.some((row) => row.status === 'pending'),
+  })
   await tasksRepository.update(task.id, { paymentStatus })
   return paymentStatus
 }
@@ -160,32 +178,33 @@ export function createPaymentsService(
     }
   }
 
-  async function totals(taskId: string) {
+  type Totals = { paidMinor: number; refundedMinor: number }
+
+  async function totals(taskId: string): Promise<Totals> {
     const [paidTotal, refundedTotal] = await Promise.all([
       repository.sumPaidByTask(taskId),
       repository.sumRefundedByTask(taskId),
     ])
-    return { paidTotal, refundedTotal }
+    return { paidMinor: toMinor(paidTotal), refundedMinor: toMinor(refundedTotal) }
   }
 
-  function dueFor(task: Task, paidTotal: number, refundedTotal: number): number {
-    return roundMoney(Math.max(0, task.price - paidTotal + refundedTotal))
+  function dueMinorFor(task: Task, { paidMinor, refundedMinor }: Totals): number {
+    return Math.max(0, toMinor(task.price) - paidMinor + refundedMinor)
   }
 
   /** Paid + pending refunds: money already promised back to the client. */
-  async function committedRefunds(taskId: string): Promise<number> {
+  async function committedRefundsMinor(taskId: string): Promise<number> {
     const refunds = await repository.listRefundsByTask(taskId)
-    return roundMoney(
+    return sumMinor(
       refunds
         .filter((row) => row.status === 'paid' || row.status === 'pending')
-        .reduce((sum, row) => sum + row.amount, 0),
+        .map((row) => row.amount),
     )
   }
 
   /** Rejects a change that lowers the paid total below the committed refunds. */
-  async function assertRefundsStayCovered(taskId: string, nextPaidTotal: number) {
-    const committed = await committedRefunds(taskId)
-    if (nextPaidTotal < committed - CENT) {
+  async function assertRefundsStayCovered(taskId: string, nextPaidMinor: number) {
+    if (nextPaidMinor < (await committedRefundsMinor(taskId))) {
       throw validationError(CAP_MESSAGES.refund_uncovered)
     }
   }
@@ -198,9 +217,11 @@ export function createPaymentsService(
     }
   }
 
+  const NO_INVOICES: PaymentInvoices = { invoice: null, voidedInvoices: [] }
+
   async function withInvoice(payment: PaymentRecord): Promise<PaymentWithInvoice> {
-    const map = await invoices.summariesForPayments([payment.id])
-    return { ...payment, invoice: map.get(payment.id) ?? null }
+    const map = await invoices.forPayments([payment.id])
+    return { ...payment, ...(map.get(payment.id) ?? NO_INVOICES) }
   }
 
   /** Issue the invoice when a payment is paid; invoice failures never undo the payment. */
@@ -213,22 +234,22 @@ export function createPaymentsService(
   }
 
   async function buildView(task: Task): Promise<TaskPaymentsView> {
-    const [payments, refunds, { paidTotal, refundedTotal }] = await Promise.all([
+    const [payments, refunds, sums] = await Promise.all([
       repository.listPaymentsByTask(task.id),
       repository.listRefundsByTask(task.id),
       totals(task.id),
     ])
-    const invoiceMap = await invoices.summariesForPayments(payments.map((row) => row.id))
+    const invoiceMap = await invoices.forPayments(payments.map((row) => row.id))
     return {
       summary: {
         taskId: task.id,
         price: task.price,
-        paidTotal,
-        refundedTotal,
-        due: dueFor(task, paidTotal, refundedTotal),
+        paidTotal: fromMinor(sums.paidMinor),
+        refundedTotal: fromMinor(sums.refundedMinor),
+        due: fromMinor(dueMinorFor(task, sums)),
         paymentStatus: task.paymentStatus,
       },
-      payments: payments.map((row) => ({ ...row, invoice: invoiceMap.get(row.id) ?? null })),
+      payments: payments.map((row) => ({ ...row, ...(invoiceMap.get(row.id) ?? NO_INVOICES) })),
       refunds,
     }
   }
@@ -255,14 +276,16 @@ export function createPaymentsService(
         throw forbidden('Only coordinators or admins can record manual payments')
       }
       const status = body.status ?? 'paid'
+      const amountMinor = positiveMinor(body.amount)
       if (status === 'paid') {
-        const { paidTotal, refundedTotal } = await totals(taskId)
-        const due = dueFor(task, paidTotal, refundedTotal)
-        if (due <= 0) {
+        const dueMinor = dueMinorFor(task, await totals(taskId))
+        if (dueMinor <= 0) {
           throw validationError('Nothing left to pay on this task')
         }
-        if (body.amount > due + CENT) {
-          throw validationError(`Manual payments cannot exceed the balance due (${due.toFixed(2)})`)
+        if (amountMinor > dueMinor) {
+          throw validationError(
+            `Manual payments cannot exceed the balance due (${formatAmount(fromMinor(dueMinor))})`,
+          )
         }
       }
       const payment = await guarded(() =>
@@ -270,7 +293,7 @@ export function createPaymentsService(
           {
             taskId,
             userId: task.clientId,
-            amount: roundMoney(body.amount),
+            amount: fromMinor(amountMinor),
             status,
             gateway: MANUAL_GATEWAY,
             paymentMethod: body.paymentMethod ?? 'manual',
@@ -301,23 +324,24 @@ export function createPaymentsService(
       }
       const current = await loadPayment(taskId, paymentId)
       const nextStatus = body.status ?? current.status
-      const nextAmount = body.amount !== undefined ? roundMoney(body.amount) : current.amount
+      const currentMinor = toMinor(current.amount)
+      const nextMinor = body.amount !== undefined ? positiveMinor(body.amount) : currentMinor
 
-      const { paidTotal, refundedTotal } = await totals(taskId)
-      const othersPaid = paidTotal - (current.status === 'paid' ? current.amount : 0)
-      const nextPaidTotal = roundMoney(othersPaid + (nextStatus === 'paid' ? nextAmount : 0))
-      if (nextStatus === 'paid' && roundMoney(nextPaidTotal - refundedTotal) > task.price + CENT) {
+      const sums = await totals(taskId)
+      const othersPaidMinor = sums.paidMinor - (current.status === 'paid' ? currentMinor : 0)
+      const nextPaidMinor = othersPaidMinor + (nextStatus === 'paid' ? nextMinor : 0)
+      if (nextStatus === 'paid' && nextPaidMinor - sums.refundedMinor > toMinor(task.price)) {
         throw validationError(CAP_MESSAGES.overpay)
       }
-      if (nextPaidTotal < paidTotal) {
-        await assertRefundsStayCovered(taskId, nextPaidTotal)
+      if (nextPaidMinor < sums.paidMinor) {
+        await assertRefundsStayCovered(taskId, nextPaidMinor)
       }
 
       const updated = await guarded(() =>
         repository.updatePayment(
           paymentId,
           {
-            amount: body.amount !== undefined ? nextAmount : undefined,
+            amount: body.amount !== undefined ? fromMinor(nextMinor) : undefined,
             status: body.status,
             paymentMethod: body.paymentMethod,
           },
@@ -329,9 +353,14 @@ export function createPaymentsService(
       }
 
       const invoiceStale =
-        current.status === 'paid' && (nextStatus !== 'paid' || nextAmount !== current.amount)
+        current.status === 'paid' && (nextStatus !== 'paid' || nextMinor !== currentMinor)
       if (invoiceStale) {
-        await invoices.purgeForPayment(paymentId)
+        await invoices.voidForPayment(
+          paymentId,
+          nextStatus !== 'paid'
+            ? `Payment marked ${nextStatus}`
+            : `Payment amount changed from ${formatAmount(current.amount)} to ${formatAmount(updated.amount)} ${updated.currency}`,
+        )
       }
 
       await logEvent(paymentId, 'payment.updated', {
@@ -358,15 +387,15 @@ export function createPaymentsService(
       if (gatewayMode !== 'simulated') {
         throw notImplemented('MontyPay checkout')
       }
-      const { paidTotal, refundedTotal } = await totals(taskId)
-      const due = dueFor(task, paidTotal, refundedTotal)
-      if (due <= 0) {
+      const dueMinor = dueMinorFor(task, await totals(taskId))
+      if (dueMinor <= 0) {
         throw validationError('Nothing left to pay on this task')
       }
-      const amount = roundMoney(body.amount ?? due)
-      if (amount > due + CENT) {
-        throw validationError(`Amount exceeds the balance due (${due.toFixed(2)})`)
+      const amountMinor = body.amount !== undefined ? positiveMinor(body.amount) : dueMinor
+      if (amountMinor > dueMinor) {
+        throw validationError(`Amount exceeds the balance due (${formatAmount(fromMinor(dueMinor))})`)
       }
+      const amount = fromMinor(amountMinor)
 
       const payment = await guarded(() =>
         repository.createPayment(
@@ -403,11 +432,16 @@ export function createPaymentsService(
         throw forbidden('Only coordinators or admins can delete payments')
       }
       const payment = await loadPayment(taskId, paymentId)
-      if (payment.status === 'paid') {
-        const { paidTotal } = await totals(taskId)
-        await assertRefundsStayCovered(taskId, roundMoney(paidTotal - payment.amount))
+      if (await invoices.hasInvoices(paymentId)) {
+        throw conflict(
+          'Invoiced payments cannot be deleted; mark the payment canceled to void its invoice',
+          'PAYMENT_INVOICED',
+        )
       }
-      await invoices.purgeForPayment(paymentId)
+      if (payment.status === 'paid') {
+        const { paidMinor } = await totals(taskId)
+        await assertRefundsStayCovered(taskId, paidMinor - toMinor(payment.amount))
+      }
       const deleted = await repository.deletePayment(paymentId)
       if (!deleted) {
         throw notFound('Payment not found', 'PAYMENT_NOT_FOUND')
@@ -427,20 +461,22 @@ export function createPaymentsService(
       if (!canManagePayments(actor, task)) {
         throw forbidden('Only coordinators or admins can create refunds')
       }
-      const amount = roundMoney(body.amount)
-      const [{ paidTotal }, committed] = await Promise.all([
+      const amountMinor = positiveMinor(body.amount)
+      const [{ paidMinor }, committedMinor] = await Promise.all([
         totals(taskId),
-        committedRefunds(taskId),
+        committedRefundsMinor(taskId),
       ])
-      const refundable = roundMoney(Math.max(0, paidTotal - committed))
-      if (amount > refundable + CENT) {
-        throw validationError(`Refund exceeds the refundable amount (${refundable.toFixed(2)})`)
+      const refundableMinor = Math.max(0, paidMinor - committedMinor)
+      if (amountMinor > refundableMinor) {
+        throw validationError(
+          `Refund exceeds the refundable amount (${formatAmount(fromMinor(refundableMinor))})`,
+        )
       }
       const refund = await guarded(() =>
         repository.createRefund({
           taskId,
           refunderId: actor.id,
-          amount,
+          amount: fromMinor(amountMinor),
           refundReason: body.refundReason,
         }),
       )

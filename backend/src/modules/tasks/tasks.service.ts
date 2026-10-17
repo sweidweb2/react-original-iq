@@ -41,6 +41,7 @@ import type {
   UploadUrlInput,
   UploadUrlResult,
 } from './tasks.types.js'
+import { ACTIVE_TASK_STATUSES } from './tasks.types.js'
 
 export type TaskListResult = {
   data: Task[]
@@ -207,18 +208,27 @@ function isUploadKeyForTask(key: string, category: UploadCategory, taskId: strin
   return name.length > 0 && !name.includes('/') && !name.includes('..')
 }
 
+/** A guarded write matched no row: another request changed the task first. */
+function taskChanged(): never {
+  throw conflict('Task status changed; reload and try again')
+}
+
+function isActiveStatus(status: TaskStatus): boolean {
+  return ACTIVE_TASK_STATUSES.includes(status)
+}
+
 async function pickLeastLoadedCoordinator(
   usersRepo: UsersRepository,
   tasksRepo: TasksRepository,
 ): Promise<string | null> {
-  const users = await usersRepo.findMany()
-  const coordinators = users.filter((u) => u.role === 'coordinator' && u.status === 'ACTIVE')
+  const coordinators = await usersRepo.findActiveByRole('coordinator')
   if (coordinators.length === 0) return null
 
+  const loads = await tasksRepo.countActiveByCoordinators(coordinators.map((c) => c.id))
   let bestId: string | null = null
   let bestCount = Number.POSITIVE_INFINITY
   for (const coordinator of coordinators) {
-    const count = await tasksRepo.countActiveByCoordinator(coordinator.id)
+    const count = loads.get(coordinator.id) ?? 0
     if (count < bestCount) {
       bestCount = count
       bestId = coordinator.id
@@ -392,7 +402,7 @@ export function createTasksService(
       }
 
       const clientUser = await users.findById(clientId)
-      if (!clientUser || clientUser.role !== 'client') {
+      if (!clientUser || clientUser.role !== 'client' || clientUser.status !== 'ACTIVE') {
         throw validationError('clientId must reference an active client user')
       }
 
@@ -410,8 +420,8 @@ export function createTasksService(
       }
       if (body.tutorId) {
         const tutor = await users.findById(body.tutorId)
-        if (!tutor || tutor.role !== 'tutor') {
-          throw validationError('tutorId must reference a tutor')
+        if (!tutor || tutor.role !== 'tutor' || tutor.status !== 'ACTIVE') {
+          throw validationError('tutorId must reference an active tutor')
         }
       }
 
@@ -500,22 +510,20 @@ export function createTasksService(
       if (task.tutorId) {
         throw conflict('Task already has a tutor assigned')
       }
+      if (!isActiveStatus(task.status)) {
+        throw validationError('Tutors can only be assigned to open tasks')
+      }
       const tutor = await users.findById(tutorId)
-      if (!tutor || tutor.role !== 'tutor') {
-        throw validationError('tutorId must reference a tutor')
+      if (!tutor || tutor.role !== 'tutor' || tutor.status !== 'ACTIVE') {
+        throw validationError('tutorId must reference an active tutor')
       }
 
-      const nextStatus: TaskStatus =
-        task.status === 'pending' || task.status === 'waiting_coordinator_approval'
-          ? 'in-progress'
-          : task.status
-
-      const updated = await repository.update(id, {
-        tutorId,
-        status: nextStatus,
-      })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
-      return updated
+      const updated = await repository.update(
+        id,
+        { tutorId, status: 'in-progress' },
+        { status: [task.status], tutorId: null },
+      )
+      return updated ?? taskChanged()
     },
 
     async removeTutor(id, actor) {
@@ -524,26 +532,27 @@ export function createTasksService(
       if (!canManageTask(actor, task)) {
         throw forbidden('You cannot manage this task')
       }
+      if (!task.tutorId) {
+        throw validationError('Task has no assigned tutor')
+      }
+      if (!isActiveStatus(task.status)) {
+        throw validationError('Tutors can only be removed from open tasks')
+      }
 
-      const nextStatus: TaskStatus =
-        task.status === 'in-progress' || task.status === 'waiting_coordinator_approval'
-          ? 'pending'
-          : task.status
-
-      const updated = await repository.update(id, {
-        tutorId: null,
-        status: nextStatus,
-      })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
-      return updated
+      const updated = await repository.update(
+        id,
+        { tutorId: null, status: 'pending' },
+        { status: [task.status], tutorId: task.tutorId },
+      )
+      return updated ?? taskChanged()
     },
 
     async changeCoordinator(id, coordinatorId, actor) {
       assertAdmin(actor)
       await loadOrThrow(id)
       const coordinator = await users.findById(coordinatorId)
-      if (!coordinator || coordinator.role !== 'coordinator') {
-        throw validationError('coordinatorId must reference a coordinator')
+      if (!coordinator || coordinator.role !== 'coordinator' || coordinator.status !== 'ACTIVE') {
+        throw validationError('coordinatorId must reference an active coordinator')
       }
       const updated = await repository.update(id, { coordinatorId })
       if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
@@ -561,9 +570,12 @@ export function createTasksService(
       if (task.status !== 'in-progress') {
         throw validationError('Task must be in progress to submit')
       }
-      const updated = await repository.update(id, { status: 'waiting_coordinator_approval' })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
-      return updated
+      const updated = await repository.update(
+        id,
+        { status: 'waiting_coordinator_approval' },
+        { status: ['in-progress'], tutorId: actor.id },
+      )
+      return updated ?? taskChanged()
     },
 
     async cancelSubmit(id, actor) {
@@ -577,9 +589,12 @@ export function createTasksService(
       if (task.status !== 'waiting_coordinator_approval') {
         throw validationError('Task is not awaiting approval')
       }
-      const updated = await repository.update(id, { status: 'in-progress' })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
-      return updated
+      const updated = await repository.update(
+        id,
+        { status: 'in-progress' },
+        { status: ['waiting_coordinator_approval'], tutorId: actor.id },
+      )
+      return updated ?? taskChanged()
     },
 
     async approveTask(id, actor) {
@@ -597,8 +612,12 @@ export function createTasksService(
       if (deps.hasOpenRevision && (await deps.hasOpenRevision(id))) {
         throw validationError('Cannot complete task while an open revision exists')
       }
-      const updated = await repository.update(id, { status: 'completed' })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
+      const updated = await repository.update(
+        id,
+        { status: 'completed' },
+        { status: ['waiting_coordinator_approval'], tutorId: task.tutorId },
+      )
+      if (!updated) taskChanged()
       await usersRepository.incrementNbDone(task.tutorId)
       return updated
     },
@@ -612,9 +631,12 @@ export function createTasksService(
       if (task.status !== 'waiting_coordinator_approval') {
         throw validationError('Task must be waiting for coordinator approval')
       }
-      const updated = await repository.update(id, { status: 'in-progress' })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
-      return updated
+      const updated = await repository.update(
+        id,
+        { status: 'in-progress' },
+        { status: ['waiting_coordinator_approval'] },
+      )
+      return updated ?? taskChanged()
     },
 
     async cancelTask(id, actor) {
@@ -623,8 +645,15 @@ export function createTasksService(
       if (!canManageTask(actor, task)) {
         throw forbidden('You cannot manage this task')
       }
-      const updated = await repository.update(id, { status: 'cancelled' })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
+      if (!isActiveStatus(task.status)) {
+        throw validationError('Only open tasks can be cancelled')
+      }
+      const updated = await repository.update(
+        id,
+        { status: 'cancelled' },
+        { status: [task.status] },
+      )
+      if (!updated) taskChanged()
       await deps.cancelOpenRevisions?.(id)
       return updated
     },
@@ -639,9 +668,12 @@ export function createTasksService(
         throw validationError('Only cancelled tasks can be activated')
       }
       const nextStatus: TaskStatus = task.tutorId ? 'in-progress' : 'pending'
-      const updated = await repository.update(id, { status: nextStatus })
-      if (!updated) throw notFound('Task not found', 'TASK_NOT_FOUND')
-      return updated
+      const updated = await repository.update(
+        id,
+        { status: nextStatus },
+        { status: ['cancelled'], tutorId: task.tutorId },
+      )
+      return updated ?? taskChanged()
     },
 
     async setAllowView(id, allowView, actor) {
@@ -658,13 +690,25 @@ export function createTasksService(
       if (!staff && !ownClient) {
         throw forbidden('You cannot delete this task')
       }
+      if (!staff && (task.status !== 'pending' || task.tutorId)) {
+        throw validationError('You can only delete a task while it is pending and unassigned')
+      }
       if (await repository.hasPayments(id)) {
         throw conflict('Task cannot be deleted while payments or refunds exist')
       }
-      const deleted = await repository.delete(id)
+      const [files, solutions] = await Promise.all([
+        repository.listFiles(id),
+        repository.listSolutions(id),
+      ])
+      const guard = staff ? undefined : { status: ['pending' as const], tutorId: null }
+      const deleted = await repository.delete(id, guard)
       if (!deleted) {
+        if (guard) taskChanged()
         throw notFound('Task not found', 'TASK_NOT_FOUND')
       }
+      await Promise.all(
+        [...files, ...solutions].map((item) => purgeStoredObject(item.fileLocation)),
+      )
       getLoggingService().recordActivitySafe({
         action: 'tasks.delete',
         entity: 'task',

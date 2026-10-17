@@ -25,6 +25,7 @@ import type {
 } from './auth.schema.js'
 import type { RoleName } from './auth.schema.js'
 import {
+  DUMMY_PASSWORD_HASH,
   hashPassword,
   type SessionClaims,
   signAccessToken,
@@ -220,12 +221,8 @@ export function createAuthService(
 
     async login(input) {
       const user = await users.findByEmail(input.email)
-      if (!user || user.status !== 'ACTIVE') {
-        throw unauthorized('Invalid email or password')
-      }
-
-      const ok = await verifyPassword(input.password, user.passwordHash)
-      if (!ok) {
+      const ok = await verifyPassword(input.password, user?.passwordHash ?? DUMMY_PASSWORD_HASH)
+      if (!user || user.status !== 'ACTIVE' || !ok) {
         throw unauthorized('Invalid email or password')
       }
 

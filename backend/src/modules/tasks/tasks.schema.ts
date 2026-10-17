@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { UPLOAD_SIZE_CEILING_BYTES } from '../../storage/constants.js'
 import { paginationQuerySchema } from '../_shared/pagination.schema.js'
 
 const taskTypeSchema = z.enum(['assignment', 'tutoring', 'research', 'editing'])
@@ -103,7 +104,7 @@ export const allowViewBodySchema = z.object({
 export const uploadUrlBodySchema = z.object({
   filename: z.string().trim().min(1).max(255),
   contentType: z.string().trim().min(1).max(120),
-  sizeBytes: z.coerce.number().int().positive(),
+  sizeBytes: z.coerce.number().int().positive().max(UPLOAD_SIZE_CEILING_BYTES),
 })
 
 const uploadedObjectSchema = z.object({
