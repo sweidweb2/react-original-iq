@@ -4,13 +4,9 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { toast } from '@/components/ui/toast'
-import {
-  assignRolePermissions,
-  type RbacPermission,
-  type RbacRole,
-} from '@/services/rbac'
-import { toastApiError } from '@/services/toast'
 import { cn } from '@/lib/utils'
+import { assignRolePermissions, type RbacPermission, type RbacRole } from '@/services/rbac'
+import { toastApiError } from '@/services/toast'
 
 type AssignPermissionsDialogProps = {
   open: boolean
@@ -77,7 +73,7 @@ export function AssignPermissionsDialog({
       description="Toggle which permissions this role grants. You can change these anytime."
       footer={
         <>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button type="button" onClick={onSave} disabled={isSubmitting || !role}>

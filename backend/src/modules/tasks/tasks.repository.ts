@@ -28,10 +28,10 @@ export type TasksRepository = {
   delete: (id: string) => Promise<boolean>
   addFile: (taskId: string, input: AddFileInput) => Promise<TaskFile>
   listFiles: (taskId: string) => Promise<TaskFile[]>
-  deleteFile: (taskId: string, fileId: string) => Promise<boolean>
+  deleteFile: (taskId: string, fileId: string) => Promise<TaskFile | null>
   addSolution: (taskId: string, input: AddSolutionInput) => Promise<TaskSolution>
   listSolutions: (taskId: string) => Promise<TaskSolution[]>
-  deleteSolution: (taskId: string, solutionId: string) => Promise<boolean>
+  deleteSolution: (taskId: string, solutionId: string) => Promise<TaskSolution | null>
   hasPayments: (taskId: string) => Promise<boolean>
   countActiveInvolvingUser: (userId: string) => Promise<number>
   listTaskIdsForClient: (clientId: string) => Promise<string[]>
@@ -61,7 +61,13 @@ type TaskRow = {
   updated_at: string
 }
 
-type FileRow = {
+type StoredFileRow = {
+  original_name: string | null
+  content_type: string | null
+  size_bytes: number | string | null
+}
+
+type FileRow = StoredFileRow & {
   id: string
   task_id: string
   file_location: string
@@ -70,13 +76,18 @@ type FileRow = {
   updated_at: string
 }
 
-type SolutionRow = {
+type SolutionRow = StoredFileRow & {
   id: string
   task_id: string
   file_location: string
   created_at: string
   updated_at: string
 }
+
+const FILE_COLUMNS =
+  'id, task_id, file_location, note, original_name, content_type, size_bytes, created_at, updated_at'
+const SOLUTION_COLUMNS =
+  'id, task_id, file_location, original_name, content_type, size_bytes, created_at, updated_at'
 
 const TASK_COLUMNS =
   'id, client_id, tutor_id, coordinator_id, topic, type, description, is_assigned, status, deadline, price, payment_status, category, feedback, allow_view, created_at, updated_at'
@@ -107,12 +118,21 @@ function toTask(row: TaskRow): Task {
   }
 }
 
+function toStoredMeta(row: StoredFileRow) {
+  return {
+    originalName: row.original_name,
+    contentType: row.content_type,
+    sizeBytes: row.size_bytes === null ? null : toNumber(row.size_bytes),
+  }
+}
+
 function toFile(row: FileRow): TaskFile {
   return {
     id: row.id,
     taskId: row.task_id,
     fileLocation: row.file_location,
     note: row.note,
+    ...toStoredMeta(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -123,6 +143,7 @@ function toSolution(row: SolutionRow): TaskSolution {
     id: row.id,
     taskId: row.task_id,
     fileLocation: row.file_location,
+    ...toStoredMeta(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -186,8 +207,7 @@ function applyTaskUpdate(task: Task, input: UpdateTaskInput): Task {
     price: input.price ?? task.price,
     paymentStatus: input.paymentStatus ?? task.paymentStatus,
     feedback: input.feedback ?? task.feedback,
-    coordinatorId:
-      input.coordinatorId !== undefined ? input.coordinatorId : task.coordinatorId,
+    coordinatorId: input.coordinatorId !== undefined ? input.coordinatorId : task.coordinatorId,
     allowView: input.allowView ?? task.allowView,
     updatedAt: new Date().toISOString(),
   }
@@ -286,6 +306,9 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
         taskId,
         fileLocation: input.fileLocation,
         note: input.note ?? null,
+        originalName: input.originalName,
+        contentType: input.contentType,
+        sizeBytes: input.sizeBytes,
         createdAt: now,
         updatedAt: now,
       }
@@ -301,11 +324,13 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
 
     async deleteFile(taskId, fileId) {
       const list = memoryFilesByTaskId.get(taskId)
-      if (!list) return false
-      const next = list.filter((file) => file.id !== fileId)
-      if (next.length === list.length) return false
-      memoryFilesByTaskId.set(taskId, next)
-      return true
+      const removed = list?.find((file) => file.id === fileId)
+      if (!list || !removed) return null
+      memoryFilesByTaskId.set(
+        taskId,
+        list.filter((file) => file.id !== fileId),
+      )
+      return removed
     },
 
     async addSolution(taskId, input) {
@@ -314,6 +339,9 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
         id: randomUUID(),
         taskId,
         fileLocation: input.fileLocation,
+        originalName: input.originalName,
+        contentType: input.contentType,
+        sizeBytes: input.sizeBytes,
         createdAt: now,
         updatedAt: now,
       }
@@ -329,11 +357,13 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
 
     async deleteSolution(taskId, solutionId) {
       const list = memorySolutionsByTaskId.get(taskId)
-      if (!list) return false
-      const next = list.filter((solution) => solution.id !== solutionId)
-      if (next.length === list.length) return false
-      memorySolutionsByTaskId.set(taskId, next)
-      return true
+      const removed = list?.find((solution) => solution.id === solutionId)
+      if (!list || !removed) return null
+      memorySolutionsByTaskId.set(
+        taskId,
+        list.filter((solution) => solution.id !== solutionId),
+      )
+      return removed
     },
 
     async hasPayments(taskId) {
@@ -349,11 +379,7 @@ function createMemoryTasksRepository(deps: TasksRepositoryDeps = {}): TasksRepos
       let count = 0
       for (const task of memoryTasksById.values()) {
         if (!active.includes(task.status)) continue
-        if (
-          task.clientId === userId ||
-          task.tutorId === userId ||
-          task.coordinatorId === userId
-        ) {
+        if (task.clientId === userId || task.tutorId === userId || task.coordinatorId === userId) {
           count += 1
         }
       }
@@ -526,8 +552,11 @@ function createSupabaseTasksRepository(
           task_id: taskId,
           file_location: input.fileLocation,
           note: input.note ?? null,
+          original_name: input.originalName,
+          content_type: input.contentType,
+          size_bytes: input.sizeBytes,
         })
-        .select('id, task_id, file_location, note, created_at, updated_at')
+        .select(FILE_COLUMNS)
         .single()
       if (error) throw error
       return toFile(data as FileRow)
@@ -536,7 +565,7 @@ function createSupabaseTasksRepository(
     async listFiles(taskId) {
       const { data, error } = await client
         .from('files')
-        .select('id, task_id, file_location, note, created_at, updated_at')
+        .select(FILE_COLUMNS)
         .eq('task_id', taskId)
         .order('created_at', { ascending: true })
       if (error) throw error
@@ -544,13 +573,15 @@ function createSupabaseTasksRepository(
     },
 
     async deleteFile(taskId, fileId) {
-      const { error, count } = await client
+      const { data, error } = await client
         .from('files')
-        .delete({ count: 'exact' })
+        .delete()
         .eq('task_id', taskId)
         .eq('id', fileId)
+        .select(FILE_COLUMNS)
+        .maybeSingle()
       if (error) throw error
-      return (count ?? 0) > 0
+      return data ? toFile(data as FileRow) : null
     },
 
     async addSolution(taskId, input) {
@@ -559,8 +590,11 @@ function createSupabaseTasksRepository(
         .insert({
           task_id: taskId,
           file_location: input.fileLocation,
+          original_name: input.originalName,
+          content_type: input.contentType,
+          size_bytes: input.sizeBytes,
         })
-        .select('id, task_id, file_location, created_at, updated_at')
+        .select(SOLUTION_COLUMNS)
         .single()
       if (error) throw error
       return toSolution(data as SolutionRow)
@@ -569,7 +603,7 @@ function createSupabaseTasksRepository(
     async listSolutions(taskId) {
       const { data, error } = await client
         .from('solutions')
-        .select('id, task_id, file_location, created_at, updated_at')
+        .select(SOLUTION_COLUMNS)
         .eq('task_id', taskId)
         .order('created_at', { ascending: true })
       if (error) throw error
@@ -577,13 +611,15 @@ function createSupabaseTasksRepository(
     },
 
     async deleteSolution(taskId, solutionId) {
-      const { error, count } = await client
+      const { data, error } = await client
         .from('solutions')
-        .delete({ count: 'exact' })
+        .delete()
         .eq('task_id', taskId)
         .eq('id', solutionId)
+        .select(SOLUTION_COLUMNS)
+        .maybeSingle()
       if (error) throw error
-      return (count ?? 0) > 0
+      return data ? toSolution(data as SolutionRow) : null
     },
 
     async hasPayments(taskId) {

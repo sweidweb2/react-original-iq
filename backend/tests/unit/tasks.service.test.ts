@@ -7,6 +7,7 @@ import type { Task, TaskDetail } from '../../src/modules/tasks/tasks.types.js'
 import type { UsersRepository } from '../../src/modules/users/users.repository.js'
 import type { UsersService } from '../../src/modules/users/users.service.js'
 import type { AccountRecord } from '../../src/modules/users/users.types.js'
+import type { StorageService } from '../../src/storage/index.js'
 
 vi.mock('../../src/modules/logging/index.js', () => ({
   getLoggingService: () => ({
@@ -92,14 +93,18 @@ describe('tasks.service', () => {
       listSolutions: vi.fn(),
       deleteSolution: vi.fn(),
       hasPayments: vi.fn().mockResolvedValue(false),
+      countActiveInvolvingUser: vi.fn().mockResolvedValue(0),
+      listTaskIdsForClient: vi.fn().mockResolvedValue([]),
     }
     users = {
       findById: vi.fn(),
     } as unknown as UsersService
     usersRepository = {
-      findMany: vi.fn().mockResolvedValue([
-        makeAccount({ id: 'coord-1', role: 'coordinator', email: 'c@example.com' }),
-      ]),
+      findMany: vi
+        .fn()
+        .mockResolvedValue([
+          makeAccount({ id: 'coord-1', role: 'coordinator', email: 'c@example.com' }),
+        ]),
       incrementNbDone: vi.fn(),
     } as unknown as UsersRepository
   })
@@ -177,12 +182,8 @@ describe('tasks.service', () => {
       isAssigned: true,
     })
 
-    vi.mocked(repository.findById)
-      .mockResolvedValueOnce(inProgress)
-      .mockResolvedValueOnce(waiting)
-    vi.mocked(repository.update)
-      .mockResolvedValueOnce(waiting)
-      .mockResolvedValueOnce(completed)
+    vi.mocked(repository.findById).mockResolvedValueOnce(inProgress).mockResolvedValueOnce(waiting)
+    vi.mocked(repository.update).mockResolvedValueOnce(waiting).mockResolvedValueOnce(completed)
 
     const service = createTasksService(repository, users, usersRepository)
 
@@ -295,6 +296,9 @@ describe('tasks.service', () => {
           id: 'sol-1',
           taskId: makeTask().id,
           fileLocation: 'https://files.example/sol.pdf',
+          originalName: null,
+          contentType: null,
+          sizeBytes: null,
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
         },
@@ -304,5 +308,162 @@ describe('tasks.service', () => {
 
     const detail = await service.getTaskById(makeTask().id, client)
     expect(detail.solutions).toEqual([])
+  })
+
+  describe('file uploads', () => {
+    const taskId = makeTask().id
+    let storage: StorageService
+
+    beforeEach(() => {
+      storage = {
+        isConfigured: () => true,
+        getSignedUploadUrl: vi.fn(async (input: { taskId: string; originalFilename: string }) => ({
+          url: 'https://r2.example/put',
+          key: `student_files/${input.taskId}/abc_${input.originalFilename}`,
+          contentType: 'application/pdf',
+          sizeBytes: 10,
+          expiresInSec: 900,
+        })),
+        getSignedDownloadUrl: vi.fn(async (key: string) => ({
+          url: `https://r2.example/get/${key}`,
+          expiresInSec: 900,
+          key,
+        })),
+        statObject: vi.fn(async () => ({ sizeBytes: 2048, contentType: 'application/pdf' })),
+        deleteObject: vi.fn(async () => undefined),
+      } as unknown as StorageService
+      vi.mocked(repository.findById).mockResolvedValue(makeTask())
+      vi.mocked(repository.listFiles).mockResolvedValue([])
+      vi.mocked(repository.listSolutions).mockResolvedValue([])
+    })
+
+    it('issues an upload URL for the owning client', async () => {
+      const service = createTasksService(repository, users, usersRepository, { storage })
+
+      const result = await service.createFileUploadUrl(
+        taskId,
+        { filename: 'brief.pdf', contentType: 'application/pdf', sizeBytes: 10 },
+        client,
+      )
+      expect(result.uploadUrl).toBe('https://r2.example/put')
+      expect(storage.getSignedUploadUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'documents', taskId, taskBytesUsed: 0 }),
+      )
+    })
+
+    it('blocks tutors from uploading client documents', async () => {
+      vi.mocked(repository.findById).mockResolvedValue(makeTask({ tutorId: 'tutor-1' }))
+      const service = createTasksService(repository, users, usersRepository, { storage })
+
+      await expect(
+        service.createFileUploadUrl(
+          taskId,
+          { filename: 'brief.pdf', contentType: 'application/pdf', sizeBytes: 10 },
+          tutor,
+        ),
+      ).rejects.toMatchObject({ status: 403 })
+    })
+
+    it('registers an uploaded document using metadata from storage', async () => {
+      const service = createTasksService(repository, users, usersRepository, { storage })
+      const key = `student_files/${taskId}/abc_brief.pdf`
+
+      await service.addFile(taskId, { key, filename: 'brief.pdf' }, client)
+      expect(repository.addFile).toHaveBeenCalledWith(taskId, {
+        fileLocation: key,
+        originalName: 'brief.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 2048,
+        note: undefined,
+      })
+    })
+
+    it('rejects keys that belong to another task or category', async () => {
+      const service = createTasksService(repository, users, usersRepository, { storage })
+
+      await expect(
+        service.addFile(
+          taskId,
+          {
+            key: 'student_files/22222222-2222-2222-2222-222222222222/abc_x.pdf',
+            filename: 'x.pdf',
+          },
+          client,
+        ),
+      ).rejects.toMatchObject({ status: 400 })
+      await expect(
+        service.addFile(
+          taskId,
+          { key: `solutions/${taskId}/abc_x.pdf`, filename: 'x.pdf' },
+          client,
+        ),
+      ).rejects.toMatchObject({ status: 400 })
+      expect(repository.addFile).not.toHaveBeenCalled()
+    })
+
+    it('rejects registration when the object was never uploaded', async () => {
+      vi.mocked(storage.statObject).mockResolvedValue(null)
+      const service = createTasksService(repository, users, usersRepository, { storage })
+
+      await expect(
+        service.addFile(
+          taskId,
+          { key: `student_files/${taskId}/abc_x.pdf`, filename: 'x.pdf' },
+          client,
+        ),
+      ).rejects.toMatchObject({ status: 400 })
+    })
+
+    it('purges the stored object when a document is deleted', async () => {
+      const key = `student_files/${taskId}/abc_brief.pdf`
+      vi.mocked(repository.deleteFile).mockResolvedValue({
+        id: 'file-1',
+        taskId,
+        fileLocation: key,
+        note: null,
+        originalName: 'brief.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 2048,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
+      const service = createTasksService(repository, users, usersRepository, { storage })
+
+      await service.deleteFile(taskId, 'file-1', client)
+      expect(storage.deleteObject).toHaveBeenCalledWith(key)
+    })
+
+    it('signs download URLs for stored solutions only when visible', async () => {
+      const key = `solutions/${taskId}/abc_answer.pdf`
+      const solution = {
+        id: 'sol-1',
+        taskId,
+        fileLocation: key,
+        originalName: 'answer.pdf',
+        contentType: 'application/pdf',
+        sizeBytes: 100,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }
+      const service = createTasksService(repository, users, usersRepository, { storage })
+
+      vi.mocked(repository.findDetailById).mockResolvedValue({
+        ...makeDetail({ allowView: true }),
+        solutions: [solution],
+      })
+      await expect(service.getSolutionDownloadUrl(taskId, 'sol-1', client)).resolves.toEqual({
+        url: `https://r2.example/get/${key}`,
+        filename: 'answer.pdf',
+        expiresInSec: 900,
+      })
+
+      vi.mocked(repository.findDetailById).mockResolvedValue({
+        ...makeDetail({ allowView: false }),
+        solutions: [solution],
+      })
+      await expect(service.getSolutionDownloadUrl(taskId, 'sol-1', client)).rejects.toMatchObject({
+        status: 404,
+      })
+    })
   })
 })

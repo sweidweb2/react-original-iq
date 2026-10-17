@@ -43,11 +43,7 @@ function nowIso(): string {
   return new Date().toISOString()
 }
 
-function toSession(
-  input: CreateRevisionInput,
-  id: string,
-  stamp: string,
-): RevisionSession {
+function toSession(input: CreateRevisionInput, id: string, stamp: string): RevisionSession {
   return {
     id,
     taskId: input.taskId,
@@ -212,7 +208,11 @@ function createSupabaseRevisionsRepository(config: AppConfig): RevisionsReposito
       return fromRow(data as RevisionRow)
     },
     async findById(id) {
-      const { data, error } = await client.from('revision_sessions').select(columns).eq('id', id).maybeSingle()
+      const { data, error } = await client
+        .from('revision_sessions')
+        .select(columns)
+        .eq('id', id)
+        .maybeSingle()
       if (error) throw error
       if (!data) return null
       const solutions = await this.listSolutions(id)

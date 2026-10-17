@@ -1,5 +1,6 @@
 import { conflict, forbidden, notFound, validationError } from '../../errors/app-error.js'
 import { getLoggingService } from '../logging/index.js'
+import type { RbacRepository } from './rbac.repository.js'
 import type {
   AssignRolePermissionsBody,
   AssignUserPermissionsBody,
@@ -8,7 +9,6 @@ import type {
   UpdatePermissionBody,
   UpdateRoleBody,
 } from './rbac.schema.js'
-import type { RbacRepository } from './rbac.repository.js'
 import type { RbacPermission, RbacRole } from './rbac.types.js'
 
 function isUniqueViolation(error: unknown): boolean {

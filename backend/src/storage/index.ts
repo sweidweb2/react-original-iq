@@ -19,9 +19,10 @@ export { buildObjectKey, extensionOf, isManagedObjectKey, sanitizeFilename } fro
 export {
   createStorageService,
   getStorageService,
-  resetStorageServiceForTests,
+  type ObjectInfo,
   type PutObjectInput,
   type PutObjectResult,
+  resetStorageServiceForTests,
   type SignedUrlResult,
   type StorageService,
 } from './storage.service.js'

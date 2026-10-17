@@ -8,21 +8,22 @@ This folder holds the **DBML reflection** of the schema. Executable migrations l
 
 ## Migration order
 
-| File                                   | Contents                                          |
-| -------------------------------------- | ------------------------------------------------- |
-| `001_extensions_and_enums.sql`         | pgcrypto, enums, `set_updated_at`                 |
-| `002_users.sql`                        | `users`                                           |
-| `003_tasks.sql`                        | `tasks`                                           |
-| `004_files_and_solutions.sql`          | `files`, `solutions`                              |
-| `005_revisions.sql`                    | `revision_sessions`, `revision_session_solutions` |
-| `006_payments.sql`                     | `payments`, `payment_logs`, `refunds`, `invoices` |
-| `007_feedback_and_specializations.sql` | `feedbacks`, `specializations`                    |
-| `008_leads_and_contact.sql`            | `leads`, `stay_updated`, `contact_messages`       |
-| `009_login_security.sql`               | `login_attempts`, `login_verifications`           |
-| `010_legacy_optional.sql`              | `messages`, `assignment_transactions` (optional)  |
-| `011_rbac.sql`                         | `roles`, `permissions`, `role_permissions`, `user_permissions` |
-| `012_activity_logs_and_super.sql`      | `activity_logs`, `error_logs`, `user_role.super` |
-| `013_file_metadata.sql`                | `files`/`solutions` original_name, content_type, size_bytes |
+| File                                   | Contents                                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `001_extensions_and_enums.sql`         | pgcrypto, enums, `set_updated_at`                                                            |
+| `002_users.sql`                        | `users`                                                                                      |
+| `003_tasks.sql`                        | `tasks`                                                                                      |
+| `004_files_and_solutions.sql`          | `files`, `solutions`                                                                         |
+| `005_revisions.sql`                    | `revision_sessions`, `revision_session_solutions`                                            |
+| `006_payments.sql`                     | `payments`, `payment_logs`, `refunds`, `invoices`                                            |
+| `007_feedback_and_specializations.sql` | `feedbacks`, `specializations`                                                               |
+| `008_leads_and_contact.sql`            | `leads`, `stay_updated`, `contact_messages`                                                  |
+| `009_login_security.sql`               | `login_attempts`, `login_verifications`                                                      |
+| `010_legacy_optional.sql`              | `messages`, `assignment_transactions` (optional)                                             |
+| `011_rbac.sql`                         | `roles`, `permissions`, `role_permissions`, `user_permissions`                               |
+| `012_activity_logs_and_super.sql`      | `activity_logs`, `error_logs`, `user_role.super`                                             |
+| `013_file_metadata.sql`                | `files`/`solutions` original_name, content_type, size_bytes                                  |
+| `014_invoices.sql`                     | `invoice_number_seq`, `invoices.invoice_seq`, `sent_at`, `last_error`, unique invoice number |
 
 ## Apply on Supabase
 

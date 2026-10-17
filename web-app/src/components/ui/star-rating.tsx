@@ -33,7 +33,7 @@ export function StarRating({
             key={star}
             className={cn(
               'size-4',
-              star <= value ? 'fill-accent text-accent' : 'text-muted-foreground',
+              star <= value ? 'fill-warning text-warning' : 'text-muted-foreground/40',
             )}
             aria-hidden
           />
@@ -51,11 +51,11 @@ export function StarRating({
           role="radio"
           aria-checked={value === star}
           aria-label={`${star} ${star === 1 ? 'star' : 'stars'}`}
-          className="rounded-sm text-muted-foreground hover:text-accent focus:ring-2 focus:ring-ring"
+          className="rounded-sm text-muted-foreground/40 hover:text-warning focus:ring-2 focus:ring-ring"
           onClick={() => onChange?.(star)}
         >
           <Star
-            className={cn('size-5', star <= value ? 'fill-accent text-accent' : undefined)}
+            className={cn('size-5', star <= value ? 'fill-warning text-warning' : undefined)}
             aria-hidden
           />
         </button>

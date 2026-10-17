@@ -1,5 +1,5 @@
+import { type AuthActor, isAdmin, isSuper } from '../../authz/index.js'
 import { forbidden } from '../../errors/app-error.js'
-import { isAdmin, isSuper, type AuthActor } from '../../authz/index.js'
 import { rowsToCsv } from '../_shared/csv.js'
 import type { ContactRepository } from '../contact/contact.repository.js'
 import type { FeedbackRepository } from '../feedback/feedback.repository.js'

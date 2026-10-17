@@ -45,8 +45,7 @@ type VerificationRow = {
   updated_at: string
 }
 
-const COLUMNS =
-  'id, user_id, code, type, expires_at, used, used_at, created_at, updated_at'
+const COLUMNS = 'id, user_id, code, type, expires_at, used, used_at, created_at, updated_at'
 
 function toRecord(row: VerificationRow): LoginVerificationRecord {
   return {
@@ -146,7 +145,9 @@ export function getPasswordResetCodeForTests(userId: string): string | null {
   return latest?.code ?? null
 }
 
-function createSupabaseLoginVerificationsRepository(config: AppConfig): LoginVerificationsRepository {
+function createSupabaseLoginVerificationsRepository(
+  config: AppConfig,
+): LoginVerificationsRepository {
   const client = getSupabaseAdmin(config)
   if (!client) {
     throw new Error('Supabase admin client is not available')

@@ -11,7 +11,7 @@ const FOCUSABLE = [
 
 let scrollLockCount = 0
 let savedBodyOverflow = ''
-let savedBodyPaddingRight = ''
+let savedBodyPaddingEnd = ''
 
 /** Hide page scroll while keeping the scrollbar's width so the layout does not jump. */
 function lockPageScroll(): () => void {
@@ -19,11 +19,11 @@ function lockPageScroll(): () => void {
     const body = document.body
     const gap = window.innerWidth - document.documentElement.clientWidth
     savedBodyOverflow = body.style.overflow
-    savedBodyPaddingRight = body.style.paddingRight
+    savedBodyPaddingEnd = body.style.paddingInlineEnd
     body.style.overflow = 'hidden'
     if (gap > 0) {
-      const current = Number.parseFloat(getComputedStyle(body).paddingRight) || 0
-      body.style.paddingRight = `${current + gap}px`
+      const current = Number.parseFloat(getComputedStyle(body).paddingInlineEnd) || 0
+      body.style.paddingInlineEnd = `${current + gap}px`
     }
   }
   scrollLockCount += 1
@@ -32,7 +32,7 @@ function lockPageScroll(): () => void {
     scrollLockCount = Math.max(0, scrollLockCount - 1)
     if (scrollLockCount > 0) return
     document.body.style.overflow = savedBodyOverflow
-    document.body.style.paddingRight = savedBodyPaddingRight
+    document.body.style.paddingInlineEnd = savedBodyPaddingEnd
   }
 }
 

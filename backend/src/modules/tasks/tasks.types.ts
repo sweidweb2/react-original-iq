@@ -1,15 +1,17 @@
 export type TaskType = 'assignment' | 'tutoring' | 'research' | 'editing'
 
 export type TaskStatus =
-  | 'pending'
-  | 'in-progress'
-  | 'waiting_coordinator_approval'
-  | 'completed'
-  | 'cancelled'
+  'pending' | 'in-progress' | 'waiting_coordinator_approval' | 'completed' | 'cancelled'
 
 export type TaskPaymentStatus = 'unpaid' | 'paid' | 'refund_pending'
 
-export type TaskFile = {
+export type StoredFileMeta = {
+  originalName: string | null
+  contentType: string | null
+  sizeBytes: number | null
+}
+
+export type TaskFile = StoredFileMeta & {
   id: string
   taskId: string
   fileLocation: string
@@ -18,7 +20,7 @@ export type TaskFile = {
   updatedAt: string
 }
 
-export type TaskSolution = {
+export type TaskSolution = StoredFileMeta & {
   id: string
   taskId: string
   fileLocation: string
@@ -95,11 +97,36 @@ export type UpdateTaskInput = {
 
 export type AddFileInput = {
   fileLocation: string
+  originalName: string
+  contentType: string
+  sizeBytes: number
   note?: string
 }
 
 export type AddSolutionInput = {
   fileLocation: string
+  originalName: string
+  contentType: string
+  sizeBytes: number
+}
+
+export type UploadUrlInput = {
+  filename: string
+  contentType: string
+  sizeBytes: number
+}
+
+export type UploadUrlResult = {
+  uploadUrl: string
+  key: string
+  contentType: string
+  expiresInSec: number
+}
+
+export type DownloadUrlResult = {
+  url: string
+  filename: string
+  expiresInSec: number | null
 }
 
 export const TASK_STATUSES: TaskStatus[] = [

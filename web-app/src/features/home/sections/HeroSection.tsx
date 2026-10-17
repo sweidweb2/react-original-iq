@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-import { heroHighlights, heroStats } from '../content'
+import { useHomeDictionary } from '../i18n'
 
 const highlightIcons: LucideIcon[] = [Layers, Activity, Clock, Sparkles, Calendar]
 
@@ -14,6 +14,8 @@ type HeroSectionProps = {
 }
 
 export function HeroSection({ onOpenLead }: HeroSectionProps) {
+  const t = useHomeDictionary().hero
+
   return (
     <section className="relative overflow-hidden pt-8 pb-0 max-lg:pb-16 max-md:py-12">
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
@@ -27,28 +29,28 @@ export function HeroSection({ onOpenLead }: HeroSectionProps) {
             ].join(', '),
           }}
         />
-        <div className="home-spin absolute -top-1/2 -right-[20%] h-[150%] w-[80%] bg-[radial-gradient(circle,rgba(109,214,220,0.3)_0%,transparent_70%)]" />
-        <div className="home-float absolute top-[10%] left-[5%] h-20 w-28 rounded-[20px] bg-gradient-to-br from-primary/20 to-primary-light/10" />
-        <div className="home-pulse absolute right-[10%] bottom-[20%] size-16 rounded-full bg-[radial-gradient(circle,rgba(255,107,53,0.15),transparent)]" />
+        <div className="home-spin absolute -top-1/2 -end-[20%] h-[150%] w-[80%] bg-[radial-gradient(circle,rgba(109,214,220,0.3)_0%,transparent_70%)]" />
+        <div className="home-float absolute top-[10%] start-[5%] h-20 w-28 rounded-[20px] bg-gradient-to-br from-primary/20 to-primary-light/10" />
+        <div className="home-pulse absolute end-[10%] bottom-[20%] size-16 rounded-full bg-[radial-gradient(circle,rgba(255,107,53,0.15),transparent)]" />
       </div>
 
       <div className="mx-auto flex w-full max-w-[1280px] flex-col items-center gap-12 px-8 max-lg:text-center sm:px-12 lg:flex-row lg:items-center lg:justify-center lg:gap-24 lg:px-16 xl:px-20">
         <div className="w-full max-w-md shrink-0 max-lg:order-1 max-lg:pb-8">
           <h1 className="mb-6 text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl lg:text-[3.5rem]">
-            Learn{' '}
+            {t.titleLead}{' '}
             <span className="bg-gradient-to-br from-primary to-primary-light bg-clip-text text-transparent">
-              Smarter
+              {t.titleHighlight}
             </span>
           </h1>
           <p className="mb-8 max-w-xl text-lg leading-relaxed text-muted-foreground max-lg:mx-auto max-md:text-base">
-            Tailored guidance and flexible learning to boost your results.
+            {t.subtitle}
           </p>
           <div className="mb-12 flex flex-col items-start gap-4 max-lg:mb-10 max-lg:items-center">
             <Link
               to="/signup"
               className={cn(buttonVariants({ size: 'lg' }), 'w-full max-w-[400px]')}
             >
-              Join Our Community - Sign Up Now
+              {t.signup}
             </Link>
             <Button
               type="button"
@@ -57,13 +59,15 @@ export function HeroSection({ onOpenLead }: HeroSectionProps) {
               className="w-full max-w-[400px]"
               onClick={onOpenLead}
             >
-              Immediate Help? Leave Your Number
+              {t.leaveNumber}
             </Button>
           </div>
           <dl className="flex gap-12 max-lg:hidden">
-            {heroStats.map((stat) => (
+            {t.stats.map((stat) => (
               <div key={stat.label} className="text-center">
-                <dt className="mb-1 text-3xl font-semibold text-primary">{stat.value}</dt>
+                <dt className="mb-1 text-3xl font-semibold text-primary">
+                  <bdi dir="ltr">{stat.value}</bdi>
+                </dt>
                 <dd className="text-sm text-muted-foreground">{stat.label}</dd>
               </div>
             ))}
@@ -73,11 +77,11 @@ export function HeroSection({ onOpenLead }: HeroSectionProps) {
         <div className="flex shrink-0 items-center justify-center gap-8 max-lg:order-2 max-lg:w-full max-lg:flex-col">
           <img
             src="/marketing/person.png"
-            alt="Student learning"
+            alt={t.imageAlt}
             className="max-h-[460px] w-auto object-contain max-lg:hidden"
           />
           <ul className="flex w-full max-w-[200px] flex-col gap-4 max-lg:max-w-none max-lg:flex-row max-lg:flex-wrap max-lg:justify-center max-sm:flex-col">
-            {heroHighlights.map((item, index) => {
+            {t.highlights.map((item, index) => {
               const Icon = highlightIcons[index] ?? Layers
               return (
                 <li
@@ -89,7 +93,9 @@ export function HeroSection({ onOpenLead }: HeroSectionProps) {
                     <Icon className="size-5" aria-hidden />
                   </span>
                   <span>
-                    <span className="block text-xl leading-none font-semibold">{item.value}</span>
+                    <span className="block text-xl leading-none font-semibold">
+                      <bdi dir="ltr">{item.value}</bdi>
+                    </span>
                     <span className="mt-1 block text-xs leading-tight text-muted-foreground">
                       {item.label}
                     </span>

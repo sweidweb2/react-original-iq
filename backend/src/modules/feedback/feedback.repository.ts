@@ -157,7 +157,10 @@ function createSupabaseFeedbackRepository(config: AppConfig): FeedbackRepository
       }
     },
     async deleteById(id) {
-      const { error, count } = await client.from('feedbacks').delete({ count: 'exact' }).eq('id', id)
+      const { error, count } = await client
+        .from('feedbacks')
+        .delete({ count: 'exact' })
+        .eq('id', id)
       if (error) throw error
       return (count ?? 0) > 0
     },

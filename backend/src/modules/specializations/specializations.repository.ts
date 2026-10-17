@@ -91,7 +91,11 @@ function createSupabaseRepository(config: AppConfig): SpecializationsRepository 
       return (data as SpecRow[]).map(fromRow)
     },
     async findById(id) {
-      const { data, error } = await client.from('specializations').select(columns).eq('id', id).maybeSingle()
+      const { data, error } = await client
+        .from('specializations')
+        .select(columns)
+        .eq('id', id)
+        .maybeSingle()
       if (error) throw error
       return data ? fromRow(data as SpecRow) : null
     },

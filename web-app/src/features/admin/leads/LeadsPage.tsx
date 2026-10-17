@@ -15,14 +15,15 @@ import {
   createLead,
   deleteLead,
   exportLeads,
-  listLeads,
   type LeadRecord,
+  listLeads,
   updateLead,
 } from '@/services/contact'
 import { toastApiError } from '@/services/toast'
 
+import { formatAdminDate } from '../_shared/adminListFormat'
 import { AdminListPagination } from '../_shared/AdminListPagination'
-import { formatAdminDate, IconAction } from '../_shared/adminListUtils'
+import { IconAction } from '../_shared/adminListUtils'
 import { usePagedAdminList } from '../_shared/usePagedAdminList'
 
 export function LeadsPage() {
@@ -104,7 +105,7 @@ export function LeadsPage() {
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={list.isExporting}
               onClick={list.handleExport}
@@ -174,6 +175,7 @@ export function LeadsPage() {
                               </IconAction>
                               <IconAction
                                 label="Delete lead"
+                                tone="danger"
                                 onClick={() => list.setPendingDelete(lead)}
                               >
                                 <Trash2 className="size-4" />
@@ -207,7 +209,12 @@ export function LeadsPage() {
         description="Admin write for CRM leads."
         footer={
           <>
-            <Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setFormOpen(false)}
+              disabled={saving}
+            >
               Cancel
             </Button>
             <Button type="submit" form="lead-form" disabled={saving}>
@@ -219,22 +226,42 @@ export function LeadsPage() {
         <form id="lead-form" onSubmit={onSave} className="grid gap-3">
           <Field>
             <FieldLabel htmlFor="lead-country">Country</FieldLabel>
-            <Input id="lead-country" value={country} onChange={(e) => setCountry(e.target.value)} required />
+            <Input
+              id="lead-country"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              required
+            />
           </Field>
           {!editing ? (
             <Field>
               <FieldLabel htmlFor="lead-dial">Dial code</FieldLabel>
-              <Input id="lead-dial" value={dialCode} onChange={(e) => setDialCode(e.target.value)} required />
+              <Input
+                id="lead-dial"
+                value={dialCode}
+                onChange={(e) => setDialCode(e.target.value)}
+                required
+              />
             </Field>
           ) : null}
           <Field>
             <FieldLabel htmlFor="lead-phone">Phone</FieldLabel>
-            <Input id="lead-phone" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+            <Input
+              id="lead-phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+            />
           </Field>
           {editing ? (
             <Field>
               <FieldLabel htmlFor="lead-email">Email</FieldLabel>
-              <Input id="lead-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input
+                id="lead-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </Field>
           ) : null}
         </form>
@@ -254,7 +281,7 @@ export function LeadsPage() {
         footer={
           <>
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => list.setPendingDelete(null)}
               disabled={list.isActing}
             >

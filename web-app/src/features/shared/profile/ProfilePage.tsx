@@ -14,9 +14,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 import { profileUpdateSchema, type ProfileUpdateValues } from './profile.schema'
 
-function displayNameFromStore(
-  user: ReturnType<typeof useAuthStore.getState>['user'],
-): string {
+function displayNameFromStore(user: ReturnType<typeof useAuthStore.getState>['user']): string {
   return (
     user?.profile?.displayName?.trim() ||
     [user?.profile?.firstName, user?.profile?.lastName].filter(Boolean).join(' ').trim() ||
@@ -110,7 +108,11 @@ export function ProfilePage() {
 
   if (isLoading) {
     return (
-      <PortalPageShell title="Profile" description="Update personal information and password." maxWidth="4xl">
+      <PortalPageShell
+        title="Profile"
+        description="Update personal information and password."
+        maxWidth="4xl"
+      >
         <InlineSpinner label="Loading profile…" />
       </PortalPageShell>
     )
@@ -118,7 +120,11 @@ export function ProfilePage() {
 
   if (loadError) {
     return (
-      <PortalPageShell title="Profile" description="Update personal information and password." maxWidth="4xl">
+      <PortalPageShell
+        title="Profile"
+        description="Update personal information and password."
+        maxWidth="4xl"
+      >
         <AsyncState error={loadError} onRetry={() => window.location.reload()}>
           <span className="sr-only">Profile unavailable</span>
         </AsyncState>
@@ -131,7 +137,13 @@ export function ProfilePage() {
       title="Profile"
       description="Update personal information and password. Shared across all portals."
       actions={
-        <Button type="submit" form="profile-form" size="sm" disabled={isSaving} aria-busy={isSaving}>
+        <Button
+          type="submit"
+          form="profile-form"
+          size="sm"
+          disabled={isSaving}
+          aria-busy={isSaving}
+        >
           {isSaving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
           {isSaving ? 'Saving…' : 'Save changes'}
         </Button>
@@ -253,14 +265,17 @@ export function ProfilePage() {
       </form>
 
       {user?.role === 'admin' || user?.role === 'super' ? (
-        <SectionCard title="Exports" description="Download CSV snapshots for users, tasks, billing, and CRM data.">
+        <SectionCard
+          title="Exports"
+          description="Download CSV snapshots for users, tasks, billing, and CRM data."
+        >
           <div className="flex flex-wrap gap-2">
             {(['users', 'tasks', 'payments', 'refunds', 'leads', 'feedback'] as const).map(
               (resource) => (
                 <Button
                   key={resource}
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   disabled={exporting !== null}
                   onClick={async () => {
@@ -283,7 +298,10 @@ export function ProfilePage() {
         </SectionCard>
       ) : null}
 
-      <SectionCard title="Danger zone" description="Account deletion follows role rules (client-facing later).">
+      <SectionCard
+        title="Danger zone"
+        description="Account deletion follows role rules (client-facing later)."
+      >
         <EmptyState
           title="Delete account"
           description="This action will be gated by backend rules."

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { recomputeTaskPaymentStatus } from '../../src/modules/payments/payments.service.js'
 import type { PaymentsRepository } from '../../src/modules/payments/payments.repository.js'
+import { recomputeTaskPaymentStatus } from '../../src/modules/payments/payments.service.js'
 import type { RefundRecord } from '../../src/modules/payments/payments.types.js'
 import type { TasksRepository } from '../../src/modules/tasks/tasks.repository.js'
 import type { Task } from '../../src/modules/tasks/tasks.types.js'
@@ -48,11 +48,7 @@ function makeRefund(overrides: Partial<RefundRecord> = {}): RefundRecord {
   }
 }
 
-function makeRepos(opts: {
-  paidTotal: number
-  refundedTotal: number
-  refunds?: RefundRecord[]
-}) {
+function makeRepos(opts: { paidTotal: number; refundedTotal: number; refunds?: RefundRecord[] }) {
   const tasksRepository = {
     update: vi.fn().mockResolvedValue(makeTask()),
   } as unknown as TasksRepository

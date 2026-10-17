@@ -12,8 +12,8 @@ export {
   assertSelfOrAdmin,
   assertSelfOrOps,
   assertTaskRelated,
-  isOps,
   type AuthActor,
+  isOps,
   type TaskParties,
 } from './ownership.js'
 export {

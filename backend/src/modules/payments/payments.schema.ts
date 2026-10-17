@@ -19,8 +19,18 @@ export const createManualPaymentBodySchema = z.object({
   userId: z.string().uuid().optional(),
 })
 
+export const updatePaymentBodySchema = z
+  .object({
+    amount: z.coerce.number().positive().max(999999.99).optional(),
+    status: paymentStatusSchema.optional(),
+    paymentMethod: z.string().trim().max(64).nullable().optional(),
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: 'No fields to update',
+  })
+
 export const checkoutPaymentBodySchema = z.object({
-  amount: z.coerce.number().positive().max(999999.99).optional(),
+  amount: z.coerce.number().min(0.01).max(999999.99).optional(),
   currency: z.string().trim().length(3).optional(),
 })
 
@@ -40,6 +50,7 @@ export const updateRefundStatusBodySchema = z.object({
 })
 
 export type CreateManualPaymentBody = z.infer<typeof createManualPaymentBodySchema>
+export type UpdatePaymentBody = z.infer<typeof updatePaymentBodySchema>
 export type CheckoutPaymentBody = z.infer<typeof checkoutPaymentBodySchema>
 export type CreateRefundBody = z.infer<typeof createRefundBodySchema>
 export type UpdateRefundStatusBody = z.infer<typeof updateRefundStatusBodySchema>

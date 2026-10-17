@@ -3,23 +3,16 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { HomePage } from '@/features/home/HomePage'
-import { FaqPage } from '@/features/public/FaqPage'
-import { AboutPage, ContactPage, ServicesPage } from '@/features/public/pages'
-import { TermsPage } from '@/features/public/policyPages'
 import { PublicLayout } from '@/features/public/PublicLayout'
+import { localizedPublicRoutes } from '@/features/public/publicRoutes'
+import { useLocaleStore } from '@/stores/localeStore'
 
-function renderPublic(path = '/') {
+function renderPublic(path = '/en') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
+        {localizedPublicRoutes()}
         <Route element={<PublicLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/services" element={<ServicesPage />} />
-          <Route path="/faq" element={<FaqPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/terms" element={<TermsPage />} />
           <Route path="/login" element={<h1>Sign in</h1>} />
           <Route path="/signup" element={<h1>Create account</h1>} />
         </Route>
@@ -31,6 +24,7 @@ function renderPublic(path = '/') {
 describe('public navbar', () => {
   afterEach(() => {
     cleanup()
+    useLocaleStore.setState({ preferredLocale: null })
   })
 
   it('opens every public page from the navbar', async () => {

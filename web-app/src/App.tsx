@@ -5,7 +5,6 @@ import { ErrorBoundary } from '@/components/errors/ErrorBoundary'
 import { NavigationLoader } from '@/components/feedback'
 import { ContactMessagesPage } from '@/features/admin/contact/ContactMessagesPage'
 import { LeadsPage } from '@/features/admin/leads/LeadsPage'
-import { ManageRbacPage } from '@/features/super/rbac/ManageRbacPage'
 import { StayUpdatedPage } from '@/features/admin/stay-updated/StayUpdatedPage'
 import { ManageUsersPage } from '@/features/admin/users/ManageUsersPage'
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
@@ -15,13 +14,10 @@ import { ResetUpdatePage } from '@/features/auth/ResetUpdatePage'
 import { ResetVerifyPage } from '@/features/auth/ResetVerifyPage'
 import { NotFoundPage } from '@/features/errors/NotFoundPage'
 import { UnexpectedErrorPage } from '@/features/errors/UnexpectedErrorPage'
-import { HomePage } from '@/features/home/HomePage'
 import { PortalLayout } from '@/features/portals/PortalLayouts'
 import { PORTALS } from '@/features/portals/portalNav'
-import { FaqPage } from '@/features/public/FaqPage'
-import { AboutPage, ContactPage, ServicesPage } from '@/features/public/pages'
-import { PrivacyPage, RefundsPage, TermsPage } from '@/features/public/policyPages'
 import { PublicLayout } from '@/features/public/PublicLayout'
+import { localizedPublicRoutes } from '@/features/public/publicRoutes'
 import { PortalDashboardPage } from '@/features/shared/dashboard/PortalDashboardPage'
 import { FeedbackPage } from '@/features/shared/feedback/FeedbackPage'
 import { ProfilePage } from '@/features/shared/profile/ProfilePage'
@@ -31,6 +27,7 @@ import { TaskPaymentsPage } from '@/features/shared/tasks/TaskPaymentsPage'
 import { TasksPage } from '@/features/shared/tasks/TasksPage'
 import { ManageUserProfilePage } from '@/features/shared/users/ManageUserProfilePage'
 import { ActivityLogsPage } from '@/features/super/ActivityLogsPage'
+import { ManageRbacPage } from '@/features/super/rbac/ManageRbacPage'
 import type { AuthRole } from '@/services/auth'
 
 function portalChildRoutes(role: AuthRole) {
@@ -54,9 +51,7 @@ function portalChildRoutes(role: AuthRole) {
       <Route index element={<PortalDashboardPage />} />
       <Route path="tasks" element={<TasksPage />} />
       <Route path="tasks/:taskId" element={<TaskDetailsPage />} />
-      {hasPayments ? (
-        <Route path="tasks/:taskId/payments" element={<TaskPaymentsPage />} />
-      ) : null}
+      {hasPayments ? <Route path="tasks/:taskId/payments" element={<TaskPaymentsPage />} /> : null}
       {hasRevisions ? (
         <Route path="tasks/:taskId/revisions/:revisionId" element={<RevisionDetailsPage />} />
       ) : null}
@@ -84,15 +79,9 @@ function App() {
       <NavigationLoader />
       <ErrorBoundary>
         <Routes>
+          {localizedPublicRoutes()}
+
           <Route element={<PublicLayout />}>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/services" element={<ServicesPage />} />
-            <Route path="/faq" element={<FaqPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-            <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/refunds" element={<RefundsPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/password-reset/verify" element={<ResetVerifyPage />} />

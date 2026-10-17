@@ -1,33 +1,35 @@
-import { Link } from 'react-router-dom'
-
 import { BrandLogo } from '@/components/brand/BrandLogo'
+import { LocalizedLink } from '@/i18n'
 import { cn } from '@/lib/utils'
 
+import { usePublicDictionary } from './i18n'
 import { publicContainerClass } from './publicContainer'
 import { SocialLinks } from './SocialLinks'
 
-const serviceLinks = [
-  { to: '/services#tutoring', label: 'Tutoring' },
-  { to: '/services#assignment', label: 'Assignment Help' },
-  { to: '/services#research', label: 'Research' },
-]
-
-const companyLinks = [
-  { to: '/about', label: 'About Us' },
-  { to: '/contact', label: 'Contact' },
-  { to: '/services', label: 'Our Services' },
-  { to: '/#how-it-works', label: 'How It Works' },
-]
-
-const supportLinks = [
-  { to: '/faq', label: 'FAQ' },
-  { to: '/terms', label: 'Terms of Service' },
-  { to: '/privacy', label: 'Privacy Policy' },
-  { to: '/refunds', label: 'Refunds Policy' },
-  { to: '/contact#support', label: 'Get Support' },
-]
-
 export function PublicFooter() {
+  const t = usePublicDictionary().footer
+
+  const serviceLinks = [
+    { to: '/services#tutoring', label: t.serviceLinks.tutoring },
+    { to: '/services#assignment', label: t.serviceLinks.assignment },
+    { to: '/services#research', label: t.serviceLinks.research },
+  ]
+
+  const companyLinks = [
+    { to: '/about', label: t.companyLinks.about },
+    { to: '/contact', label: t.companyLinks.contact },
+    { to: '/services', label: t.companyLinks.services },
+    { to: '/#how-it-works', label: t.companyLinks.howItWorks },
+  ]
+
+  const supportLinks = [
+    { to: '/faq', label: t.supportLinks.faq },
+    { to: '/terms', label: t.supportLinks.terms },
+    { to: '/privacy', label: t.supportLinks.privacy },
+    { to: '/refunds', label: t.supportLinks.refunds },
+    { to: '/contact#support', label: t.supportLinks.support },
+  ]
+
   return (
     <footer className="mt-auto bg-foreground text-white/80">
       <div
@@ -38,20 +40,18 @@ export function PublicFooter() {
       >
         <div>
           <BrandLogo variant="wordmark" className="h-12 w-auto brightness-0 invert" />
-          <p className="mt-4 max-w-sm leading-relaxed text-white/70">
-            Empowering students to reach their full potential through personalized, expert tutoring.
-          </p>
+          <p className="mt-4 max-w-sm leading-relaxed text-white/70">{t.tagline}</p>
         </div>
-        <FooterColumn title="Services" links={serviceLinks} />
-        <FooterColumn title="Company" links={companyLinks} />
-        <FooterColumn title="Support" links={supportLinks} />
+        <FooterColumn title={t.services} links={serviceLinks} />
+        <FooterColumn title={t.company} links={companyLinks} />
+        <FooterColumn title={t.support} links={supportLinks} />
         <div>
-          <p className="mb-4 text-lg font-semibold text-white">Follow Us</p>
+          <p className="mb-4 text-lg font-semibold text-white">{t.followUs}</p>
           <SocialLinks linkClassName="text-white/70 hover:text-white" />
         </div>
       </div>
       <p className="border-t border-white/10 px-4 py-8 text-center text-sm text-white/60">
-        © {new Date().getFullYear()} Original IQ. All rights reserved.
+        {t.copyright(new Date().getFullYear())}
       </p>
     </footer>
   )
@@ -70,9 +70,12 @@ function FooterColumn({
       <ul className="flex flex-col gap-3 text-sm">
         {links.map((item) => (
           <li key={item.to}>
-            <Link to={item.to} className="text-white/70 transition hover:text-primary-light">
+            <LocalizedLink
+              to={item.to}
+              className="text-white/70 transition hover:text-primary-light"
+            >
               {item.label}
-            </Link>
+            </LocalizedLink>
           </li>
         ))}
       </ul>

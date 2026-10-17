@@ -3,6 +3,7 @@
 ## Goals
 
 Unified authentication for all roles with:
+
 - Client self-registration
 - Login rate limiting / progressive lockout
 - Optional admin OTP (redesign required)
@@ -11,12 +12,12 @@ Unified authentication for all roles with:
 
 ## Registration
 
-| Rule | Value |
-|------|-------|
-| Who can register publicly | Clients only |
-| Required | name, email, password (min 8, confirmed), terms accepted |
-| Defaults | `role=client`, `is_active=true`, `email_verified=true` (current behavior) |
-| Other roles | Created by Admin only |
+| Rule                      | Value                                                                     |
+| ------------------------- | ------------------------------------------------------------------------- |
+| Who can register publicly | Clients only                                                              |
+| Required                  | name, email, password (min 8, confirmed), terms accepted                  |
+| Defaults                  | `role=client`, `is_active=true`, `email_verified=true` (current behavior) |
+| Other roles               | Created by Admin only                                                     |
 
 ## Login
 
@@ -28,20 +29,20 @@ Unified authentication for all roles with:
 
 ## OTP / email verification codes
 
-| Property | Value |
-|----------|-------|
-| Code | 6-digit numeric |
-| Expiry | 10 minutes |
-| Types | `email` (login), `password_reset` |
-| On create | Invalidate previous unused codes of same type for user |
-| On success | Mark used; then complete login / reset |
+| Property   | Value                                                  |
+| ---------- | ------------------------------------------------------ |
+| Code       | 6-digit numeric                                        |
+| Expiry     | 10 minutes                                             |
+| Types      | `email` (login), `password_reset`                      |
+| On create  | Invalidate previous unused codes of same type for user |
+| On success | Mark used; then complete login / reset                 |
 
 ### Rebuild decision — Admin 2FA
 
 Old `isSuperAdmin()` is broken. Choose one:
 
-1. `users.require_otp = true` for admins, or  
-2. Dedicated `super_admin` role used consistently, or  
+1. `users.require_otp = true` for admins, or
+2. Dedicated `super_admin` role used consistently, or
 3. OTP for **all** admins.
 
 Document the choice in code and here.
@@ -60,12 +61,12 @@ Tracked per email + IP (+ user agent stored).
 Progressive lock durations (current code):
 
 | Failed attempts | Lock duration |
-|-----------------|---------------|
-| ≥ 9 | 3600s (1h) |
-| ≥ 7 | 1800s (30m) |
-| ≥ 5 | 900s (15m) |
-| ≥ 3 | 60s |
-| else | none |
+| --------------- | ------------- |
+| ≥ 9             | 3600s (1h)    |
+| ≥ 7             | 1800s (30m)   |
+| ≥ 5             | 900s (15m)    |
+| ≥ 3             | 60s           |
+| else            | none          |
 
 Helpers conceptually: `isLocked`, remaining lock time, record success/failure.
 
@@ -73,11 +74,11 @@ Helpers conceptually: `isLocked`, remaining lock time, record success/failure.
 
 ## Session policy
 
-| Setting | Current / recommended |
-|---------|------------------------|
-| Idle timeout | ~30 minutes (`SessionTimeout` middleware) |
-| Remember-me | Up to 1 week (10080 minutes) when selected |
-| Logout | Clear remember token; invalidate session |
+| Setting      | Current / recommended                      |
+| ------------ | ------------------------------------------ |
+| Idle timeout | ~30 minutes (`SessionTimeout` middleware)  |
+| Remember-me  | Up to 1 week (10080 minutes) when selected |
+| Logout       | Clear remember token; invalidate session   |
 
 ## Authorization after login
 

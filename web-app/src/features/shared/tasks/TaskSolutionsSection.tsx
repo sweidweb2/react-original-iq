@@ -1,72 +1,53 @@
-import type { FormEvent } from 'react'
-
 import { EmptyState } from '@/components/feedback'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import type { TaskDetail } from '@/services/tasks'
 
 import { SectionCard } from '../PortalPageShell'
+import { FileUploadButton } from './FileUploadButton'
+import { formatFileSize, storedFileName } from './taskDetailsFormat'
+import { TaskFileRow } from './TaskFileRow'
 
 export function TaskSolutionsSection({
   task,
   canManage,
   isActing,
-  solutionLocation,
-  onSolutionLocationChange,
-  onAddSolution,
+  isUploading,
+  onUpload,
+  onOpenSolution,
   onRemoveSolution,
 }: {
   task: TaskDetail
   canManage: boolean
   isActing: boolean
-  solutionLocation: string
-  onSolutionLocationChange: (value: string) => void
-  onAddSolution: (event: FormEvent) => void
+  isUploading: boolean
+  onUpload: (files: File[]) => void
+  onOpenSolution: (solutionId: string) => void
   onRemoveSolution: (solutionId: string) => void
 }) {
   return (
     <SectionCard title="Solutions" description="Submitted work.">
       {canManage ? (
-        <form className="mb-4 grid gap-2" onSubmit={onAddSolution}>
-          <Input
-            placeholder="Solution file location"
-            value={solutionLocation}
-            onChange={(e) => onSolutionLocationChange(e.target.value)}
-          />
-          <Button type="submit" size="sm" variant="outline" disabled={isActing}>
-            Add solution
-          </Button>
-        </form>
+        <FileUploadButton
+          label="Upload solution"
+          isUploading={isUploading}
+          disabled={isActing}
+          onFiles={onUpload}
+        />
       ) : null}
       {task.solutions.length === 0 ? (
-        <EmptyState title="No solutions" description="Tutors and staff can attach solution files." />
+        <EmptyState title="No solutions" description="Tutors and staff can upload solution files." />
       ) : (
-        <ul className="space-y-2 text-sm">
+        <ul className="space-y-2">
           {task.solutions.map((solution) => (
-            <li
+            <TaskFileRow
               key={solution.id}
-              className="flex items-center justify-between gap-2 rounded-md border p-2"
-            >
-              <a
-                href={solution.fileLocation}
-                className="font-medium text-primary hover:underline"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {solution.fileLocation}
-              </a>
-              {canManage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isActing}
-                  onClick={() => onRemoveSolution(solution.id)}
-                >
-                  Remove
-                </Button>
-              ) : null}
-            </li>
+              name={storedFileName(solution, 'Solution')}
+              details={[formatFileSize(solution.sizeBytes)]}
+              canRemove={canManage}
+              isActing={isActing}
+              removeLabel="Remove solution"
+              onOpen={() => onOpenSolution(solution.id)}
+              onRemove={() => onRemoveSolution(solution.id)}
+            />
           ))}
         </ul>
       )}

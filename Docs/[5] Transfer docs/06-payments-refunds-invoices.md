@@ -12,11 +12,11 @@ net           = totalPayments - totalRefunds
 
 ### Task `payment_status` derivation
 
-| Condition | payment_status |
-|-----------|----------------|
-| `net == task.price` | `paid` |
-| `net > task.price` | `refund_pending` |
-| else | `unpaid` |
+| Condition           | payment_status   |
+| ------------------- | ---------------- |
+| `net == task.price` | `paid`           |
+| `net > task.price`  | `refund_pending` |
+| else                | `unpaid`         |
 
 ### Helpers
 
@@ -34,6 +34,7 @@ Recompute after: client gateway payment, admin manual payment, payment delete, r
 **Statuses:** `pending` | `paid` | `failed` | `canceled` | `refunded`
 
 **Client gateway pay**
+
 1. Actor must be the task’s `client_id`.
 2. Amount ≥ 0.01; currency (≤ 3 chars, usually USD).
 3. Block if `net >= price` (nothing due).
@@ -48,6 +49,7 @@ Recompute after: client gateway payment, admin manual payment, payment delete, r
    - Generate invoice + email.
 
 **Admin manual payment**
+
 1. Amount ≥ 0, ≤ 2 decimal places.
 2. Block if `net >= price`.
 3. Block creating overpay beyond price (admin path is strict).
@@ -61,6 +63,7 @@ Recompute after: client gateway payment, admin manual payment, payment delete, r
 ## Refund rules
 
 **Create refund (admin; coordinator limited path)**
+
 1. Amount ≥ 0.01 (+ reason where required).
 2. Respect caps: cannot refund more than makes sense vs overpay / net rules (`adminPayRefund` guards).
 3. Record Refund with status `paid` (current app often stubs gateway IDs — decide real gateway refund vs ledger-only).
@@ -74,14 +77,15 @@ Recompute after: client gateway payment, admin manual payment, payment delete, r
 
 Triggered after successful paid Payment (gateway or manual).
 
-| Field | Rule |
-|-------|------|
-| invoice_number | `INV-` + payment id zero-padded to 6 (`INV-000123`) |
-| invoice_date | now |
-| pdf_path | e.g. `invoices/invoice_000123.pdf` on object storage |
-| invoice_status | `sent` if email+PDF ok, else `failed` |
+| Field          | Rule                                                 |
+| -------------- | ---------------------------------------------------- |
+| invoice_number | `INV-` + payment id zero-padded to 6 (`INV-000123`)  |
+| invoice_date   | now                                                  |
+| pdf_path       | e.g. `invoices/invoice_000123.pdf` on object storage |
+| invoice_status | `sent` if email+PDF ok, else `failed`                |
 
 **Side effects**
+
 1. Render PDF (invoice template).
 2. Store PDF in object storage.
 3. Email client with invoice notification.
@@ -100,6 +104,7 @@ Triggered after successful paid Payment (gateway or manual).
 ## Client-facing payment view
 
 Show for a task:
+
 - Task price
 - Total paid
 - Total refunded
@@ -126,10 +131,10 @@ Show for a task:
 
 ## Intentional product decisions for rebuild
 
-| Topic | Suggestion |
-|-------|------------|
-| Which payment statuses count in SUM | Count only `paid` |
-| Real MontyPay refunds vs ledger | Prefer real refund API or clearly mark “manual ledger refund” |
-| Hash verification | Mandatory before trusting callback |
-| Unique tx id | DB unique constraint |
-| Invoice on failed email | Keep PDF, status `failed`, allow resend |
+| Topic                               | Suggestion                                                    |
+| ----------------------------------- | ------------------------------------------------------------- |
+| Which payment statuses count in SUM | Count only `paid`                                             |
+| Real MontyPay refunds vs ledger     | Prefer real refund API or clearly mark “manual ledger refund” |
+| Hash verification                   | Mandatory before trusting callback                            |
+| Unique tx id                        | DB unique constraint                                          |
+| Invoice on failed email             | Keep PDF, status `failed`, allow resend                       |

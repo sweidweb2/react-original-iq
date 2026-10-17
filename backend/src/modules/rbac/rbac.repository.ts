@@ -339,7 +339,10 @@ function createSupabaseRbacRepository(config: AppConfig): RbacRepository {
       const existing = await findRoleById(roleId)
       if (!existing) return null
 
-      const { error: delError } = await client.from('role_permissions').delete().eq('role_id', roleId)
+      const { error: delError } = await client
+        .from('role_permissions')
+        .delete()
+        .eq('role_id', roleId)
       if (delError) throw delError
 
       if (permissionIds.length > 0) {
@@ -433,7 +436,10 @@ function createSupabaseRbacRepository(config: AppConfig): RbacRepository {
     },
 
     async setUserPermissions(userId, permissionIds) {
-      const { error: delError } = await client.from('user_permissions').delete().eq('user_id', userId)
+      const { error: delError } = await client
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', userId)
       if (delError) throw delError
 
       if (permissionIds.length > 0) {

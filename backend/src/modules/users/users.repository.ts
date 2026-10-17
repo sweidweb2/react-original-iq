@@ -346,7 +346,10 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
       if (readError) throw readError
       if (!data) return
       const current = (data as { nb_done: number }).nb_done ?? 0
-      const { error } = await client.from('users').update({ nb_done: current + 1 }).eq('id', id)
+      const { error } = await client
+        .from('users')
+        .update({ nb_done: current + 1 })
+        .eq('id', id)
       if (error) throw error
     },
   }

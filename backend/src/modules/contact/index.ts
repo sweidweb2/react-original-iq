@@ -1,10 +1,7 @@
 import type { AppConfig } from '../../config/index.js'
 import { loadConfig } from '../../config/index.js'
 import { createContactController } from './contact.controller.js'
-import {
-  createContactRepository,
-  type ContactRepository,
-} from './contact.repository.js'
+import { type ContactRepository, createContactRepository } from './contact.repository.js'
 import { createContactRoutes } from './contact.routes.js'
 import { createContactService } from './contact.service.js'
 

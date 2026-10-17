@@ -1,0 +1,54 @@
+---
+description: EN/AR i18n and RTL/LTR layout rules for the web app
+globs: web-app/src/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# EN / AR + RTL / LTR
+
+Public marketing pages (Home, Services, About, FAQ, Contact, Terms, Privacy, Refunds) are bilingual. Auth pages and portals are English, LTR.
+
+## Wiring
+
+- Locales: `en` (LTR), `ar` (RTL). Core lives in `src/i18n/` (`config.ts`, `paths.ts`, `useI18n`, `LocaleGate`, `LocalizedLink`).
+- URLs are prefixed: `/en/about`, `/ar/about`. Unprefixed public URLs redirect via `LocaleRedirect`. `LocaleGate` sets `<html lang dir>`.
+- Preference lives in `stores/localeStore.ts` (Zustand, persisted). The URL is the source of truth.
+- Internal public links: `LocalizedLink` / `LocalizedNavLink` or `lp('/path#hash')` from `useI18n()`. Never hardcode `/about` in public pages.
+- Strings: typed dictionaries, accessed by property (`t.contact.formTitle`), never by string key.
+  - UI: `features/public/i18n/{en,ar}.ts`, `features/home/i18n/{en,ar}.ts`.
+  - Long content: `features/public/content/*.{en,ar}.ts`, combined as `Localized<T>` and read with `pick(map)`.
+  - `ar` is typed as `typeof en`; missing or extra keys fail type-check. Interpolation = functions (`copyright(year)`).
+- Never key logic off translated text (icons, variants). Use stable `id` / `icon` / `kind` fields.
+- Zod messages come from the dictionary via schema factories (`createContactSchemas(messages)`), memoized per locale.
+- Every new public string goes into **both** `en` and `ar`.
+
+## Layout rules
+
+1. **Logical utilities only** for direction-dependent layout:
+   `ms-/me-`, `ps-/pe-`, `start-/end-`, `text-start/text-end`, `border-s/border-e`, `rounded-s/e/ss/se/es/ee`, `scroll-ms/me`.
+   Do **not** use `ml/mr`, `pl/pr`, `left-/right-`, `text-left/right`, `border-l/r`, `rounded-l/r/tl/tr/bl/br` for anything that should mirror.
+2. **Symmetric centering is fine**: `left-1/2 -translate-x-1/2`, `mx-auto`, `inset-x-*`, `px-*`.
+3. **Exceptions use variants** `ltr:` / `rtl:`:
+   - Gradients: `ltr:bg-gradient-to-r rtl:bg-gradient-to-l`.
+   - Transform origins: `ltr:origin-left rtl:origin-right`.
+   - Off-center translate: `-translate-x-1/2 rtl:translate-x-1/2`.
+4. **Icons**: flip directional ones (chevron-left/right, arrows, `→`) with `rtl:-scale-x-100`. Never flip logos, brand/social icons, checkmarks, play/media icons, clocks, or charts.
+5. **Motion**: horizontal keyframes multiply by `var(--dir)` (`1` in LTR, `-1` in RTL), e.g. `translateX(calc(24px * var(--dir)))`.
+6. **Flex/grid** already follow `dir`; `justify-start/end`, `justify-self-start/end`, `order-*` need no change. Do not use `flex-row-reverse` to fake RTL.
+7. **Bidi isolation**:
+   - Emails, phone numbers, URLs, prices, codes rendered as elements: wrap in an element with `dir="ltr"` (or `<bdi>`).
+   - Inside plain strings in `ar` content: use `ltr('…')` from `@/i18n` (Unicode isolates).
+   - Email / phone / code inputs: `dir="ltr"` plus `rtl:text-end`.
+8. **Arabic typography**: font is IBM Plex Sans Arabic (via `html[lang='ar']`). No `uppercase`, no `tracking-*` reliance (reset globally), no italics. Body line-height 1.8, headings ≥ 1.45. Avoid `leading-none` on Arabic text.
+9. **Length**: Arabic can be 20–30% shorter or longer. No fixed widths on text containers; let buttons wrap or grow.
+10. **Numbers**: Western digits (0–9) in both locales. Use `Intl.NumberFormat(locale === 'ar' ? 'ar-u-nu-latn' : 'en')`.
+11. **Overlays**: `Sheet` uses `side="start" | "end"`; the mobile menu opens from `end`. Toasts sit at `end-4`.
+12. **Punctuation** in Arabic copy: `،` `؛` `؟` and `«»` for quotes.
+
+## Translation style
+
+- Modern Standard Arabic, professional and warm, for students in Lebanon and the Gulf.
+- Translate meaning, not words. Rewrite idioms and marketing lines naturally.
+- Brand name stays Latin: `Original IQ` / `OriginaliQ`.
+- Glossary: tutoring = الدروس الخصوصية · assignment help = المساعدة في الواجبات · research support = دعم الأبحاث · academic consultant = المستشار الأكاديمي · coordinator = المنسّق · revision = تعديل · refund = استرداد المبلغ.
+- Legal pages: same section `id`s and paragraph order as English.

@@ -1,21 +1,25 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { CreditCard, Download, Eye, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { useParams } from 'react-router-dom'
 
 import { AsyncState, EmptyState, InlineSpinner } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { IconAction } from '@/components/ui/icon-action'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
+import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
+import { getInvoiceDownloadUrl, resendInvoice } from '@/services/invoices'
 import {
-  createManualPayment,
   createRefund,
   deletePayment,
   deleteRefund,
   getTaskPayments,
   type PaymentRecord,
+  type PaymentStatus,
   type RefundRecord,
   type TaskPaymentsView,
   updateRefundStatus,
@@ -24,6 +28,11 @@ import { toastApiError } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
+import { PaymentDetailsDialog } from './PaymentDetailsDialog'
+import { PaymentFormDialog } from './PaymentFormDialog'
+import { SimulatedCheckoutDialog } from './SimulatedCheckoutDialog'
+import { paymentStatusLabel, paymentStatusTone } from './taskDetailsFormat'
+import { useTaskTopic } from './useTaskTopic'
 
 function formatMoney(value: number, currency = 'USD'): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value)
@@ -32,80 +41,75 @@ function formatMoney(value: number, currency = 'USD'): string {
 function formatDate(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    date,
+  )
+}
+
+const STATUS_TONE: Record<PaymentStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
+  paid: 'success',
+  pending: 'warning',
+  failed: 'danger',
+  canceled: 'neutral',
+  refunded: 'neutral',
 }
 
 export function TaskPaymentsPage() {
   const { taskId = '' } = useParams()
   const role = useAuthStore((s) => s.user?.role)
   const isStaff = role === 'admin' || role === 'coordinator' || role === 'super'
+  const canResend = role === 'admin' || role === 'super'
+  const isClientRole = role === 'client'
+  const taskTopic = useTaskTopic(taskId)
+  const breadcrumbs = usePortalBreadcrumbs([
+    { label: 'Tasks', path: 'tasks' },
+    ...(taskId ? [{ label: taskTopic ?? 'Task', path: `tasks/${taskId}?tab=payments` }] : []),
+    { label: 'Payments' },
+  ])
 
   const [view, setView] = useState<TaskPaymentsView | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
-  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null)
+  const [editing, setEditing] = useState<PaymentRecord | null>(null)
+  const [viewingId, setViewingId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PaymentRecord | null>(null)
+
   const [refundOpen, setRefundOpen] = useState(false)
-  const [amount, setAmount] = useState('')
+  const [refundAmount, setRefundAmount] = useState('')
   const [refundReason, setRefundReason] = useState('')
   const [isActing, setIsActing] = useState(false)
-
-  const taskPath = '..'
 
   useEffect(() => {
     if (!taskId) return
     let cancelled = false
-    async function load() {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const data = await getTaskPayments(taskId)
-        if (!cancelled) {
-          setView(data)
-          if (data.summary.due > 0) setAmount(String(data.summary.due))
-        }
-      } catch (err) {
+    setIsLoading(true)
+    setError(null)
+    getTaskPayments(taskId)
+      .then((data) => {
+        if (!cancelled) setView(data)
+      })
+      .catch((err: unknown) => {
         if (!cancelled) setError(err)
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setIsLoading(false)
-      }
-    }
-    void load()
+      })
     return () => {
       cancelled = true
     }
   }, [taskId, reloadKey])
 
-  async function reload() {
+  function reload() {
     setReloadKey((k) => k + 1)
-  }
-
-  async function onManualPayment(event: FormEvent) {
-    event.preventDefault()
-    if (!taskId) return
-    const parsed = Number(amount)
-    if (Number.isNaN(parsed) || parsed <= 0) {
-      toast.error('Enter a valid amount')
-      return
-    }
-    setIsActing(true)
-    try {
-      await createManualPayment(taskId, { amount: parsed, status: 'paid', paymentMethod: 'manual' })
-      toast.success('Payment recorded')
-      setPaymentOpen(false)
-      await reload()
-    } catch (err) {
-      toastApiError(err, 'Could not create payment')
-    } finally {
-      setIsActing(false)
-    }
   }
 
   async function onRefund(event: FormEvent) {
     event.preventDefault()
-    if (!taskId) return
-    const parsed = Number(amount)
+    const parsed = Number(refundAmount)
     if (Number.isNaN(parsed) || parsed <= 0) {
       toast.error('Enter a valid amount')
       return
@@ -115,7 +119,9 @@ export function TaskPaymentsPage() {
       await createRefund(taskId, { amount: parsed, refundReason: refundReason.trim() || undefined })
       toast.success('Refund created')
       setRefundOpen(false)
-      await reload()
+      setRefundAmount('')
+      setRefundReason('')
+      reload()
     } catch (err) {
       toastApiError(err, 'Could not create refund')
     } finally {
@@ -123,13 +129,14 @@ export function TaskPaymentsPage() {
     }
   }
 
-  async function onDeletePayment(payment: PaymentRecord) {
-    if (!taskId) return
+  async function confirmDelete() {
+    if (!pendingDelete) return
     setIsActing(true)
     try {
-      await deletePayment(taskId, payment.id)
+      await deletePayment(taskId, pendingDelete.id)
       toast.success('Payment deleted')
-      await reload()
+      setPendingDelete(null)
+      reload()
     } catch (err) {
       toastApiError(err, 'Could not delete payment')
     } finally {
@@ -137,17 +144,76 @@ export function TaskPaymentsPage() {
     }
   }
 
+  async function onDownloadInvoice(payment: PaymentRecord) {
+    if (!payment.invoice) return
+    try {
+      const { url } = await getInvoiceDownloadUrl(payment.invoice.id)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      toastApiError(err, 'Could not download invoice')
+    }
+  }
+
+  async function onResendInvoice(payment: PaymentRecord) {
+    if (!payment.invoice) return
+    setIsActing(true)
+    try {
+      const invoice = await resendInvoice(payment.invoice.id)
+      if (invoice.invoiceStatus === 'sent') toast.success(`Invoice ${invoice.invoiceNumber} sent`)
+      else toast.error(invoice.lastError ?? 'Invoice could not be sent')
+      reload()
+    } catch (err) {
+      toastApiError(err, 'Could not resend invoice')
+    } finally {
+      setIsActing(false)
+    }
+  }
+
+  async function onRefundStatus(refund: RefundRecord, status: 'paid' | 'canceled') {
+    setIsActing(true)
+    try {
+      await updateRefundStatus(taskId, refund.id, status)
+      toast.success(status === 'paid' ? 'Refund marked paid' : 'Refund canceled')
+      reload()
+    } catch (err) {
+      toastApiError(err, 'Could not update refund')
+    } finally {
+      setIsActing(false)
+    }
+  }
+
+  async function onDeleteRefund(refund: RefundRecord) {
+    setIsActing(true)
+    try {
+      await deleteRefund(taskId, refund.id)
+      toast.success('Refund deleted')
+      reload()
+    } catch (err) {
+      toastApiError(err, 'Could not delete refund')
+    } finally {
+      setIsActing(false)
+    }
+  }
+
   if (!taskId) {
     return (
-      <PortalPageShell title="Task payments" description="Missing task id.">
+      <PortalPageShell
+        title="Task payments"
+        description="Missing task id."
+        breadcrumbs={breadcrumbs}
+      >
         <EmptyState title="Invalid link" description="Open payments from a task." />
       </PortalPageShell>
     )
   }
 
-  if (isLoading) {
+  if (isLoading && !view) {
     return (
-      <PortalPageShell title="Task payments" description="Loading billing…">
+      <PortalPageShell
+        title="Task payments"
+        description="Loading billing…"
+        breadcrumbs={breadcrumbs}
+      >
         <InlineSpinner label="Loading payments…" />
       </PortalPageShell>
     )
@@ -155,7 +221,11 @@ export function TaskPaymentsPage() {
 
   if (error || !view) {
     return (
-      <PortalPageShell title="Task payments" description="Could not load payments.">
+      <PortalPageShell
+        title="Task payments"
+        description="Could not load payments."
+        breadcrumbs={breadcrumbs}
+      >
         <AsyncState error={error ?? new Error('Unavailable')} onRetry={reload}>
           <span className="sr-only">Payments unavailable</span>
         </AsyncState>
@@ -164,19 +234,34 @@ export function TaskPaymentsPage() {
   }
 
   const { summary, payments, refunds } = view
+  const canPay = isClientRole && summary.due > 0
 
   return (
     <PortalPageShell
       title="Task payments"
-      description={`Billing for task ${taskId.slice(0, 8)}…`}
+      description="Billing, invoices, and refunds for this task."
+      breadcrumbs={breadcrumbs}
       actions={
         <>
+          {canPay ? (
+            <Button type="button" size="sm" onClick={() => setCheckoutOpen(true)}>
+              <CreditCard className="size-4" aria-hidden />
+              Pay now
+            </Button>
+          ) : null}
           {isStaff ? (
             <>
-              <Button type="button" variant="outline" size="sm" onClick={() => setRefundOpen(true)}>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setRefundOpen(true)}>
                 Create refund
               </Button>
-              <Button type="button" size="sm" onClick={() => setPaymentOpen(true)}>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setEditing(null)
+                  setFormMode('create')
+                }}
+              >
                 Add payment
               </Button>
             </>
@@ -184,82 +269,155 @@ export function TaskPaymentsPage() {
         </>
       }
     >
-      <p className="text-sm text-muted-foreground">
-        <Link to={taskPath} className="font-medium text-primary hover:underline">
-          Back to task
-        </Link>
-      </p>
-
       <SectionCard title="Insights" description="Amount due, paid, and refunded.">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border px-3 py-2">
-            <p className="text-xs text-muted-foreground">Price</p>
-            <p className="text-lg font-semibold tabular-nums">{formatMoney(summary.price)}</p>
-          </div>
-          <div className="rounded-lg border px-3 py-2">
-            <p className="text-xs text-muted-foreground">Paid</p>
-            <p className="text-lg font-semibold tabular-nums">{formatMoney(summary.paidTotal)}</p>
-          </div>
-          <div className="rounded-lg border px-3 py-2">
-            <p className="text-xs text-muted-foreground">Refunded</p>
-            <p className="text-lg font-semibold tabular-nums">{formatMoney(summary.refundedTotal)}</p>
-          </div>
-          <div className="rounded-lg border px-3 py-2">
-            <p className="text-xs text-muted-foreground">Due</p>
-            <p className="text-lg font-semibold tabular-nums">{formatMoney(summary.due)}</p>
-          </div>
+          {[
+            { label: 'Price', value: summary.price },
+            { label: 'Paid', value: summary.paidTotal },
+            { label: 'Refunded', value: summary.refundedTotal },
+            { label: 'Due', value: summary.due },
+          ].map((item) => (
+            <div key={item.label} className="rounded-lg border px-3 py-2">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="text-lg font-semibold tabular-nums">{formatMoney(item.value)}</p>
+            </div>
+          ))}
         </div>
         <p className="mt-3 text-sm text-muted-foreground">
-          Status: <Badge tone="neutral">{summary.paymentStatus}</Badge>
+          Status:{' '}
+          <Badge tone={paymentStatusTone(summary.paymentStatus)}>
+            {paymentStatusLabel(summary.paymentStatus)}
+          </Badge>
         </p>
       </SectionCard>
 
-      <SectionCard title="Payments" description="Recorded payments for this task.">
+      <SectionCard title="Payments" description="Recorded payments and their invoices.">
         {payments.length === 0 ? (
           <EmptyState
             title="No payments yet"
-            description={isStaff ? 'Record a manual payment from the actions above.' : 'Staff will record payments for this task.'}
+            description={
+              canPay
+                ? 'Use "Pay now" to settle the balance.'
+                : isStaff
+                  ? 'Record a manual payment from the actions above.'
+                  : 'No payments recorded for this task.'
+            }
           />
         ) : (
-          <ul className="space-y-2 text-sm">
-            {payments.map((payment) => (
-              <li key={payment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2">
-                <div>
-                  <p className="font-medium tabular-nums">
-                    {formatMoney(payment.amount, payment.currency)} · {payment.status}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {payment.paymentMethod ?? payment.gateway} · {formatDate(payment.createdAt)}
-                  </p>
-                  {payment.paymentUrl ? (
-                    <a href={payment.paymentUrl} className="text-xs text-primary hover:underline" target="_blank" rel="noreferrer">
-                      Open checkout
-                    </a>
-                  ) : null}
-                </div>
-                {isStaff ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isActing}
-                    onClick={() => void onDeletePayment(payment)}
-                  >
-                    Delete
-                  </Button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[820px] text-left text-sm">
+              <caption className="sr-only">Payments</caption>
+              <thead className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
+                <tr>
+                  <th className="px-2 py-2 font-medium">Date</th>
+                  <th className="px-2 py-2 font-medium">Amount</th>
+                  <th className="px-2 py-2 font-medium">Method</th>
+                  <th className="px-2 py-2 font-medium">Status</th>
+                  <th className="px-2 py-2 font-medium">Invoice</th>
+                  <th className="px-2 py-2 text-center font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((payment) => (
+                  <tr key={payment.id} className="border-b border-border last:border-0">
+                    <td className="px-2 py-3 whitespace-nowrap text-muted-foreground">
+                      {formatDate(payment.createdAt)}
+                    </td>
+                    <td className="px-2 py-3 font-medium tabular-nums">
+                      {formatMoney(payment.amount, payment.currency)}
+                    </td>
+                    <td className="px-2 py-3 text-muted-foreground">
+                      {payment.paymentMethod ?? '—'}
+                      <span className="block text-xs">{payment.gateway}</span>
+                    </td>
+                    <td className="px-2 py-3">
+                      <Badge tone={STATUS_TONE[payment.status]}>{payment.status}</Badge>
+                    </td>
+                    <td className="px-2 py-3">
+                      {payment.invoice ? (
+                        <div>
+                          <span className="font-mono text-xs">{payment.invoice.invoiceNumber}</span>
+                          <Badge
+                            tone={
+                              payment.invoice.invoiceStatus === 'sent'
+                                ? 'success'
+                                : payment.invoice.invoiceStatus === 'failed'
+                                  ? 'danger'
+                                  : 'neutral'
+                            }
+                            className="ms-2"
+                          >
+                            {payment.invoice.invoiceStatus ?? 'pending'}
+                          </Badge>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-3">
+                      <div className="flex justify-center gap-1.5">
+                        <IconAction label="View details" onClick={() => setViewingId(payment.id)}>
+                          <Eye className="size-4" />
+                        </IconAction>
+                        {payment.invoice?.hasPdf ? (
+                          <IconAction
+                            label="Download invoice"
+                            onClick={() => void onDownloadInvoice(payment)}
+                          >
+                            <Download className="size-4" />
+                          </IconAction>
+                        ) : null}
+                        {canResend &&
+                        payment.invoice &&
+                        payment.invoice.invoiceStatus !== 'sent' ? (
+                          <IconAction
+                            label="Resend invoice"
+                            disabled={isActing}
+                            onClick={() => void onResendInvoice(payment)}
+                          >
+                            <RefreshCw className="size-4" />
+                          </IconAction>
+                        ) : null}
+                        {isStaff ? (
+                          <>
+                            <IconAction
+                              label="Edit payment"
+                              onClick={() => {
+                                setEditing(payment)
+                                setFormMode('edit')
+                              }}
+                            >
+                              <Pencil className="size-4" />
+                            </IconAction>
+                            <IconAction
+                              label="Delete payment"
+                              tone="danger"
+                              disabled={isActing}
+                              onClick={() => setPendingDelete(payment)}
+                            >
+                              <Trash2 className="size-4" />
+                            </IconAction>
+                          </>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </SectionCard>
 
       <SectionCard title="Refunds" description="Refund history.">
         {refunds.length === 0 ? (
-          <EmptyState title="No refunds" description="Staff can issue refunds from the actions above." />
+          <EmptyState
+            title="No refunds"
+            description="Staff can issue refunds from the actions above."
+          />
         ) : (
           <ul className="space-y-2 text-sm">
-            {refunds.map((refund: RefundRecord) => (
+            {refunds.map((refund) => (
               <li
                 key={refund.id}
                 className="flex flex-wrap items-start justify-between gap-2 rounded-md border p-2"
@@ -279,55 +437,25 @@ export function TaskPaymentsPage() {
                       type="button"
                       size="sm"
                       disabled={isActing}
-                      onClick={() => {
-                        if (!taskId) return
-                        setIsActing(true)
-                        void updateRefundStatus(taskId, refund.id, 'paid')
-                          .then(() => {
-                            toast.success('Refund marked paid')
-                            return reload()
-                          })
-                          .catch((err) => toastApiError(err, 'Could not update refund'))
-                          .finally(() => setIsActing(false))
-                      }}
+                      onClick={() => void onRefundStatus(refund, 'paid')}
                     >
                       Mark paid
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="secondary"
                       size="sm"
                       disabled={isActing}
-                      onClick={() => {
-                        if (!taskId) return
-                        setIsActing(true)
-                        void updateRefundStatus(taskId, refund.id, 'canceled')
-                          .then(() => {
-                            toast.success('Refund canceled')
-                            return reload()
-                          })
-                          .catch((err) => toastApiError(err, 'Could not update refund'))
-                          .finally(() => setIsActing(false))
-                      }}
+                      onClick={() => void onRefundStatus(refund, 'canceled')}
                     >
                       Cancel
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="danger-soft"
                       size="sm"
                       disabled={isActing}
-                      onClick={() => {
-                        if (!taskId) return
-                        setIsActing(true)
-                        void deleteRefund(taskId, refund.id)
-                          .then(() => {
-                            toast.success('Refund deleted')
-                            return reload()
-                          })
-                          .catch((err) => toastApiError(err, 'Could not delete refund'))
-                          .finally(() => setIsActing(false))
-                      }}
+                      onClick={() => void onDeleteRefund(refund)}
                     >
                       Delete
                     </Button>
@@ -339,36 +467,66 @@ export function TaskPaymentsPage() {
         )}
       </SectionCard>
 
+      <SimulatedCheckoutDialog
+        open={checkoutOpen}
+        taskId={taskId}
+        due={summary.due}
+        onClose={() => setCheckoutOpen(false)}
+        onPaid={reload}
+      />
+
+      <PaymentFormDialog
+        open={formMode !== null}
+        mode={formMode ?? 'create'}
+        taskId={taskId}
+        payment={editing}
+        due={summary.due}
+        onClose={() => setFormMode(null)}
+        onSaved={reload}
+      />
+
+      <PaymentDetailsDialog
+        open={viewingId !== null}
+        taskId={taskId}
+        paymentId={viewingId}
+        onClose={() => setViewingId(null)}
+      />
+
       <Dialog
-        open={paymentOpen}
-        onClose={() => setPaymentOpen(false)}
-        title="Create payment"
-        description="Record a manual payment (marked paid)."
+        open={pendingDelete !== null}
+        onClose={() => {
+          if (!isActing) setPendingDelete(null)
+        }}
+        title="Delete payment"
+        description={
+          pendingDelete
+            ? `Delete the ${formatMoney(pendingDelete.amount, pendingDelete.currency)} payment${
+                pendingDelete.invoice ? ` and invoice ${pendingDelete.invoice.invoiceNumber}` : ''
+              }? The task balance will be recalculated.`
+            : undefined
+        }
         footer={
           <>
-            <Button type="button" variant="outline" size="sm" onClick={() => setPaymentOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPendingDelete(null)}
+              disabled={isActing}
+            >
               Cancel
             </Button>
-            <Button type="submit" form="manual-payment-form" size="sm" disabled={isActing}>
-              Save
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => void confirmDelete()}
+              disabled={isActing}
+            >
+              {isActing ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
+              Delete
             </Button>
           </>
         }
-      >
-        <form id="manual-payment-form" onSubmit={onManualPayment}>
-          <Field>
-            <FieldLabel htmlFor="payment-amount">Amount</FieldLabel>
-            <Input
-              id="payment-amount"
-              type="number"
-              min={0}
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </Field>
-        </form>
-      </Dialog>
+      />
 
       <Dialog
         open={refundOpen}
@@ -377,7 +535,7 @@ export function TaskPaymentsPage() {
         description="Issue a refund against this task."
         footer={
           <>
-            <Button type="button" variant="outline" size="sm" onClick={() => setRefundOpen(false)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setRefundOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" form="refund-form" size="sm" disabled={isActing}>
@@ -394,8 +552,8 @@ export function TaskPaymentsPage() {
               type="number"
               min={0}
               step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              value={refundAmount}
+              onChange={(e) => setRefundAmount(e.target.value)}
             />
           </Field>
           <Field>

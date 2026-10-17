@@ -15,5 +15,6 @@ package-lock.json
 civil-mobile/.expo
 civil-web/dist
 backend/dist
+backend/supabase/.temp
 Docs/**/*.png
 Docs/**/*.jpg

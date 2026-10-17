@@ -1,14 +1,21 @@
-import { legalDocuments } from './content/legal'
+import { useI18n } from '@/i18n'
+
+import { legalContent, type LegalDocumentKey } from './content/legal'
 import { LegalPage } from './LegalPage'
 
+function LocalizedLegalPage({ document }: { document: LegalDocumentKey }) {
+  const { pick } = useI18n()
+  return <LegalPage page={pick(legalContent)[document]} />
+}
+
 export function TermsPage() {
-  return <LegalPage page={legalDocuments.terms} />
+  return <LocalizedLegalPage document="terms" />
 }
 
 export function PrivacyPage() {
-  return <LegalPage page={legalDocuments.privacy} />
+  return <LocalizedLegalPage document="privacy" />
 }
 
 export function RefundsPage() {
-  return <LegalPage page={legalDocuments.refunds} />
+  return <LocalizedLegalPage document="refunds" />
 }

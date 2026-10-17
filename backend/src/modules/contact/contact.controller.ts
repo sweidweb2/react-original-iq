@@ -28,11 +28,7 @@ function searchFromQuery(req: Request): string | undefined {
   return typeof search === 'string' && search.trim() ? search.trim() : undefined
 }
 
-async function sendCsv(
-  res: Response,
-  filename: string,
-  csv: string,
-): Promise<void> {
+async function sendCsv(res: Response, filename: string, csv: string): Promise<void> {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8')
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
   res.status(200).send(csv)
@@ -45,9 +41,7 @@ export function createContactController(service: ContactService): ContactControl
     createLead: respond(201, (req) => service.createLead(req.body)),
     updateLead: respond(200, (req) => service.updateLead(String(req.params.id), req.body)),
 
-    listLeads: respond(200, (req) =>
-      service.listLeads(req.query as unknown as ListContactQuery),
-    ),
+    listLeads: respond(200, (req) => service.listLeads(req.query as unknown as ListContactQuery)),
     deleteLead: respondEmpty(204, (req) => service.deleteLead(String(req.params.id))),
     async exportLeads(req, res, next) {
       try {
@@ -63,9 +57,7 @@ export function createContactController(service: ContactService): ContactControl
     updateNewsletter: respond(200, (req) =>
       service.updateNewsletter(String(req.params.id), req.body),
     ),
-    deleteNewsletter: respondEmpty(204, (req) =>
-      service.deleteNewsletter(String(req.params.id)),
-    ),
+    deleteNewsletter: respondEmpty(204, (req) => service.deleteNewsletter(String(req.params.id))),
     async exportNewsletter(req, res, next) {
       try {
         await sendCsv(

@@ -2,8 +2,11 @@ import type { AuthActor } from '../../authz/index.js'
 import { isAdmin, isOps, isSuper } from '../../authz/index.js'
 import { forbidden, notFound, validationError } from '../../errors/app-error.js'
 import type { UsersService } from '../users/users.service.js'
-import type { CreateSpecializationBody, ListSpecializationsQuery } from './specializations.schema.js'
 import type { SpecializationsRepository } from './specializations.repository.js'
+import type {
+  CreateSpecializationBody,
+  ListSpecializationsQuery,
+} from './specializations.schema.js'
 import type { Specialization } from './specializations.types.js'
 
 export type SpecializationsService = {

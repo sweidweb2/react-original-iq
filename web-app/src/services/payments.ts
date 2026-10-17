@@ -1,8 +1,16 @@
 import { apiRequest } from './api'
-
+import type { InvoiceSummary } from './invoices'
 import type { TaskPaymentStatus } from './tasks'
 
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'canceled' | 'refunded'
+
+export const PAYMENT_STATUSES: PaymentStatus[] = [
+  'pending',
+  'paid',
+  'failed',
+  'canceled',
+  'refunded',
+]
 
 export type PaymentRecord = {
   id: string
@@ -17,6 +25,19 @@ export type PaymentRecord = {
   paymentMethod: string | null
   createdAt: string
   updatedAt: string
+  invoice: InvoiceSummary | null
+}
+
+export type PaymentLog = {
+  id: string
+  paymentId: string
+  event: string
+  payload: Record<string, unknown> | null
+  createdAt: string
+}
+
+export type PaymentDetail = PaymentRecord & {
+  logs: PaymentLog[]
 }
 
 export type RefundRecord = {
@@ -50,21 +71,46 @@ export type TaskPaymentsView = {
   refunds: RefundRecord[]
 }
 
+export type ManualPaymentInput = {
+  amount: number
+  status?: PaymentStatus
+  paymentMethod?: string
+  userId?: string
+}
+
+export type UpdatePaymentInput = {
+  amount?: number
+  status?: PaymentStatus
+  paymentMethod?: string | null
+}
+
 export function getTaskPayments(taskId: string) {
   return apiRequest<TaskPaymentsView>(`/tasks/${taskId}/payments`)
 }
 
-export function createManualPayment(
-  taskId: string,
-  input: { amount: number; status?: PaymentStatus; paymentMethod?: string; userId?: string },
-) {
+export function getPayment(taskId: string, paymentId: string) {
+  return apiRequest<PaymentDetail>(`/tasks/${taskId}/payments/${paymentId}`)
+}
+
+export function createManualPayment(taskId: string, input: ManualPaymentInput) {
   return apiRequest<PaymentRecord>(`/tasks/${taskId}/payments`, {
     method: 'POST',
     body: JSON.stringify(input),
   })
 }
 
-export function checkoutTaskPayment(taskId: string, input?: { amount?: number }) {
+export function updatePayment(taskId: string, paymentId: string, input: UpdatePaymentInput) {
+  return apiRequest<PaymentRecord>(`/tasks/${taskId}/payments/${paymentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+/** Simulated gateway: completes instantly and returns the paid payment (with invoice). */
+export function checkoutTaskPayment(
+  taskId: string,
+  input?: { amount?: number; currency?: string },
+) {
   return apiRequest<PaymentRecord>(`/tasks/${taskId}/payments/checkout`, {
     method: 'POST',
     body: JSON.stringify(input ?? {}),

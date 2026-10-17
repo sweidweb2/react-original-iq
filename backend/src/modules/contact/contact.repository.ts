@@ -22,11 +22,15 @@ export type ContactRepository = {
   listLeads: (filter: ContactListFilter) => Promise<{ items: LeadRecord[]; total: number }>
   deleteLead: (id: string) => Promise<boolean>
   exportLeads: (search?: string) => Promise<LeadRecord[]>
-  listNewsletter: (filter: ContactListFilter) => Promise<{ items: StayUpdatedRecord[]; total: number }>
+  listNewsletter: (
+    filter: ContactListFilter,
+  ) => Promise<{ items: StayUpdatedRecord[]; total: number }>
   updateNewsletter: (id: string, input: UpdateNewsletterInput) => Promise<StayUpdatedRecord | null>
   deleteNewsletter: (id: string) => Promise<boolean>
   exportNewsletter: (search?: string) => Promise<StayUpdatedRecord[]>
-  listMessages: (filter: ContactListFilter) => Promise<{ items: ContactMessageRecord[]; total: number }>
+  listMessages: (
+    filter: ContactListFilter,
+  ) => Promise<{ items: ContactMessageRecord[]; total: number }>
   findMessageById: (id: string) => Promise<ContactMessageRecord | null>
   updateMessage: (id: string, input: UpdateMessageInput) => Promise<ContactMessageRecord | null>
   deleteMessage: (id: string) => Promise<boolean>
@@ -61,14 +65,7 @@ function searchOr(fields: string[], search: string): string | null {
 function matchesLead(lead: LeadRecord, search?: string): boolean {
   if (!search) return true
   const needle = search.toLowerCase()
-  const hay = [
-    lead.phone,
-    lead.email,
-    lead.country,
-    lead.firstName,
-    lead.lastName,
-    lead.zip,
-  ]
+  const hay = [lead.phone, lead.email, lead.country, lead.firstName, lead.lastName, lead.zip]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()

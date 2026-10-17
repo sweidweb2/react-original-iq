@@ -1,5 +1,5 @@
-import { rowsToCsv } from '../_shared/csv.js'
 import { notFound } from '../../errors/app-error.js'
+import { rowsToCsv } from '../_shared/csv.js'
 import type { ContactRepository } from './contact.repository.js'
 import type {
   ContactMessageBody,

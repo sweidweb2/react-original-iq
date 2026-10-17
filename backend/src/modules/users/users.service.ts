@@ -193,7 +193,10 @@ export function createUsersService(
       if (!adminActor && !coordActor) {
         throw forbidden('Only admins or coordinators can delete users')
       }
-      if (coordActor && (target.role === 'admin' || target.role === 'super' || target.role === 'coordinator')) {
+      if (
+        coordActor &&
+        (target.role === 'admin' || target.role === 'super' || target.role === 'coordinator')
+      ) {
         throw forbidden('Coordinators can only delete tutors or clients')
       }
       if (deps.assertDeletable) {

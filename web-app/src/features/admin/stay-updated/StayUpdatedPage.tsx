@@ -15,14 +15,15 @@ import {
   deleteNewsletterSubscriber,
   exportNewsletter,
   listNewsletter,
-  subscribeNewsletter,
   type StayUpdatedRecord,
+  subscribeNewsletter,
   updateNewsletterSubscriber,
 } from '@/services/contact'
 import { toastApiError } from '@/services/toast'
 
+import { formatAdminDate } from '../_shared/adminListFormat'
 import { AdminListPagination } from '../_shared/AdminListPagination'
-import { formatAdminDate, IconAction } from '../_shared/adminListUtils'
+import { IconAction } from '../_shared/adminListUtils'
 import { usePagedAdminList } from '../_shared/usePagedAdminList'
 
 export function StayUpdatedPage() {
@@ -87,7 +88,7 @@ export function StayUpdatedPage() {
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={list.isExporting}
               onClick={list.handleExport}
@@ -149,6 +150,7 @@ export function StayUpdatedPage() {
                               </IconAction>
                               <IconAction
                                 label="Remove subscriber"
+                                tone="danger"
                                 onClick={() => list.setPendingDelete(row)}
                               >
                                 <Trash2 className="size-4" />
@@ -182,7 +184,12 @@ export function StayUpdatedPage() {
         description="Admin write for stay-updated emails."
         footer={
           <>
-            <Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setFormOpen(false)}
+              disabled={saving}
+            >
               Cancel
             </Button>
             <Button type="submit" form="newsletter-form" disabled={saving}>
@@ -219,7 +226,7 @@ export function StayUpdatedPage() {
         footer={
           <>
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => list.setPendingDelete(null)}
               disabled={list.isActing}
             >

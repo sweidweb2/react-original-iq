@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test.describe('public pages', () => {
   test('home links to the other public pages', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/en')
     await expect(page.getByRole('heading', { name: 'Learn Smarter' })).toBeVisible()
 
     const nav = page.getByRole('navigation', { name: 'Public' })
@@ -28,7 +28,7 @@ test.describe('public pages', () => {
   })
 
   test('navbar opens login and sign up', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/en')
     await page.getByRole('link', { name: 'Login' }).click()
     await expect(page.getByRole('heading', { name: 'Original IQ' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()

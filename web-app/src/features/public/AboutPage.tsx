@@ -23,85 +23,35 @@ import { Card } from '@/components/ui/card'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { cn } from '@/lib/utils'
 
+import { usePublicDictionary } from './i18n'
+
 const PAYMENT_EMAIL = 'info@original-iq.com'
 const PAYMENT_PHONE = '+961 70 858 167'
 const APPLY_URL = 'https://forms.gle/1T9au5gptw4bLbPZA'
 
-const stats = [
-  { tone: 'text-chart-5', value: '100+', label: 'employees' },
-  { tone: 'text-accent', value: '15+', label: 'countries' },
-  { tone: 'text-warning', value: '60+', label: 'projects done' },
-  { tone: 'text-chart-5', value: '500+', label: 'graduates' },
-  { tone: 'text-accent', value: '25+', label: 'project awards' },
-] as const
+const statTones = ['text-chart-5', 'text-accent', 'text-warning', 'text-chart-5', 'text-accent']
 
-const steps = [
-  {
-    title: 'Choose Your Payment Method',
-    description:
-      'Select your preferred payment method, such as credit card, debit card, or digital wallet.',
-    icon: ClipboardCheck,
-  },
-  {
-    title: 'Enter Payment Details',
-    description:
-      'Securely enter your card number, expiration date, and security code in the payment form.',
-    icon: Lock,
-  },
-  {
-    title: 'Confirm Your Payment',
-    description: 'Review the payment summary and click "Confirm" to complete your transaction.',
-    icon: CircleCheck,
-  },
-] as const
+const stepIcons: LucideIcon[] = [ClipboardCheck, Lock, CircleCheck]
 
-const benefits: Array<{ number: string; title: string; description: string; icon: LucideIcon }> = [
-  {
-    number: '01',
-    title: 'Trusted & Registered',
-    description:
-      'Study with confidence through a registered company that upholds international academic standards.',
-    icon: Layers,
-  },
-  {
-    number: '02',
-    title: 'Flexible Learning',
-    description:
-      'Learn anytime, anywhere, with study plans that adapt to your schedule and learning pace.',
-    icon: CircleCheck,
-  },
-  {
-    number: '03',
-    title: 'Value & Quality',
-    description:
-      'Receive top-quality academic support that offers real value for your investment in education.',
-    icon: Check,
-  },
-  {
-    number: '04',
-    title: 'Continuous Support',
-    description:
-      'Enjoy ongoing guidance throughout your academic journey for consistent growth and results.',
-    icon: Users,
-  },
-]
+const benefitIcons: LucideIcon[] = [Layers, CircleCheck, Check, Users]
 
 const diamonds = [
-  { tone: 'orange', position: 'top-[10%] left-[5%] [animation-delay:0s]' },
-  { tone: 'green', position: 'top-[20%] right-[8%] [animation-delay:1.5s]' },
-  { tone: 'orange', position: 'bottom-[25%] left-[3%] [animation-delay:3s]' },
-  { tone: 'green', position: 'bottom-[15%] right-[5%] [animation-delay:4.5s]' },
+  { tone: 'orange', position: 'top-[10%] start-[5%] [animation-delay:0s]' },
+  { tone: 'green', position: 'top-[20%] end-[8%] [animation-delay:1.5s]' },
+  { tone: 'orange', position: 'bottom-[25%] start-[3%] [animation-delay:3s]' },
+  { tone: 'green', position: 'bottom-[15%] end-[5%] [animation-delay:4.5s]' },
 ] as const
 
 const portraits = [
-  'top-[15%] right-[2%] rotate-[15deg]',
-  'top-[60%] left-[1%] -rotate-[10deg]',
-  'bottom-[20%] right-[12%] rotate-[8deg]',
-  'top-[40%] left-[8%] -rotate-12',
+  'top-[15%] end-[2%] rotate-[15deg]',
+  'top-[60%] start-[1%] -rotate-[10deg]',
+  'bottom-[20%] end-[12%] rotate-[8deg]',
+  'top-[40%] start-[8%] -rotate-12',
 ]
 
 export function AboutPage() {
-  useDocumentTitle('About')
+  const t = usePublicDictionary().about
+  useDocumentTitle(t.documentTitle)
   const [copied, setCopied] = useState<'email' | 'phone' | null>(null)
 
   async function copyValue(kind: 'email' | 'phone', value: string) {
@@ -121,32 +71,24 @@ export function AboutPage() {
         <div className="absolute inset-0 -z-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_30px,rgba(52,184,193,0.03)_30px,rgba(52,184,193,0.03)_60px)]" />
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            About{' '}
+            {t.titleLead}{' '}
             <span className="bg-gradient-to-br from-primary to-primary-light bg-clip-text text-transparent">
               OriginaliQ
             </span>
           </h1>
-          <p className="mt-6 text-base leading-8 text-muted-foreground sm:text-lg">
-            A registered company based in Lebanon 🇱🇧, now developing its Consultancy Department for
-            academic consultants. We proudly serve students locally and across the Gulf 🌍.
-          </p>
+          <p className="mt-6 text-base leading-8 text-muted-foreground sm:text-lg">{t.intro}</p>
         </div>
       </section>
 
       <section className="bg-card px-4 py-8 sm:py-16">
         <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-2 lg:gap-12">
           <StoryCard
-            title="Our Mission"
+            title={t.missionTitle}
             tone="primary"
             icon={CircleCheck}
-            description="Original IQ is dedicated to empowering students and professionals through personalized academic guidance. Our Consultancy Department provides structured support for learners at every stage, helping them achieve their educational goals with confidence."
+            description={t.mission}
           />
-          <StoryCard
-            title="Our Vision"
-            tone="accent"
-            icon={Eye}
-            description="To become the leading global platform for academic excellence, where every student has access to world-class educational support and guidance. We envision a future where learning barriers are eliminated, and every individual can achieve their full academic potential through our innovative, personalized approach to education."
-          />
+          <StoryCard title={t.visionTitle} tone="accent" icon={Eye} description={t.vision} />
         </div>
       </section>
 
@@ -178,23 +120,23 @@ export function AboutPage() {
         </div>
 
         <div className="relative mx-auto max-w-5xl text-center">
-          <p className="text-base text-primary">About Us</p>
+          <p className="text-base text-primary">{t.aboutUs}</p>
           <h2 className="mx-auto mt-4 max-w-4xl text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-            Helping and Guiding You to Success is Our Passion.
+            {t.passion}
           </h2>
           <img
             src="/marketing/about-team.png"
-            alt="Professional team working together"
+            alt={t.teamImageAlt}
             className="mx-auto mt-10 w-full max-w-4xl rounded-lg object-cover shadow-lg"
           />
           <dl className="mx-auto mt-10 flex max-w-4xl flex-col items-center justify-around gap-8 rounded-lg border border-border bg-card px-4 py-8 shadow-md sm:flex-row sm:flex-wrap sm:py-12">
-            {stats.map((stat) => (
+            {t.stats.map((stat, index) => (
               <div key={stat.label} className="min-w-28 text-center">
-                <dt className={cn('text-2xl leading-none', stat.tone)} aria-hidden>
+                <dt className={cn('text-2xl leading-none', statTones[index])} aria-hidden>
                   ◆
                 </dt>
                 <dd className="mt-2 text-3xl font-semibold text-primary sm:text-4xl">
-                  {stat.value}
+                  <bdi dir="ltr">{stat.value}</bdi>
                 </dd>
                 <dd className="mt-1 text-sm lowercase text-muted-foreground">{stat.label}</dd>
               </div>
@@ -208,40 +150,37 @@ export function AboutPage() {
         <div className="relative mx-auto max-w-6xl">
           <header className="mx-auto mb-12 max-w-xl text-center">
             <p className="inline-flex rounded-full bg-gradient-to-br from-primary to-primary-dark px-5 py-2 text-xs font-semibold tracking-wide text-white uppercase shadow-[var(--shadow-primary)]">
-              Payment Methods
+              {t.paymentBadge}
             </p>
             <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Payment Methods
+              {t.paymentTitle}
             </h2>
-            <p className="mt-3 text-base text-muted-foreground">
-              Ask us about payment by email or WhatsApp. We share the right details for your
-              request.
-            </p>
+            <p className="mt-3 text-base text-muted-foreground">{t.paymentIntro}</p>
           </header>
 
           <div className="grid gap-8 md:grid-cols-2">
             <PaymentCard
-              title="Email"
-              description="Send payment questions to our team. We reply from the address below."
-              label="Email"
+              title={t.emailCard.title}
+              description={t.emailCard.description}
+              label={t.emailCard.label}
               value={PAYMENT_EMAIL}
               copied={copied === 'email'}
               onCopy={() => copyValue('email', PAYMENT_EMAIL)}
               icon={Mail}
               iconClass="bg-gradient-to-br from-primary to-primary-dark"
-              feature="We reply by email"
+              feature={t.emailCard.feature}
               featureIcon={Shield}
             />
             <PaymentCard
-              title="WhatsApp"
-              description="Message us on WhatsApp for payment help. This is the number we answer."
-              label="WhatsApp"
+              title={t.whatsappCard.title}
+              description={t.whatsappCard.description}
+              label={t.whatsappCard.label}
               value={PAYMENT_PHONE}
               copied={copied === 'phone'}
               onCopy={() => copyValue('phone', PAYMENT_PHONE)}
               icon={Phone}
               iconClass="bg-accent"
-              feature="Same number as our contact page"
+              feature={t.whatsappCard.feature}
               featureIcon={Zap}
             />
           </div>
@@ -252,16 +191,16 @@ export function AboutPage() {
         <div className="mx-auto max-w-5xl">
           <header className="mb-10 text-center">
             <p className="text-xs font-semibold tracking-widest text-primary uppercase">
-              Online Payment
+              {t.onlinePayment}
             </p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Just 3 steps to get started
+              {t.stepsTitle}
             </h2>
           </header>
           <div className="grid items-start gap-10 lg:grid-cols-2">
             <ol className="flex flex-col gap-8">
-              {steps.map((step, index) => {
-                const Icon = step.icon
+              {t.steps.map((step, index) => {
+                const Icon = stepIcons[index] ?? CircleCheck
                 return (
                   <li key={step.title} className="flex gap-4">
                     <span className="flex size-12 shrink-0 items-center justify-center rounded-full border-2 border-primary bg-primary/10 text-primary">
@@ -283,7 +222,7 @@ export function AboutPage() {
             <div className="lg:sticky lg:top-24">
               <img
                 src="/marketing/payment-online.png"
-                alt="Online Payment"
+                alt={t.paymentImageAlt}
                 className="mx-auto w-full max-w-md rounded-xl object-contain shadow-md"
               />
             </div>
@@ -295,27 +234,24 @@ export function AboutPage() {
         <div className="mx-auto max-w-6xl">
           <header className="mx-auto mb-12 max-w-3xl text-center">
             <p className="inline-flex rounded-full bg-primary-light px-4 py-2 text-sm font-medium text-white">
-              Why Join
+              {t.whyJoinBadge}
             </p>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Why OriginaliQ
+              {t.whyJoinTitle}
             </h2>
-            <p className="mt-3 text-base leading-8 text-muted-foreground">
-              Be part of a registered company with international reach and make a difference in
-              students&apos; lives.
-            </p>
+            <p className="mt-3 text-base leading-8 text-muted-foreground">{t.whyJoinIntro}</p>
           </header>
 
           <div className="grid justify-items-center gap-6 sm:grid-cols-2 xl:grid-cols-4">
-            {benefits.map((benefit) => {
-              const Icon = benefit.icon
+            {t.benefits.map((benefit, index) => {
+              const Icon = benefitIcons[index] ?? Layers
               return (
                 <Card
-                  key={benefit.number}
+                  key={benefit.title}
                   className="relative w-full max-w-64 overflow-hidden p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                 >
-                  <span className="absolute -top-7 -right-5 flex size-24 items-end justify-start rounded-full bg-primary pb-6 pl-7 text-2xl text-white">
-                    {benefit.number}
+                  <span className="absolute -top-7 -end-5 flex size-24 items-end justify-start rounded-full bg-primary ps-7 pb-6 text-2xl text-white">
+                    {String(index + 1).padStart(2, '0')}
                   </span>
                   <Icon className="size-12 text-primary" aria-hidden />
                   <h3 className="mt-3 text-xl font-semibold">{benefit.title}</h3>
@@ -330,10 +266,8 @@ export function AboutPage() {
           <div className="relative mt-14 overflow-hidden rounded-lg bg-gradient-to-br from-primary to-primary-dark px-6 py-12 text-center text-white">
             <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_20px,rgba(255,255,255,0.05)_20px,rgba(255,255,255,0.05)_40px)]" />
             <div className="relative">
-              <h3 className="text-2xl font-semibold sm:text-3xl">Ready to Join Our Team?</h3>
-              <p className="mx-auto mt-3 max-w-xl text-base text-white/90">
-                If you&apos;re interested, please register by filling out our Google Form
-              </p>
+              <h3 className="text-2xl font-semibold sm:text-3xl">{t.joinTitle}</h3>
+              <p className="mx-auto mt-3 max-w-xl text-base text-white/90">{t.joinBody}</p>
               <a
                 href={APPLY_URL}
                 target="_blank"
@@ -341,7 +275,7 @@ export function AboutPage() {
                 className={cn(buttonVariants({ variant: 'inverse', size: 'lg' }), 'mt-6')}
               >
                 <Zap className="size-5" aria-hidden />
-                Apply Now
+                {t.applyNow}
               </a>
             </div>
           </div>
@@ -380,7 +314,7 @@ function StoryCard({
       <p className="mt-6 text-base leading-8 text-muted-foreground">{description}</p>
       <span
         className={cn(
-          'absolute right-5 bottom-5 size-2 rounded-full opacity-60',
+          'absolute end-5 bottom-5 size-2 rounded-full opacity-60',
           tone === 'primary' ? 'bg-primary-light' : 'bg-accent',
         )}
         aria-hidden
@@ -412,8 +346,10 @@ function PaymentCard({
   feature: string
   featureIcon: LucideIcon
 }) {
+  const t = usePublicDictionary().about
+
   return (
-    <Card className="group relative overflow-hidden border-2 p-8 shadow-md transition duration-300 before:absolute before:inset-x-0 before:top-0 before:h-1 before:origin-left before:scale-x-0 before:bg-gradient-to-r before:from-primary before:to-accent before:transition before:duration-300 before:content-[''] hover:-translate-y-2 hover:border-primary hover:shadow-lg hover:before:scale-x-100 sm:p-10">
+    <Card className="group relative overflow-hidden border-2 p-8 shadow-md transition duration-300 before:absolute before:inset-x-0 before:top-0 before:h-1 before:scale-x-0 before:from-primary before:to-accent before:transition before:duration-300 before:content-[''] hover:-translate-y-2 hover:border-primary hover:shadow-lg hover:before:scale-x-100 sm:p-10 ltr:before:origin-left ltr:before:bg-gradient-to-r rtl:before:origin-right rtl:before:bg-gradient-to-l">
       <div className="flex items-center gap-4">
         <span
           className={cn(
@@ -431,10 +367,12 @@ function PaymentCard({
           {label}
         </p>
         <div className="mt-3 flex flex-col items-start gap-3 rounded-xl border-2 border-border bg-background px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-mono text-sm font-semibold tracking-wide break-all">{value}</p>
-          <Button size="sm" aria-label={`Copy ${label}`} onClick={onCopy}>
+          <p dir="ltr" className="font-mono text-sm font-semibold tracking-wide break-all">
+            {value}
+          </p>
+          <Button size="sm" aria-label={t.copyLabel(label)} onClick={onCopy}>
             <Copy className="size-4" aria-hidden />
-            Copy
+            {t.copy}
           </Button>
         </div>
         {copied ? (
@@ -443,7 +381,7 @@ function PaymentCard({
             className="mt-2 flex items-center justify-center gap-2 rounded-md bg-chart-5 px-3 py-2 text-sm font-semibold text-white"
           >
             <Check className="size-4" aria-hidden />
-            Copied!
+            {t.copied}
           </p>
         ) : null}
       </div>

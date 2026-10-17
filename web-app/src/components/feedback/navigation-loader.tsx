@@ -43,7 +43,7 @@ export function NavigationLoader() {
       style={{ zIndex: zIndex.tooltip }}
     >
       <div
-        className="h-full origin-left bg-gradient-to-r from-primary to-primary-light shadow-[var(--shadow-primary)] transition-transform duration-500 ease-out motion-reduce:transition-none"
+        className="h-full ltr:origin-left rtl:origin-right ltr:bg-gradient-to-r rtl:bg-gradient-to-l from-primary to-primary-light shadow-[var(--shadow-primary)] transition-transform duration-500 ease-out motion-reduce:transition-none"
         style={{ transform: `scaleX(${progress / 100})` }}
       />
     </div>

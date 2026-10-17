@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 import { AsyncState, EmptyState, InlineSpinner } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -9,27 +9,32 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
+import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
 import {
   approveRevision,
   cancelRevision,
   cancelRevisionSubmit,
   getRevision,
   rejectRevision,
+  type RevisionDetail,
   revisionStatusLabel,
   submitRevision,
   updateRevision,
-  type RevisionDetail,
 } from '@/services/revisions'
 import { toastApiError } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
+import { revisionStatusTone } from '../tasks/taskDetailsFormat'
+import { useTaskTopic } from '../tasks/useTaskTopic'
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return '—'
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    date,
+  )
 }
 
 export function RevisionDetailsPage() {
@@ -47,7 +52,12 @@ export function RevisionDetailsPage() {
   const [description, setDescription] = useState('')
   const [isActing, setIsActing] = useState(false)
 
-  const taskPath = '..'
+  const taskTopic = useTaskTopic(taskId)
+  const breadcrumbs = usePortalBreadcrumbs([
+    { label: 'Tasks', path: 'tasks' },
+    ...(taskId ? [{ label: taskTopic ?? 'Task', path: `tasks/${taskId}?tab=revision` }] : []),
+    { label: revision?.title ?? 'Revision details' },
+  ])
 
   useEffect(() => {
     if (!revisionId) return
@@ -104,7 +114,11 @@ export function RevisionDetailsPage() {
 
   if (!revisionId) {
     return (
-      <PortalPageShell title="Revision details" description="Missing revision id.">
+      <PortalPageShell
+        title="Revision details"
+        description="Missing revision id."
+        breadcrumbs={breadcrumbs}
+      >
         <EmptyState title="Invalid link" description="Open a revision from the task page." />
       </PortalPageShell>
     )
@@ -112,7 +126,7 @@ export function RevisionDetailsPage() {
 
   if (isLoading) {
     return (
-      <PortalPageShell title="Revision details" description="Loading…">
+      <PortalPageShell title="Revision details" description="Loading…" breadcrumbs={breadcrumbs}>
         <InlineSpinner label="Loading revision…" />
       </PortalPageShell>
     )
@@ -120,8 +134,15 @@ export function RevisionDetailsPage() {
 
   if (error || !revision) {
     return (
-      <PortalPageShell title="Revision details" description="Could not load revision.">
-        <AsyncState error={error ?? new Error('Not found')} onRetry={() => setReloadKey((k) => k + 1)}>
+      <PortalPageShell
+        title="Revision details"
+        description="Could not load revision."
+        breadcrumbs={breadcrumbs}
+      >
+        <AsyncState
+          error={error ?? new Error('Not found')}
+          onRetry={() => setReloadKey((k) => k + 1)}
+        >
           <span className="sr-only">Revision unavailable</span>
         </AsyncState>
       </PortalPageShell>
@@ -135,18 +156,19 @@ export function RevisionDetailsPage() {
   return (
     <PortalPageShell
       title={revision.title ?? 'Revision session'}
-      description={taskId ? `Task ${taskId.slice(0, 8)}…` : 'Revision session'}
+      description="Revision session details and linked solutions."
+      breadcrumbs={breadcrumbs}
       actions={
         <div className="flex flex-wrap gap-2">
           {isStaff ? (
             <>
-              <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+              <Button type="button" variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
                 Edit revision
               </Button>
               {revision.status !== 'cancelled' && revision.status !== 'completed' ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="danger-soft"
                   size="sm"
                   disabled={isActing}
                   onClick={() => runAction('Revision cancelled', () => cancelRevision(revision.id))}
@@ -168,7 +190,7 @@ export function RevisionDetailsPage() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={isActing}
                 onClick={() => runAction('Revision rejected', () => rejectRevision(revision.id))}
@@ -190,10 +212,12 @@ export function RevisionDetailsPage() {
           {canCancelSubmit ? (
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={isActing}
-              onClick={() => runAction('Submission cancelled', () => cancelRevisionSubmit(revision.id))}
+              onClick={() =>
+                runAction('Submission cancelled', () => cancelRevisionSubmit(revision.id))
+              }
             >
               Cancel submission
             </Button>
@@ -201,15 +225,11 @@ export function RevisionDetailsPage() {
         </div>
       }
     >
-      <p className="text-sm text-muted-foreground">
-        <Link to={taskPath} className="font-medium text-primary hover:underline">
-          Back to task
-        </Link>
-      </p>
-
       <div className="flex flex-wrap items-center gap-2">
-        <Badge>{revisionStatusLabel(revision.status)}</Badge>
-        <span className="text-sm text-muted-foreground">Started {formatDate(revision.startDate)}</span>
+        <Badge tone={revisionStatusTone(revision.status)}>{revisionStatusLabel(revision.status)}</Badge>
+        <span className="text-sm text-muted-foreground">
+          Started {formatDate(revision.startDate)}
+        </span>
       </div>
 
       <SectionCard title="Session" description="Revision window, status, and notes.">
@@ -231,12 +251,15 @@ export function RevisionDetailsPage() {
 
       <SectionCard title="Revision solutions" description="Linked solution files for this session.">
         {revision.solutions.length === 0 ? (
-          <EmptyState title="No revision solutions" description="Tutors can link solutions when submitting." />
+          <EmptyState
+            title="No revision solutions"
+            description="Tutors can link solutions when submitting."
+          />
         ) : (
           <ul className="space-y-2 text-sm">
-            {revision.solutions.map((row) => (
-              <li key={row.id} className="rounded-md border p-2 font-mono text-xs">
-                Solution {row.solutionId} · {formatDate(row.date)}
+            {revision.solutions.map((row, index) => (
+              <li key={row.id} className="rounded-md border p-2">
+                Solution {index + 1} · {formatDate(row.date)}
               </li>
             ))}
           </ul>
@@ -250,7 +273,7 @@ export function RevisionDetailsPage() {
         description="Update revision session details."
         footer={
           <>
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(false)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" form="edit-revision-form" size="sm" disabled={isActing}>
@@ -266,7 +289,12 @@ export function RevisionDetailsPage() {
           </Field>
           <Field>
             <FieldLabel htmlFor="rev-desc">Description</FieldLabel>
-            <Textarea id="rev-desc" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Textarea
+              id="rev-desc"
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </Field>
         </form>
       </Dialog>

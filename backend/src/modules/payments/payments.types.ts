@@ -1,4 +1,10 @@
+import type { InvoiceSummary } from '../invoices/invoices.types.js'
+
 export type PaymentStatus = 'pending' | 'paid' | 'failed' | 'canceled' | 'refunded'
+
+/** Gateway labels: manual staff entries use `No Gateway` (doc 06). */
+export const MANUAL_GATEWAY = 'No Gateway'
+export const SIMULATED_GATEWAY = 'simulated'
 
 export type PaymentRecord = {
   id: string
@@ -13,6 +19,10 @@ export type PaymentRecord = {
   paymentMethod: string | null
   createdAt: string
   updatedAt: string
+}
+
+export type PaymentWithInvoice = PaymentRecord & {
+  invoice: InvoiceSummary | null
 }
 
 export type RefundRecord = {
@@ -31,17 +41,6 @@ export type RefundRecord = {
   updatedAt: string
 }
 
-export type InvoiceRecord = {
-  id: string
-  paymentId: string
-  invoiceNumber: string | null
-  invoiceDate: string | null
-  invoiceStatus: 'sent' | 'failed' | null
-  pdfPath: string | null
-  createdAt: string
-  updatedAt: string
-}
-
 export type TaskPaymentsSummary = {
   taskId: string
   price: number
@@ -51,20 +50,21 @@ export type TaskPaymentsSummary = {
   paymentStatus: 'unpaid' | 'paid' | 'refund_pending'
 }
 
-export type CreateManualPaymentInput = {
+export type CreatePaymentInput = {
   taskId: string
   userId: string
   amount: number
-  status?: PaymentStatus
-  paymentMethod?: string
+  status: PaymentStatus
+  gateway: string
+  paymentMethod?: string | null
   currency?: string
+  montypayTransactionId?: string | null
 }
 
-export type CreateCheckoutPaymentInput = {
-  taskId: string
-  userId: string
-  amount: number
-  currency?: string
+export type UpdatePaymentInput = {
+  amount?: number
+  status?: PaymentStatus
+  paymentMethod?: string | null
 }
 
 export type CreateRefundInput = {

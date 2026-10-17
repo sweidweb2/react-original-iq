@@ -3,10 +3,7 @@ import { loadConfig } from '../../config/index.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import { createRevisionsController } from './revisions.controller.js'
 import { createRevisionsRepository } from './revisions.repository.js'
-import {
-  createRevisionDetailRoutes,
-  createTaskRevisionsRoutes,
-} from './revisions.routes.js'
+import { createRevisionDetailRoutes, createTaskRevisionsRoutes } from './revisions.routes.js'
 import { createRevisionsService } from './revisions.service.js'
 
 export type RevisionsModule = {

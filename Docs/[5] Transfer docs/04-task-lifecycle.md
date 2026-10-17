@@ -16,34 +16,35 @@ Also: remove tutor may send `in-progress` / `waiting_coordinator_approval` → `
 
 ## Status meanings
 
-| Status | Meaning |
-|--------|---------|
-| `pending` | Created; no active tutor work (or tutor removed) |
-| `in-progress` | Tutor assigned and working |
-| `waiting_coordinator_approval` | Tutor submitted; awaiting coordinator decision |
-| `completed` | Coordinator approved delivery |
-| `cancelled` | Task cancelled |
+| Status                         | Meaning                                          |
+| ------------------------------ | ------------------------------------------------ |
+| `pending`                      | Created; no active tutor work (or tutor removed) |
+| `in-progress`                  | Tutor assigned and working                       |
+| `waiting_coordinator_approval` | Tutor submitted; awaiting coordinator decision   |
+| `completed`                    | Coordinator approved delivery                    |
+| `cancelled`                    | Task cancelled                                   |
 
 ## Transition table
 
-| From | To | Actor | Conditions / side effects |
-|------|----|-------|---------------------------|
-| — | `pending` | Client | `sendTaskRequest`: price=0, payment_status=`unpaid`, tutor=null; auto-assign coordinator with **lowest active task count** among active coordinators; upload docs |
-| — | any allowed | Coordinator/Admin | `createTask` may set tutor/price/status |
-| `pending` / `waiting_coordinator_approval` | `in-progress` | Coordinator/Admin | `assignTutorToTask`: tutor must have role tutor; task must not already have tutor |
-| `in-progress` / `waiting_coordinator_approval` | `pending` | Coordinator/Admin | `removeTutor`: clear `tutor_id` |
-| `in-progress` | `waiting_coordinator_approval` | Tutor | `submitTask` |
-| `waiting_coordinator_approval` | `in-progress` | Tutor | `cancelSubmitTask` |
-| `waiting_coordinator_approval` | `completed` | Coordinator/Admin | `approveTask`: increment tutor `nbDone` |
-| `waiting_coordinator_approval` | `in-progress` | Coordinator/Admin | `disapproveTask` |
-| * | `cancelled` | Coordinator/Admin | `cancelTask` |
-| `cancelled` | `in-progress` | Coordinator/Admin | `activateTask` if tutor present |
-| `cancelled` | `pending` | Coordinator/Admin | `activateTask` if no tutor |
-| * | `completed` | Coordinator/Admin | via `updateTaskDetails` when allowed; increments `nbDone` |
+| From                                           | To                             | Actor             | Conditions / side effects                                                                                                                                         |
+| ---------------------------------------------- | ------------------------------ | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —                                              | `pending`                      | Client            | `sendTaskRequest`: price=0, payment_status=`unpaid`, tutor=null; auto-assign coordinator with **lowest active task count** among active coordinators; upload docs |
+| —                                              | any allowed                    | Coordinator/Admin | `createTask` may set tutor/price/status                                                                                                                           |
+| `pending` / `waiting_coordinator_approval`     | `in-progress`                  | Coordinator/Admin | `assignTutorToTask`: tutor must have role tutor; task must not already have tutor                                                                                 |
+| `in-progress` / `waiting_coordinator_approval` | `pending`                      | Coordinator/Admin | `removeTutor`: clear `tutor_id`                                                                                                                                   |
+| `in-progress`                                  | `waiting_coordinator_approval` | Tutor             | `submitTask`                                                                                                                                                      |
+| `waiting_coordinator_approval`                 | `in-progress`                  | Tutor             | `cancelSubmitTask`                                                                                                                                                |
+| `waiting_coordinator_approval`                 | `completed`                    | Coordinator/Admin | `approveTask`: increment tutor `nbDone`                                                                                                                           |
+| `waiting_coordinator_approval`                 | `in-progress`                  | Coordinator/Admin | `disapproveTask`                                                                                                                                                  |
+| *                                              | `cancelled`                    | Coordinator/Admin | `cancelTask`                                                                                                                                                      |
+| `cancelled`                                    | `in-progress`                  | Coordinator/Admin | `activateTask` if tutor present                                                                                                                                   |
+| `cancelled`                                    | `pending`                      | Coordinator/Admin | `activateTask` if no tutor                                                                                                                                        |
+| *                                              | `completed`                    | Coordinator/Admin | via `updateTaskDetails` when allowed; increments `nbDone`                                                                                                         |
 
 ## Client create rules
 
 **Validation**
+
 - `topic` required
 - `type` ∈ `assignment`, `tutoring`, `research`, `editing`
 - `category` required
@@ -51,6 +52,7 @@ Also: remove tutor may send `in-progress` / `waiting_coordinator_approval` → `
 - `deadline` required, after now
 
 **Defaults**
+
 - `status = pending`
 - `price = 0`
 - `payment_status = unpaid`
@@ -66,6 +68,7 @@ Also: remove tutor may send `in-progress` / `waiting_coordinator_approval` → `
 ## Coordinator / admin update rules
 
 `updateTaskDetails` validates:
+
 - status ∈ `pending`, `in-progress`, `waiting_coordinator_approval`, `completed`, `cancelled`
 - type ∈ assignment/tutoring/research/editing
 - payment_status may allow broader set in old code — prefer canonical set in rebuild
@@ -75,11 +78,13 @@ Also: remove tutor may send `in-progress` / `waiting_coordinator_approval` → `
 ## Assign / remove tutor
 
 **Assign**
+
 1. Target user must be role `tutor`.
 2. Reject if task already has `tutor_id`.
 3. Set `tutor_id`; if status was `pending` or `waiting_coordinator_approval`, set `in-progress`.
 
 **Remove**
+
 1. Clear `tutor_id`.
 2. If status was `in-progress` or `waiting_coordinator_approval`, set `pending`.
 
@@ -99,13 +104,13 @@ Admin toggle. Controls whether the client can download/view solution files for t
 
 ## Side effects checklist per transition
 
-| Event | Side effects |
-|-------|--------------|
+| Event         | Side effects                                  |
+| ------------- | --------------------------------------------- |
 | Client create | Coordinator assignment, File rows, R2 uploads |
-| Tutor submit | Status only (solutions already uploaded) |
-| Approve | `nbDone++` |
-| Delete | Storage cleanup + DB cascade |
-| Price edit | Recalc payment_status |
+| Tutor submit  | Status only (solutions already uploaded)      |
+| Approve       | `nbDone++`                                    |
+| Delete        | Storage cleanup + DB cascade                  |
+| Price edit    | Recalc payment_status                         |
 
 ## Sequence — happy path
 

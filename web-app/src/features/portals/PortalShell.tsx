@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/brand/BrandLogo'
@@ -46,9 +46,11 @@ function userInitials(user: AuthUser | null): string {
 
 function AccountMenu({
   profilePath,
+  loggingOut,
   onLogout,
 }: {
   profilePath: string
+  loggingOut: boolean
   onLogout: () => void
 }) {
   const user = useAuthStore((s) => s.user)
@@ -92,7 +94,7 @@ function AccountMenu({
     <div className="relative ml-auto shrink-0" ref={rootRef}>
       <button
         type="button"
-        className="inline-flex size-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+        className="inline-flex size-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground outline-none focus:ring-1 focus:ring-black aria-expanded:ring-1 aria-expanded:ring-black"
         aria-label={`Account menu for ${name}`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -125,13 +127,15 @@ function AccountMenu({
           <button
             type="button"
             role="menuitem"
-            className="flex w-full px-3 py-2 text-left hover:bg-sidebar-accent"
-            onClick={() => {
-              setOpen(false)
-              onLogout()
-            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-sidebar-accent disabled:pointer-events-none disabled:opacity-70"
+            aria-busy={loggingOut}
+            disabled={loggingOut}
+            onClick={onLogout}
           >
             Sign out
+            {loggingOut ? (
+              <Loader2 className="ml-auto size-4 shrink-0 animate-spin" aria-hidden />
+            ) : null}
           </button>
         </div>
       ) : null}
@@ -160,10 +164,17 @@ export function PortalShell({ title, nav, profilePath, children }: PortalShellPr
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   async function onLogout() {
-    await logout()
-    navigate('/login', { replace: true })
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await logout()
+    } finally {
+      setLoggingOut(false)
+      navigate('/login', { replace: true })
+    }
   }
 
   return (
@@ -253,16 +264,22 @@ export function PortalShell({ title, nav, profilePath, children }: PortalShellPr
             </p>
           </div>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             className={cn(
               'w-full',
               collapsed ? 'md:justify-center md:gap-0 md:px-0' : 'justify-start',
             )}
             aria-label="Log out"
+            aria-busy={loggingOut}
+            disabled={loggingOut}
             onClick={() => void onLogout()}
           >
-            <LogOut className="size-4 shrink-0" />
+            {loggingOut ? (
+              <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+            ) : (
+              <LogOut className="size-4 shrink-0" />
+            )}
             <SidebarLabel collapsed={collapsed}>Log out</SidebarLabel>
           </Button>
         </div>
@@ -294,7 +311,11 @@ export function PortalShell({ title, nav, profilePath, children }: PortalShellPr
           </button>
           <BrandLogo className="size-8 shrink-0 md:hidden" />
           <span className="min-w-0 truncate text-sm font-medium">{title}</span>
-          <AccountMenu profilePath={profilePath} onLogout={() => void onLogout()} />
+          <AccountMenu
+            profilePath={profilePath}
+            loggingOut={loggingOut}
+            onLogout={() => void onLogout()}
+          />
         </header>
         <main className="flex-1 p-4 md:p-6">{children ?? <Outlet />}</main>
       </div>

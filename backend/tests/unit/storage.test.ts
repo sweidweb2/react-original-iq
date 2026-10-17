@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { STORAGE_PREFIX } from '../../src/storage/constants.js'
-import { buildObjectKey, extensionOf, isManagedObjectKey, sanitizeFilename } from '../../src/storage/keys.js'
+import {
+  buildObjectKey,
+  extensionOf,
+  isManagedObjectKey,
+  sanitizeFilename,
+} from '../../src/storage/keys.js'
 import { assertValidUpload } from '../../src/storage/validate.js'
 
 describe('storage keys', () => {

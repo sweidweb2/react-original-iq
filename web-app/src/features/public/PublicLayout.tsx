@@ -1,15 +1,18 @@
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Menu } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 import { BrandLogo } from '@/components/brand/BrandLogo'
 import { buttonVariants } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
+import { LocalizedLink, LocalizedNavLink, useI18n } from '@/i18n'
 import { homePathForRole } from '@/lib/homePath'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { zIndex } from '@/theme'
 
+import { usePublicDictionary } from './i18n'
+import { LanguageSwitcher } from './LanguageSwitcher'
 import { publicContainerClass } from './publicContainer'
 import { PublicFooter } from './PublicFooter'
 import { PUBLIC_NAV } from './publicNav'
@@ -22,18 +25,20 @@ function pageLinkClass(isActive: boolean) {
 }
 
 function PageLinks({ onNavigate }: { onNavigate?: () => void }) {
+  const t = usePublicDictionary()
+
   return (
     <>
       {PUBLIC_NAV.map((item) => (
-        <NavLink
+        <LocalizedNavLink
           key={item.to}
           to={item.to}
           end={'end' in item ? item.end : undefined}
           onClick={onNavigate}
           className={({ isActive }) => pageLinkClass(isActive)}
         >
-          {item.label}
-        </NavLink>
+          {t.layout.nav[item.key]}
+        </LocalizedNavLink>
       ))}
     </>
   )
@@ -41,6 +46,7 @@ function PageLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 function AccountLinks({ onNavigate }: { onNavigate?: () => void }) {
   const user = useAuthStore((s) => s.user)
+  const t = usePublicDictionary()
 
   if (user) {
     return (
@@ -49,7 +55,7 @@ function AccountLinks({ onNavigate }: { onNavigate?: () => void }) {
         onClick={onNavigate}
         className={buttonVariants({ size: 'sm' })}
       >
-        Portal
+        {t.layout.portal}
       </Link>
     )
   }
@@ -61,17 +67,19 @@ function AccountLinks({ onNavigate }: { onNavigate?: () => void }) {
         onClick={onNavigate}
         className={buttonVariants({ variant: 'outline', size: 'sm' })}
       >
-        Login
+        {t.layout.login}
       </NavLink>
       <NavLink to="/signup" onClick={onNavigate} className={buttonVariants({ size: 'sm' })}>
-        Sign up
+        {t.layout.signup}
       </NavLink>
     </>
   )
 }
 
-export function PublicLayout() {
+export function PublicLayout({ children }: { children?: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { localized } = useI18n()
+  const t = usePublicDictionary()
 
   function closeMenu() {
     setMenuOpen(false)
@@ -86,22 +94,26 @@ export function PublicLayout() {
         <div
           className={cn(publicContainerClass, 'grid h-16 grid-cols-[1fr_auto_1fr] items-center')}
         >
-          <Link to="/" className="justify-self-start" onClick={closeMenu}>
+          <LocalizedLink to="/" className="justify-self-start" onClick={closeMenu}>
             <BrandLogo variant="wordmark" className="h-9 w-auto" />
-          </Link>
+          </LocalizedLink>
 
-          <nav aria-label="Public" className="col-start-2 hidden items-center gap-1 md:flex">
+          <nav
+            aria-label={t.layout.navLabel}
+            className="col-start-2 hidden items-center gap-1 md:flex"
+          >
             <PageLinks />
           </nav>
 
           <div className="col-start-3 hidden items-center justify-self-end gap-2 md:flex">
+            {localized ? <LanguageSwitcher /> : null}
             <AccountLinks />
           </div>
 
           <button
             type="button"
             className="col-start-3 inline-flex size-9 items-center justify-center justify-self-end rounded-md border border-border md:hidden"
-            aria-label="Open menu"
+            aria-label={t.layout.openMenu}
             onClick={() => setMenuOpen(true)}
           >
             <Menu className="size-4" />
@@ -109,18 +121,29 @@ export function PublicLayout() {
         </div>
       </header>
 
-      <Sheet open={menuOpen} onClose={closeMenu} title="Menu" side="right">
-        <nav aria-label="Public mobile" className="flex flex-col gap-1">
+      <Sheet
+        open={menuOpen}
+        onClose={closeMenu}
+        title={t.layout.menu}
+        side="end"
+        footer={
+          <LocalizedLink to="/" onClick={closeMenu} className="flex justify-center">
+            <BrandLogo variant="wordmark" className="h-9 w-auto" />
+          </LocalizedLink>
+        }
+      >
+        <nav aria-label={t.layout.mobileNavLabel} className="flex flex-col gap-1">
           <PageLinks onNavigate={closeMenu} />
           <div className="mt-4 flex flex-col gap-2">
             <AccountLinks onNavigate={closeMenu} />
           </div>
+          {localized ? (
+            <LanguageSwitcher className="mt-4 w-full" onNavigate={closeMenu} />
+          ) : null}
         </nav>
       </Sheet>
 
-      <main className="flex flex-1 flex-col">
-        <Outlet />
-      </main>
+      <main className="flex flex-1 flex-col">{children ?? <Outlet />}</main>
       <PublicFooter />
     </div>
   )

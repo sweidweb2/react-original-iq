@@ -4,8 +4,8 @@
  */
 
 const fontFamily = {
-  sans: 'Inter, Helvetica, Arial, sans-serif',
-  display: 'Inter, Helvetica, Arial, sans-serif',
+  sans: "'Source Sans 3', Helvetica, Arial, sans-serif",
+  display: "'Source Sans 3', Helvetica, Arial, sans-serif",
   mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
 } as const
 

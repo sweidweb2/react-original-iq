@@ -3,8 +3,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: Inter, Helvetica, Arial, sans-serif;
+  --font-heading: var(--app-font-sans);
+  --font-sans: var(--app-font-sans);
   --color-primary-dark: var(--primary-dark);
   --color-primary-light: var(--primary-light);
   --shadow-sm: var(--app-shadow-sm);
@@ -52,6 +52,10 @@
 }
 
 :root {
+  --app-font-sans: 'Source Sans 3', 'IBM Plex Sans Arabic', Helvetica, Arial, sans-serif;
+  /* Flips horizontal motion (translateX keyframes) in RTL */
+  --dir: 1;
+
   /* Brand tokens — source: src/theme/colors.ts */
   --background: #f7f9fa;
   --foreground: #0f1720;
@@ -141,4 +145,25 @@
   html {
     @apply font-sans;
   }
+}
+
+[dir='rtl'] {
+  --dir: -1;
+}
+
+html[lang='ar'] {
+  --app-font-sans: 'IBM Plex Sans Arabic', 'Source Sans 3', Helvetica, Arial, sans-serif;
+}
+
+html[lang='ar'] body {
+  line-height: 1.8;
+}
+
+/* Unlayered on purpose: must beat `tracking-*` / `leading-*` utilities, which break Arabic joining and clip diacritics. */
+html[lang='ar'] * {
+  letter-spacing: normal;
+}
+
+html[lang='ar'] :is(h1, h2, h3) {
+  line-height: 1.45;
 }

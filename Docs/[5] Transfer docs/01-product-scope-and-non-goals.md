@@ -6,17 +6,18 @@
 
 ## Actors
 
-| Actor | Description |
-|-------|-------------|
-| Public visitor | Browses marketing site, submits leads/contact/newsletter, uses chatbot |
-| Client | Registers, creates tasks, uploads docs, pays, downloads solutions, leaves feedback |
-| Tutor | Works assigned tasks, uploads solutions, submits deliveries and revisions |
-| Coordinator | Owns task ops: assign tutors, price, approve/reject, revisions, limited user mgmt |
-| Admin | Global oversight: users, payments/refunds, exports, leads, access toggles |
+| Actor          | Description                                                                        |
+| -------------- | ---------------------------------------------------------------------------------- |
+| Public visitor | Browses marketing site, submits leads/contact/newsletter, uses chatbot             |
+| Client         | Registers, creates tasks, uploads docs, pays, downloads solutions, leaves feedback |
+| Tutor          | Works assigned tasks, uploads solutions, submits deliveries and revisions          |
+| Coordinator    | Owns task ops: assign tutors, price, approve/reject, revisions, limited user mgmt  |
+| Admin          | Global oversight: users, payments/refunds, exports, leads, access toggles          |
 
 ## In scope (must preserve in rebuild)
 
 ### Public / marketing
+
 - Pages: Home, Services, About, FAQ, Contact, Terms, Privacy, Refunds policy
 - Lead capture
 - Contact messages
@@ -25,6 +26,7 @@
 - Public AI chatbot (knowledge-backed)
 
 ### Core product
+
 - Unified auth for all roles (register = client only)
 - Role-based dashboards: Admin, Coordinator, Tutor, Client
 - Full **task lifecycle** (create → assign → submit → approve → complete/cancel)
@@ -40,13 +42,13 @@
 
 Do **not** treat these as required product features unless you consciously decide to build them:
 
-| Item | Why |
-|------|-----|
-| User-to-user messaging (`messages` table) | Schema/export only; no send/receive UX in app |
-| Assignment transaction audit trail writes | Table exported; never written by controllers |
-| Stripe as primary gateway | Package present; **runtime path is MontyPay** |
-| Broken `super_admin` OTP path as-is | Logic is inconsistent; redesign intentionally |
-| Pixel-perfect Blade/JS UI | Rebuild UI; keep **behavior**, not markup chaos |
+| Item                                      | Why                                             |
+| ----------------------------------------- | ----------------------------------------------- |
+| User-to-user messaging (`messages` table) | Schema/export only; no send/receive UX in app   |
+| Assignment transaction audit trail writes | Table exported; never written by controllers    |
+| Stripe as primary gateway                 | Package present; **runtime path is MontyPay**   |
+| Broken `super_admin` OTP path as-is       | Logic is inconsistent; redesign intentionally   |
+| Pixel-perfect Blade/JS UI                 | Rebuild UI; keep **behavior**, not markup chaos |
 
 ## Success criteria
 

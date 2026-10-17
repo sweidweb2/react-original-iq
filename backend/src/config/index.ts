@@ -47,16 +47,31 @@ const baseEnvSchema = z.object({
     .optional()
     .transform((value) => (value === undefined ? undefined : value === 'true')),
   /** Max bytes per single object upload (default 25 MiB). */
-  STORAGE_MAX_FILE_BYTES: z.coerce.number().int().positive().default(25 * 1024 * 1024),
+  STORAGE_MAX_FILE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(25 * 1024 * 1024),
   /** Soft cap for total bytes under one task (default 100 MiB). */
-  STORAGE_MAX_TASK_BYTES: z.coerce.number().int().positive().default(100 * 1024 * 1024),
+  STORAGE_MAX_TASK_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(100 * 1024 * 1024),
   /** Signed URL lifetime in seconds (default 15 minutes). */
   STORAGE_SIGNED_URL_TTL_SEC: z.coerce.number().int().positive().default(900),
+
+  /** `simulated` completes checkout instantly (no gateway); `montypay` reserved for the real gateway. */
+  PAYMENT_GATEWAY_MODE: z.enum(['simulated', 'montypay']).default('simulated'),
 
   MONTYPAY_API_URL: z.string().url().optional(),
   MONTYPAY_MERCHANT_KEY: z.string().min(1).optional(),
   MONTYPAY_MERCHANT_PASSWORD: z.string().min(1).optional(),
   MONTYPAY_CALLBACK_SECRET: z.string().min(1).optional(),
+
+  /** Base URL; `/{CURRENCY}` is appended (open.er-api.com response shape). */
+  FX_API_URL: z.string().url().default('https://open.er-api.com/v6/latest'),
+  FX_CACHE_TTL_MS: z.coerce.number().int().positive().default(3_600_000),
 
   GEMINI_API_KEY: z.string().min(1).optional(),
   HUGGINGFACE_API_KEY: z.string().min(1).optional(),
@@ -94,6 +109,11 @@ export type MontyPayConfig = {
   callbackSecret: string
 }
 
+export type FxConfig = {
+  apiUrl: string
+  cacheTtlMs: number
+}
+
 export type AppConfig = {
   env: z.infer<typeof nodeEnvSchema>
   port: number
@@ -117,7 +137,9 @@ export type AppConfig = {
   logLevel: 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent'
   mail: MailConfig
   storage?: StorageConfig
+  paymentGatewayMode: 'simulated' | 'montypay'
   montypay?: MontyPayConfig
+  fx: FxConfig
   geminiApiKey?: string
   huggingfaceApiKey?: string
 }
@@ -263,7 +285,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       fromName: data.MAIL_FROM_NAME,
     },
     storage: parseStorage(data),
+    paymentGatewayMode: data.PAYMENT_GATEWAY_MODE,
     montypay: parseMontyPay(data),
+    fx: {
+      apiUrl: data.FX_API_URL.replace(/\/+$/, ''),
+      cacheTtlMs: data.FX_CACHE_TTL_MS,
+    },
     geminiApiKey: data.GEMINI_API_KEY,
     huggingfaceApiKey: data.HUGGINGFACE_API_KEY,
   }
@@ -284,6 +311,10 @@ export function requireJwtSecrets(config: AppConfig): {
 
 export function isSupabaseConfigured(config: AppConfig): boolean {
   return Boolean(config.supabaseUrl && config.supabaseServiceRoleKey)
+}
+
+export function isMailConfigured(config: AppConfig): boolean {
+  return Boolean(config.mail.host && config.mail.port && config.mail.fromAddress)
 }
 
 export function isStorageConfigured(config: AppConfig): boolean {

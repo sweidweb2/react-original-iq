@@ -14,12 +14,12 @@ waiting_coordinator_approval
 
 ## Meanings
 
-| Status | Meaning |
-|--------|---------|
-| `in-revision` | Open revision; tutor working |
-| `waiting_coordinator_approval` | Tutor submitted revision deliverables |
-| `completed` | Coordinator approved; `submit_date` set |
-| `cancelled` | Session abandoned |
+| Status                         | Meaning                                 |
+| ------------------------------ | --------------------------------------- |
+| `in-revision`                  | Open revision; tutor working            |
+| `waiting_coordinator_approval` | Tutor submitted revision deliverables   |
+| `completed`                    | Coordinator approved; `submit_date` set |
+| `cancelled`                    | Session abandoned                       |
 
 ## Invariants
 
@@ -30,16 +30,16 @@ waiting_coordinator_approval
 
 ## Transition table
 
-| Action | Actor | From | To | Notes |
-|--------|-------|------|----|-------|
-| Create session | Coordinator/Admin | — | `in-revision` | Set `start_date = now`; title/description/deadline optional |
-| Upload revision solutions | Tutor | `in-revision` (implied) | — | Creates Solution + RevisionSessionSolution |
-| Submit revision | Tutor | `in-revision` | `waiting_coordinator_approval` | |
-| Cancel submission | Tutor | `waiting_coordinator_approval` | `in-revision` | |
-| Approve | Coordinator/Admin | `waiting_coordinator_approval` | `completed` | `submit_date = now` |
-| Reject | Coordinator/Admin | `waiting_coordinator_approval` | `in-revision` | |
-| Cancel session | Coordinator/Admin | open | `cancelled` | |
-| Update fields | Coordinator/Admin | * | * | Status updates constrained to allowed set |
+| Action                    | Actor             | From                           | To                             | Notes                                                       |
+| ------------------------- | ----------------- | ------------------------------ | ------------------------------ | ----------------------------------------------------------- |
+| Create session            | Coordinator/Admin | —                              | `in-revision`                  | Set `start_date = now`; title/description/deadline optional |
+| Upload revision solutions | Tutor             | `in-revision` (implied)        | —                              | Creates Solution + RevisionSessionSolution                  |
+| Submit revision           | Tutor             | `in-revision`                  | `waiting_coordinator_approval` |                                                             |
+| Cancel submission         | Tutor             | `waiting_coordinator_approval` | `in-revision`                  |                                                             |
+| Approve                   | Coordinator/Admin | `waiting_coordinator_approval` | `completed`                    | `submit_date = now`                                         |
+| Reject                    | Coordinator/Admin | `waiting_coordinator_approval` | `in-revision`                  |                                                             |
+| Cancel session            | Coordinator/Admin | open                           | `cancelled`                    |                                                             |
+| Update fields             | Coordinator/Admin | *                              | *                              | Status updates constrained to allowed set                   |
 
 ## Create validation (recommended)
 
@@ -49,11 +49,11 @@ waiting_coordinator_approval
 
 ## Interaction with task status
 
-| Situation | Expected behavior |
-|-----------|-------------------|
+| Situation            | Expected behavior                                                            |
+| -------------------- | ---------------------------------------------------------------------------- |
 | Open revision exists | Do not approve/complete task casually; block conflicting task status changes |
-| Revision completed | Task remains in its own status; revision is historical |
-| Task cancelled | Prefer cancel open revisions too (improvement vs old app) |
+| Revision completed   | Task remains in its own status; revision is historical                       |
+| Task cancelled       | Prefer cancel open revisions too (improvement vs old app)                    |
 
 ## Data shape per session
 

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { createRbacRepository, resetRbacRepositoryForTests } from '../../src/modules/rbac/rbac.repository.js'
+import {
+  createRbacRepository,
+  resetRbacRepositoryForTests,
+} from '../../src/modules/rbac/rbac.repository.js'
 import { createRbacService } from '../../src/modules/rbac/rbac.service.js'
 
 describe('rbac service', () => {

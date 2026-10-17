@@ -7,11 +7,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
-import {
-  createRole,
-  type RbacRole,
-  updateRole,
-} from '@/services/rbac'
+import { createRole, type RbacRole, updateRole } from '@/services/rbac'
 import { toastApiError } from '@/services/toast'
 
 import { editRoleFormSchema, roleFormSchema } from './rbac.schema'
@@ -154,7 +150,7 @@ export function RoleFormDialog({ open, mode, role, onClose, onSaved }: RoleFormD
           <FieldError>{fieldErrors.sortOrder}</FieldError>
         </Field>
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>

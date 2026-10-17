@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Eye, ScrollText } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
@@ -7,9 +7,9 @@ import { PageHeader } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { IconAction } from '@/components/ui/icon-action'
 import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
-import { Tooltip } from '@/components/ui/tooltip'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { cn } from '@/lib/utils'
 import {
@@ -52,29 +52,6 @@ function formatWhen(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
-}
-
-function IconAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip content={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-muted"
-      >
-        {children}
-      </button>
-    </Tooltip>
-  )
 }
 
 type Directory = {
@@ -218,7 +195,7 @@ export function ActivityLogsPage() {
         title="Activity log"
         description="Audit trail of sign-ins, user changes, and RBAC updates."
         actions={
-          <Button type="button" variant="outline" onClick={refresh}>
+          <Button type="button" variant="secondary" onClick={refresh}>
             Refresh
           </Button>
         }
@@ -350,7 +327,7 @@ export function ActivityLogsPage() {
                           {log.entity ? <Badge tone="neutral">{log.entity}</Badge> : '—'}
                         </td>
                         <td className="max-w-[220px] truncate px-2 py-3 text-muted-foreground">
-                          {log.user?.email ?? (log.userId ? log.userId.slice(0, 8) + '…' : '—')}
+                          {log.user?.email ?? (log.userId ? 'Unknown user' : 'System')}
                         </td>
                         <td className="px-2 py-3 font-mono text-xs text-muted-foreground">
                           {log.ip ?? '—'}
@@ -377,7 +354,7 @@ export function ActivityLogsPage() {
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   disabled={page <= 1}
                   onClick={() => setPage((value) => Math.max(1, value - 1))}
@@ -388,7 +365,7 @@ export function ActivityLogsPage() {
                   Page {meta?.page ?? page} of {totalPages}
                 </span>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   disabled={page >= totalPages}
                   onClick={() => setPage((value) => value + 1)}

@@ -81,20 +81,29 @@ export const allowViewBodySchema = z.object({
   allowView: z.boolean(),
 })
 
-export const addFileBodySchema = z.object({
-  fileLocation: z.string().trim().min(1).max(2048),
+export const uploadUrlBodySchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+  contentType: z.string().trim().min(1).max(120),
+  sizeBytes: z.coerce.number().int().positive(),
+})
+
+const uploadedObjectSchema = z.object({
+  key: z.string().trim().min(1).max(1024),
+  filename: z.string().trim().min(1).max(255),
+})
+
+export const addFileBodySchema = uploadedObjectSchema.extend({
   note: z.string().trim().max(500).optional(),
 })
 
-export const addSolutionBodySchema = z.object({
-  fileLocation: z.string().trim().min(1).max(2048),
-})
+export const addSolutionBodySchema = uploadedObjectSchema
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>
 export type CreateTaskBody = z.infer<typeof createTaskBodySchema>
 export type UpdateTaskBody = z.infer<typeof updateTaskBodySchema>
 export type AddFileBody = z.infer<typeof addFileBodySchema>
 export type AddSolutionBody = z.infer<typeof addSolutionBodySchema>
+export type UploadUrlBody = z.infer<typeof uploadUrlBodySchema>
 export type AllowViewBody = z.infer<typeof allowViewBodySchema>
 export type AssignTutorBody = z.infer<typeof assignTutorBodySchema>
 export type ChangeCoordinatorBody = z.infer<typeof changeCoordinatorBodySchema>

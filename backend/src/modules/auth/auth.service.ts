@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, type AppConfig } from '../../config/index.js'
+import { type AppConfig, isSupabaseConfigured } from '../../config/index.js'
 import { conflict, unauthorized, validationError } from '../../errors/app-error.js'
 import { getLogger } from '../../logging/index.js'
 import type { LoggingService } from '../logging/index.js'
@@ -16,12 +16,6 @@ import type {
 } from './auth.schema.js'
 import type { RoleName } from './auth.schema.js'
 import {
-  createLoginVerificationsRepository,
-  generateSixDigitCode,
-  PASSWORD_RESET_CODE_TTL_MS,
-  type LoginVerificationsRepository,
-} from './login-verifications.repository.js'
-import {
   hashPassword,
   signAccessToken,
   signRefreshToken,
@@ -29,6 +23,12 @@ import {
   verifyRefreshToken,
 } from './auth.tokens.js'
 import type { AuthTokens, AuthUserDto, LoginResult } from './auth.types.js'
+import {
+  createLoginVerificationsRepository,
+  generateSixDigitCode,
+  type LoginVerificationsRepository,
+  PASSWORD_RESET_CODE_TTL_MS,
+} from './login-verifications.repository.js'
 
 export const PASSWORD_RESET_ACK_MESSAGE =
   'If an account exists for this email, a reset code has been sent.'

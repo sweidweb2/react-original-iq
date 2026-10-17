@@ -31,7 +31,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        'flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        'flex h-full w-64 flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground',
         className,
       )}
     >

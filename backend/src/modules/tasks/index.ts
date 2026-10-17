@@ -1,5 +1,6 @@
 import type { AppConfig } from '../../config/index.js'
 import { loadConfig } from '../../config/index.js'
+import { getStorageService, type StorageService } from '../../storage/index.js'
 import type { PaymentsModule } from '../payments/index.js'
 import type { RevisionsModule } from '../revisions/index.js'
 import { createUsersRepository } from '../users/users.repository.js'
@@ -13,6 +14,7 @@ export type TasksModuleDeps = {
   tasksRepository?: TasksRepository
   revisionsModule?: RevisionsModule
   paymentsModule?: PaymentsModule
+  storage?: StorageService
 }
 
 export function createTasksModule(
@@ -32,6 +34,7 @@ export function createTasksModule(
     recomputePaymentStatus: deps.paymentsModule
       ? (taskId) => deps.paymentsModule!.recomputeForTask(taskId)
       : undefined,
+    storage: deps.storage ?? getStorageService(config),
   })
   const controller = createTasksController(service)
   return createTasksRoutes(controller, {

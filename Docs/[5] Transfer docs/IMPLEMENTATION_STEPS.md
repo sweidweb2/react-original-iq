@@ -9,18 +9,18 @@ Carry: this folder + `public_pages/` design export + filled [ENV_VARIABLES.md](.
 
 Lock these before coding:
 
-| Decision | Options / notes |
-|----------|-----------------|
-| Backend stack | e.g. Nest / Django / Laravel fresh / Go… |
-| Frontend stack | e.g. Next / Nuxt / React SPA… |
-| DB | Postgres recommended (MySQL OK) |
-| Auth style | Cookie sessions vs JWT — match [07](./07-auth-otp-session.md) behavior |
-| Payment gateway | Keep **MontyPay** or replace adapter ([PAYMENT.md](./PAYMENT.md)) |
-| File storage | Keep **R2** or other S3-compatible |
-| Admin 2FA | Redesign (old super_admin OTP was broken) |
-| Public IDs | UUID vs encrypted ints |
-| Dead features | Drop `messages` UX + unused assignment audit unless you want them ([12](./12-quirks-and-dead-features.md)) |
-| i18n | EN + AR RTL from day 1 or EN-first |
+| Decision        | Options / notes                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------- |
+| Backend stack   | e.g. Nest / Django / Laravel fresh / Go…                                                                   |
+| Frontend stack  | e.g. Next / Nuxt / React SPA…                                                                              |
+| DB              | Postgres recommended (MySQL OK)                                                                            |
+| Auth style      | Cookie sessions vs JWT — match [07](./07-auth-otp-session.md) behavior                                     |
+| Payment gateway | Keep **MontyPay** or replace adapter ([PAYMENT.md](./PAYMENT.md))                                          |
+| File storage    | Keep **R2** or other S3-compatible                                                                         |
+| Admin 2FA       | Redesign (old super_admin OTP was broken)                                                                  |
+| Public IDs      | UUID vs encrypted ints                                                                                     |
+| Dead features   | Drop `messages` UX + unused assignment audit unless you want them ([12](./12-quirks-and-dead-features.md)) |
+| i18n            | EN + AR RTL from day 1 or EN-first                                                                         |
 
 **Exit:** short ADR / notes in your new repo README.
 
@@ -192,18 +192,18 @@ skeleton → schema → auth/RBAC → tasks → files → revisions → payments
 
 ## What to read before each phase
 
-| Phase | Read first |
-|-------|------------|
-| 0–1 | 01, ENV_VARIABLES, 12 |
-| 2 | 03 |
-| 3 | 02, 07 |
-| 4 | 04, 11 |
-| 5 | 08, 09 |
-| 6 | 05 |
-| 7 | PAYMENT, 06, 09 |
-| 8–9 | 02, 13 |
-| 10 | public_pages/README, 11 |
-| 12 | 10, 12, 14 |
+| Phase | Read first              |
+| ----- | ----------------------- |
+| 0–1   | 01, ENV_VARIABLES, 12   |
+| 2     | 03                      |
+| 3     | 02, 07                  |
+| 4     | 04, 11                  |
+| 5     | 08, 09                  |
+| 6     | 05                      |
+| 7     | PAYMENT, 06, 09         |
+| 8–9   | 02, 13                  |
+| 10    | public_pages/README, 11 |
+| 12    | 10, 12, 14              |
 
 ---
 

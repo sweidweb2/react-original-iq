@@ -156,9 +156,7 @@ function toActivity(row: ActivityRow): ActivityLogRecord {
     ip: row.ip,
     requestId: row.request_id,
     createdAt: new Date(row.created_at),
-    user: row.users
-      ? { id: row.users.id, email: row.users.email, role: row.users.role }
-      : null,
+    user: row.users ? { id: row.users.id, email: row.users.email, role: row.users.role } : null,
   }
 }
 

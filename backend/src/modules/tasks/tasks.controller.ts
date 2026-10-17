@@ -11,6 +11,7 @@ import type {
   ListTasksQuery,
   UpdatePriceBody,
   UpdateTaskBody,
+  UploadUrlBody,
 } from './tasks.schema.js'
 import type { TasksService } from './tasks.service.js'
 
@@ -32,11 +33,15 @@ export type TasksController = {
   activate: RequestHandler
   allowView: RequestHandler
   remove: RequestHandler
+  createFileUploadUrl: RequestHandler
   addFile: RequestHandler
   listFiles: RequestHandler
+  downloadFile: RequestHandler
   deleteFile: RequestHandler
+  createSolutionUploadUrl: RequestHandler
   addSolution: RequestHandler
   listSolutions: RequestHandler
+  downloadSolution: RequestHandler
   deleteSolution: RequestHandler
 }
 
@@ -77,9 +82,7 @@ export function createTasksController(service: TasksService): TasksController {
       service.disapproveTask(String(req.params.id), requireActor(req)),
     ),
     cancel: respond(200, (req) => service.cancelTask(String(req.params.id), requireActor(req))),
-    activate: respond(200, (req) =>
-      service.activateTask(String(req.params.id), requireActor(req)),
-    ),
+    activate: respond(200, (req) => service.activateTask(String(req.params.id), requireActor(req))),
     allowView: respond(200, (req) => {
       const { allowView } = req.body as AllowViewBody
       return service.setAllowView(String(req.params.id), allowView, requireActor(req))
@@ -87,14 +90,35 @@ export function createTasksController(service: TasksService): TasksController {
     remove: respondEmpty(204, (req) =>
       service.deleteTask(String(req.params.id), requireActor(req)),
     ),
+    createFileUploadUrl: respond(200, (req) =>
+      service.createFileUploadUrl(
+        String(req.params.id),
+        req.body as UploadUrlBody,
+        requireActor(req),
+      ),
+    ),
     addFile: respond(201, (req) =>
       service.addFile(String(req.params.id), req.body as AddFileBody, requireActor(req)),
     ),
     listFiles: respond(200, async (req) => ({
       data: await service.listFiles(String(req.params.id), requireActor(req)),
     })),
+    downloadFile: respond(200, (req) =>
+      service.getFileDownloadUrl(
+        String(req.params.id),
+        String(req.params.fileId),
+        requireActor(req),
+      ),
+    ),
     deleteFile: respondEmpty(204, (req) =>
       service.deleteFile(String(req.params.id), String(req.params.fileId), requireActor(req)),
+    ),
+    createSolutionUploadUrl: respond(200, (req) =>
+      service.createSolutionUploadUrl(
+        String(req.params.id),
+        req.body as UploadUrlBody,
+        requireActor(req),
+      ),
     ),
     addSolution: respond(201, (req) =>
       service.addSolution(String(req.params.id), req.body as AddSolutionBody, requireActor(req)),
@@ -102,6 +126,13 @@ export function createTasksController(service: TasksService): TasksController {
     listSolutions: respond(200, async (req) => ({
       data: await service.listSolutions(String(req.params.id), requireActor(req)),
     })),
+    downloadSolution: respond(200, (req) =>
+      service.getSolutionDownloadUrl(
+        String(req.params.id),
+        String(req.params.solutionId),
+        requireActor(req),
+      ),
+    ),
     deleteSolution: respondEmpty(204, (req) =>
       service.deleteSolution(
         String(req.params.id),

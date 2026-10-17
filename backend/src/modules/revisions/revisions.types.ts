@@ -1,8 +1,5 @@
 export type RevisionStatus =
-  | 'in-revision'
-  | 'waiting_coordinator_approval'
-  | 'completed'
-  | 'cancelled'
+  'in-revision' | 'waiting_coordinator_approval' | 'completed' | 'cancelled'
 
 export type RevisionSession = {
   id: string

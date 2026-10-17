@@ -110,7 +110,10 @@ export function ResetVerifyPage() {
                 value={values.code}
                 aria-invalid={Boolean(fieldErrors.code) || undefined}
                 onChange={(e) =>
-                  setValues((prev) => ({ ...prev, code: e.target.value.replace(/\D/g, '').slice(0, 6) }))
+                  setValues((prev) => ({
+                    ...prev,
+                    code: e.target.value.replace(/\D/g, '').slice(0, 6),
+                  }))
                 }
               />
               <FieldError>{fieldErrors.code}</FieldError>
@@ -129,7 +132,7 @@ export function ResetVerifyPage() {
 
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="lg"
               className="w-full"
               disabled={isResending}

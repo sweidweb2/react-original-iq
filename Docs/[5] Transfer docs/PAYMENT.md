@@ -13,11 +13,11 @@ The client pays until the **net amount** equals that price.
 net = SUM(payments.amount) - SUM(refunds.amount)
 ```
 
-| If… | Task `payment_status` becomes |
-|-----|-------------------------------|
-| `net == price` | `paid` |
-| `net > price` | `refund_pending` |
-| otherwise | `unpaid` |
+| If…            | Task `payment_status` becomes |
+| -------------- | ----------------------------- |
+| `net == price` | `paid`                        |
+| `net > price`  | `refund_pending`              |
+| otherwise      | `unpaid`                      |
 
 Also useful:
 
@@ -32,25 +32,25 @@ Recompute `payment_status` after every payment, refund, payment delete, or price
 
 ## Actors
 
-| Who | What they do with money |
-|-----|-------------------------|
-| **Client** | Pays remaining balance via **MontyPay** checkout |
-| **Admin** | Manual create/delete payments; refunds; invoices; exports |
+| Who             | What they do with money                                    |
+| --------------- | ---------------------------------------------------------- |
+| **Client**      | Pays remaining balance via **MontyPay** checkout           |
+| **Admin**       | Manual create/delete payments; refunds; invoices; exports  |
 | **Coordinator** | Can initiate refund path (limited); sees payments on tasks |
-| **Tutor** | Sees payment snapshot only — does not charge |
+| **Tutor**       | Sees payment snapshot only — does not charge               |
 
 ---
 
 ## Data you must store
 
-| Entity | Role |
-|--------|------|
-| `Payment` | One money-in record (gateway or manual) |
-| `PaymentLog` | Audit events for a payment |
-| `Refund` | One money-out / ledger refund |
-| `Invoice` | PDF + email record linked to a Payment |
-| `Task.price` | Amount owed |
-| `Task.payment_status` | Derived summary for UI |
+| Entity                | Role                                    |
+| --------------------- | --------------------------------------- |
+| `Payment`             | One money-in record (gateway or manual) |
+| `PaymentLog`          | Audit events for a payment              |
+| `Refund`              | One money-out / ledger refund           |
+| `Invoice`             | PDF + email record linked to a Payment  |
+| `Task.price`          | Amount owed                             |
+| `Task.payment_status` | Derived summary for UI                  |
 
 ### Payment fields (important)
 
@@ -160,24 +160,24 @@ Triggered when a Payment becomes `paid` (gateway or manual):
 
 ## UI surfaces to rebuild
 
-| Screen | Needs |
-|--------|-------|
-| Client task payments | Price, paid, refunded, net, still due, Pay button, invoice download |
-| Admin/coord task payments | Same + manual payment/refund forms |
-| Admin exports | Payments, refunds, payment logs CSV |
+| Screen                    | Needs                                                               |
+| ------------------------- | ------------------------------------------------------------------- |
+| Client task payments      | Price, paid, refunded, net, still due, Pay button, invoice download |
+| Admin/coord task payments | Same + manual payment/refund forms                                  |
+| Admin exports             | Payments, refunds, payment logs CSV                                 |
 
 ---
 
 ## Must-test cases
 
-1. Exact full payment → `paid` + invoice  
-2. Two partial payments → `paid` when sum hits price  
-3. Pay when already paid → blocked  
-4. Duplicate webhook → one Payment only  
-5. Bad hash → no DB write  
-6. Lower price after overpay → `refund_pending`  
-7. Refund back to price → `paid`  
-8. Task with payments → client cannot delete task  
+1. Exact full payment → `paid` + invoice
+2. Two partial payments → `paid` when sum hits price
+3. Pay when already paid → blocked
+4. Duplicate webhook → one Payment only
+5. Bad hash → no DB write
+6. Lower price after overpay → `refund_pending`
+7. Refund back to price → `paid`
+8. Task with payments → client cannot delete task
 
 ---
 

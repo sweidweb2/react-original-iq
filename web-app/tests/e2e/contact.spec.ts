@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test.describe('contact page', () => {
   test('sends a message, subscribes, and opens the FAQ', async ({ page }) => {
-    await page.goto('/contact')
+    await page.goto('/en/contact')
     await expect(page.getByRole('heading', { name: 'Visit Us' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Email Us' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Call Us' })).toBeVisible()
@@ -33,7 +33,7 @@ test.describe('contact page', () => {
 
   test('keeps the contact sections on a phone width', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/contact')
+    await page.goto('/en/contact')
     await expect(page.getByRole('heading', { name: 'Send Us a Message' })).toBeVisible()
     const overflows = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,

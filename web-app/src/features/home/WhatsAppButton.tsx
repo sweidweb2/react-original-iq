@@ -1,13 +1,17 @@
 import { zIndex } from '@/theme'
 
+import { useHomeDictionary } from './i18n'
+
 export function WhatsAppButton() {
+  const t = useHomeDictionary()
+
   return (
     <a
       href="https://wa.me/96170858167"
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Chat on WhatsApp"
-      className="fixed right-5 bottom-5 inline-flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition hover:-translate-y-0.5 print:hidden"
+      aria-label={t.whatsappLabel}
+      className="fixed end-5 bottom-5 inline-flex size-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg transition hover:-translate-y-0.5 print:hidden"
       style={{ zIndex: zIndex.sticky }}
     >
       <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden>

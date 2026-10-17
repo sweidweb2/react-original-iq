@@ -16,6 +16,7 @@ import {
   taskSolutionParamsSchema,
   updatePriceBodySchema,
   updateTaskBodySchema,
+  uploadUrlBodySchema,
 } from './tasks.schema.js'
 
 export type TasksRouteExtras = {
@@ -24,10 +25,7 @@ export type TasksRouteExtras = {
   refunds?: ExpressRouter
 }
 
-export function createTasksRoutes(
-  controller: TasksController,
-  extras?: TasksRouteExtras,
-): Router {
+export function createTasksRoutes(controller: TasksController, extras?: TasksRouteExtras): Router {
   const router = Router()
 
   router.use(authenticate)
@@ -58,7 +56,11 @@ export function createTasksRoutes(
     controller.changeCoordinator,
   )
   router.post('/:id/submit', validate({ params: taskIdParamsSchema }), controller.submit)
-  router.post('/:id/cancel-submit', validate({ params: taskIdParamsSchema }), controller.cancelSubmit)
+  router.post(
+    '/:id/cancel-submit',
+    validate({ params: taskIdParamsSchema }),
+    controller.cancelSubmit,
+  )
   router.post('/:id/approve', validate({ params: taskIdParamsSchema }), controller.approve)
   router.post('/:id/disapprove', validate({ params: taskIdParamsSchema }), controller.disapprove)
   router.post('/:id/cancel', validate({ params: taskIdParamsSchema }), controller.cancel)
@@ -71,11 +73,21 @@ export function createTasksRoutes(
   router.delete('/:id', validate({ params: taskIdParamsSchema }), controller.remove)
 
   router.post(
+    '/:id/files/upload-url',
+    validate({ params: taskIdParamsSchema, body: uploadUrlBodySchema }),
+    controller.createFileUploadUrl,
+  )
+  router.post(
     '/:id/files',
     validate({ params: taskIdParamsSchema, body: addFileBodySchema }),
     controller.addFile,
   )
   router.get('/:id/files', validate({ params: taskIdParamsSchema }), controller.listFiles)
+  router.get(
+    '/:id/files/:fileId/download',
+    validate({ params: taskFileParamsSchema }),
+    controller.downloadFile,
+  )
   router.delete(
     '/:id/files/:fileId',
     validate({ params: taskFileParamsSchema }),
@@ -83,11 +95,21 @@ export function createTasksRoutes(
   )
 
   router.post(
+    '/:id/solutions/upload-url',
+    validate({ params: taskIdParamsSchema, body: uploadUrlBodySchema }),
+    controller.createSolutionUploadUrl,
+  )
+  router.post(
     '/:id/solutions',
     validate({ params: taskIdParamsSchema, body: addSolutionBodySchema }),
     controller.addSolution,
   )
   router.get('/:id/solutions', validate({ params: taskIdParamsSchema }), controller.listSolutions)
+  router.get(
+    '/:id/solutions/:solutionId/download',
+    validate({ params: taskSolutionParamsSchema }),
+    controller.downloadSolution,
+  )
   router.delete(
     '/:id/solutions/:solutionId',
     validate({ params: taskSolutionParamsSchema }),

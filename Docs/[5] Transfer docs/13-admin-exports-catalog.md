@@ -4,35 +4,35 @@ Admin reporting surface from the current app (`ExcelController`). Rebuild as CSV
 
 ## Formats
 
-| Format | Used for |
-|--------|----------|
-| CSV stream | Most entities |
+| Format          | Used for            |
+| --------------- | ------------------- |
+| CSV stream      | Most entities       |
 | PDF (landscape) | Leads, Stay Updated |
 
 Filename pattern: `{base}_{YYYY-MM-DD_HH-mm-ss}.csv` (or `.pdf`).
 
 ## Export inventory
 
-| Export | Source entity | Notable columns / joins |
-|--------|---------------|-------------------------|
-| Users | User | Profile + role + activity fields |
-| Tasks | Task | + client_name, tutor_name, coordinator_name |
-| Files | File | + task_label, client_name |
-| Solutions | Solution | + task_label, client_name |
-| Revision sessions | RevisionSession | + task_label, client_name |
-| Revision session solutions | RevisionSessionSolution | + revision_task_label, client_name |
-| Payments | Payment | + client (tutor join was fragile) |
-| Payment logs | PaymentLog | + payment/client/task labels |
-| Refunds | Refund | + task_label, client_name, refunder_name |
-| Feedback | Feedback | + task_label, tutor_name, client_name |
-| Specializations | Specialization | + tutor_name |
-| Leads | Lead | CSV + PDF |
-| Stay updated | StayUpdated | CSV + PDF |
-| Contact messages | ContactMessage | |
-| Login attempts | LoginAttempt | |
-| Login verifications | LoginVerification | + user_name |
-| Messages | Message | + sender_name, receiver_name (legacy) |
-| Assignment transactions | AssignmentTransaction | (legacy / empty likely) |
+| Export                     | Source entity           | Notable columns / joins                     |
+| -------------------------- | ----------------------- | ------------------------------------------- |
+| Users                      | User                    | Profile + role + activity fields            |
+| Tasks                      | Task                    | + client_name, tutor_name, coordinator_name |
+| Files                      | File                    | + task_label, client_name                   |
+| Solutions                  | Solution                | + task_label, client_name                   |
+| Revision sessions          | RevisionSession         | + task_label, client_name                   |
+| Revision session solutions | RevisionSessionSolution | + revision_task_label, client_name          |
+| Payments                   | Payment                 | + client (tutor join was fragile)           |
+| Payment logs               | PaymentLog              | + payment/client/task labels                |
+| Refunds                    | Refund                  | + task_label, client_name, refunder_name    |
+| Feedback                   | Feedback                | + task_label, tutor_name, client_name       |
+| Specializations            | Specialization          | + tutor_name                                |
+| Leads                      | Lead                    | CSV + PDF                                   |
+| Stay updated               | StayUpdated             | CSV + PDF                                   |
+| Contact messages           | ContactMessage          |                                             |
+| Login attempts             | LoginAttempt            |                                             |
+| Login verifications        | LoginVerification       | + user_name                                 |
+| Messages                   | Message                 | + sender_name, receiver_name (legacy)       |
+| Assignment transactions    | AssignmentTransaction   | (legacy / empty likely)                     |
 
 ## Access
 

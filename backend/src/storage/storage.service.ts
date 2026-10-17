@@ -45,6 +45,11 @@ export type SignedUrlResult = {
   key: string
 }
 
+export type ObjectInfo = {
+  sizeBytes: number
+  contentType: string | null
+}
+
 export type StorageService = {
   isConfigured: () => boolean
   putObject: (input: PutObjectInput) => Promise<PutObjectResult>
@@ -61,6 +66,16 @@ export type StorageService = {
   deleteObject: (key: string) => Promise<void>
   deleteObjects: (keys: string[]) => Promise<void>
   objectExists: (key: string) => Promise<boolean>
+  statObject: (key: string) => Promise<ObjectInfo | null>
+}
+
+function isNotFoundError(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : ''
+  const status =
+    error && typeof error === 'object' && '$metadata' in error
+      ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
+      : undefined
+  return name === 'NotFound' || name === 'NoSuchKey' || status === 404
 }
 
 function createUnconfiguredStorageService(): StorageService {
@@ -75,6 +90,7 @@ function createUnconfiguredStorageService(): StorageService {
     deleteObject: async () => unavailable(),
     deleteObjects: async () => unavailable(),
     objectExists: async () => unavailable(),
+    statObject: async () => unavailable(),
   }
 }
 
@@ -162,6 +178,7 @@ function createR2StorageService(config: StorageConfig): StorageService {
           Bucket: config.bucket,
           Key: key,
           ContentType: validated.contentType,
+          ContentLength: validated.sizeBytes,
         }),
         { expiresIn: expiresInSec },
       )
@@ -207,12 +224,18 @@ function createR2StorageService(config: StorageConfig): StorageService {
         await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: key }))
         return true
       } catch (error) {
-        const name = error instanceof Error ? error.name : ''
-        const status =
-          error && typeof error === 'object' && '$metadata' in error
-            ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
-            : undefined
-        if (name === 'NotFound' || name === 'NoSuchKey' || status === 404) return false
+        if (isNotFoundError(error)) return false
+        throw error
+      }
+    },
+
+    async statObject(key) {
+      assertManagedKey(key)
+      try {
+        const head = await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: key }))
+        return { sizeBytes: head.ContentLength ?? 0, contentType: head.ContentType ?? null }
+      } catch (error) {
+        if (isNotFoundError(error)) return null
         throw error
       }
     },

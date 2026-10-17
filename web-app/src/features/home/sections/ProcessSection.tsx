@@ -3,11 +3,14 @@ import { Check, CreditCard, Repeat, Users } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-import { homeContainer, processStages } from '../content'
+import { homeContainer } from '../content'
+import { useHomeDictionary } from '../i18n'
 
 const stageIcons: LucideIcon[] = [Users, CreditCard, Repeat]
 
 export function ProcessSection() {
+  const t = useHomeDictionary().process
+
   return (
     <section
       id="process"
@@ -26,16 +29,12 @@ export function ProcessSection() {
       />
       <div className={cn(homeContainer, 'relative')}>
         <header className="mb-16 text-center">
-          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">
-            Our Process
-          </h2>
-          <p className="text-lg text-muted-foreground">
-            Experience a streamlined journey from inquiry to success with our proven methodology
-          </p>
+          <h2 className="mb-4 text-4xl font-semibold tracking-tight max-md:text-3xl">{t.title}</h2>
+          <p className="text-lg text-muted-foreground">{t.intro}</p>
         </header>
 
         <ol className="mx-auto grid max-w-[1200px] gap-16 lg:grid-cols-3">
-          {processStages.map((stage, index) => {
+          {t.stages.map((stage, index) => {
             const Icon = stageIcons[index] ?? Users
             return (
               <li
@@ -47,12 +46,12 @@ export function ProcessSection() {
                   <span className="inline-flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-light text-white shadow-[0_8px_24px_rgba(52,184,193,0.3)]">
                     <Icon className="size-10" aria-hidden />
                   </span>
-                  <span className="absolute -top-2.5 -right-2.5 inline-flex size-8 items-center justify-center rounded-full bg-accent text-sm font-semibold text-white shadow-[0_4px_12px_rgba(255,107,53,0.3)]">
-                    {stage.number}
+                  <span className="absolute -top-2.5 -end-2.5 inline-flex size-8 items-center justify-center rounded-full bg-accent text-sm font-semibold text-white shadow-[0_4px_12px_rgba(255,107,53,0.3)]">
+                    {String(index + 1).padStart(2, '0')}
                   </span>
-                  {index < processStages.length - 1 ? (
+                  {index < t.stages.length - 1 ? (
                     <span
-                      className="absolute top-1/2 -right-16 hidden h-0.5 w-16 -translate-y-1/2 bg-gradient-to-r from-primary to-primary-light xl:block"
+                      className="absolute top-1/2 -end-16 hidden h-0.5 w-16 -translate-y-1/2 from-primary to-primary-light ltr:bg-gradient-to-r rtl:bg-gradient-to-l xl:block"
                       aria-hidden
                     />
                   ) : null}
@@ -63,7 +62,7 @@ export function ProcessSection() {
                   {stage.points.map((point) => (
                     <li
                       key={point}
-                      className="flex items-center gap-2 rounded-xl bg-primary/5 px-3 py-2 text-left text-sm text-muted-foreground"
+                      className="flex items-center gap-2 rounded-xl bg-primary/5 px-3 py-2 text-start text-sm text-muted-foreground"
                     >
                       <Check className="size-4 shrink-0 text-primary" aria-hidden />
                       <span>{point}</span>

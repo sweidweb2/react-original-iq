@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { KeyRound, Loader2, Pencil, Plus, Shield, Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
+import { IconAction } from '@/components/ui/icon-action'
 import { toast } from '@/components/ui/toast'
-import { Tooltip } from '@/components/ui/tooltip'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { cn } from '@/lib/utils'
 import {
@@ -27,29 +27,6 @@ import { RoleFormDialog } from './RoleFormDialog'
 
 type Tab = 'roles' | 'permissions'
 
-function IconAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip content={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-muted"
-      >
-        {children}
-      </button>
-    </Tooltip>
-  )
-}
-
 export function ManageRbacPage() {
   useDocumentTitle('Roles & permissions')
 
@@ -60,18 +37,17 @@ export function ManageRbacPage() {
   const [error, setError] = useState<unknown>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
-  const [roleForm, setRoleForm] = useState<{ mode: 'create' | 'edit'; role: RbacRole | null } | null>(
-    null,
-  )
+  const [roleForm, setRoleForm] = useState<{
+    mode: 'create' | 'edit'
+    role: RbacRole | null
+  } | null>(null)
   const [permissionForm, setPermissionForm] = useState<{
     mode: 'create' | 'edit'
     permission: RbacPermission | null
   } | null>(null)
   const [assignRole, setAssignRole] = useState<RbacRole | null>(null)
   const [pendingDelete, setPendingDelete] = useState<
-    | { type: 'role'; item: RbacRole }
-    | { type: 'permission'; item: RbacPermission }
-    | null
+    { type: 'role'; item: RbacRole } | { type: 'permission'; item: RbacPermission } | null
   >(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -185,7 +161,7 @@ export function ManageRbacPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium">{role.name}</p>
                         <Badge tone="neutral">{role.key}</Badge>
-                        {role.isSystem ? <Badge tone="primary">System</Badge> : null}
+                        {role.isSystem ? <Badge tone="neutral">System</Badge> : null}
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {role.description || 'No description'}
@@ -198,7 +174,7 @@ export function ManageRbacPage() {
                     <div className="flex shrink-0 items-center gap-2">
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         onClick={() => setAssignRole(role)}
                       >
@@ -213,6 +189,7 @@ export function ManageRbacPage() {
                       {!role.isSystem ? (
                         <IconAction
                           label="Delete role"
+                          tone="danger"
                           onClick={() => setPendingDelete({ type: 'role', item: role })}
                         >
                           <Trash2 className="size-4" />
@@ -253,6 +230,7 @@ export function ManageRbacPage() {
                     </IconAction>
                     <IconAction
                       label="Delete permission"
+                      tone="danger"
                       onClick={() => setPendingDelete({ type: 'permission', item: permission })}
                     >
                       <Trash2 className="size-4" />
@@ -304,7 +282,7 @@ export function ManageRbacPage() {
           <>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => setPendingDelete(null)}
               disabled={isDeleting}
             >

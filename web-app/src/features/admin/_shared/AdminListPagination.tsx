@@ -26,7 +26,7 @@ export function AdminListPagination({
       <div className="flex items-center gap-2">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={page <= 1}
           onClick={() => onPageChange(Math.max(1, page - 1))}
@@ -38,7 +38,7 @@ export function AdminListPagination({
         </span>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={page >= totalPages}
           onClick={() => onPageChange(page + 1)}

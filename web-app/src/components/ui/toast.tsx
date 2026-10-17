@@ -50,7 +50,7 @@ export function Toaster() {
   if (current.length === 0) return null
 
   return (
-    <div className="fixed right-4 bottom-4 z-50 flex w-80 flex-col gap-2">
+    <div className="fixed end-4 bottom-4 z-50 flex w-80 flex-col gap-2">
       {current.map((item) => (
         <div
           key={item.id}

@@ -10,6 +10,7 @@ import {
   taskPaymentParamsSchema,
   taskPaymentsParamsSchema,
   taskRefundParamsSchema,
+  updatePaymentBodySchema,
   updateRefundStatusBodySchema,
 } from './payments.schema.js'
 
@@ -28,6 +29,12 @@ export function createTaskPaymentsRoutes(controller: PaymentsController): Router
     '/checkout',
     validate({ params: taskPaymentsParamsSchema, body: checkoutPaymentBodySchema }),
     controller.checkout,
+  )
+  router.get('/:paymentId', validate({ params: taskPaymentParamsSchema }), controller.getPayment)
+  router.patch(
+    '/:paymentId',
+    validate({ params: taskPaymentParamsSchema, body: updatePaymentBodySchema }),
+    controller.updatePayment,
   )
   router.delete(
     '/:paymentId',
@@ -52,11 +59,7 @@ export function createTaskRefundsRoutes(controller: PaymentsController): Router 
     validate({ params: taskRefundParamsSchema, body: updateRefundStatusBodySchema }),
     controller.updateRefundStatus,
   )
-  router.delete(
-    '/:refundId',
-    validate({ params: taskRefundParamsSchema }),
-    controller.deleteRefund,
-  )
+  router.delete('/:refundId', validate({ params: taskRefundParamsSchema }), controller.deleteRefund)
 
   return router
 }

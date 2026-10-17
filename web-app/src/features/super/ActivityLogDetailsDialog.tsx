@@ -28,13 +28,34 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
+const ID_KEY = /^(id|uuid)$|(Id|_id|Uuid|_uuid)$/
+const UUID_VALUE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function stripIds(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => !(typeof item === 'string' && UUID_VALUE.test(item)))
+      .map(stripIds)
+  }
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+      ([key, item]) => !ID_KEY.test(key) && !(typeof item === 'string' && UUID_VALUE.test(item)),
+    )
+    return Object.fromEntries(entries.map(([key, item]) => [key, stripIds(item)]))
+  }
+  return value
+}
+
+function formatMeta(meta: unknown): string {
+  if (meta == null) return '—'
+  if (typeof meta === 'string') return UUID_VALUE.test(meta) ? '—' : meta
+  const cleaned = stripIds(meta)
+  if (cleaned && typeof cleaned === 'object' && Object.keys(cleaned).length === 0) return '—'
+  return JSON.stringify(cleaned, null, 2)
+}
+
 export function ActivityLogDetailsDialog({ open, log, onClose }: ActivityLogDetailsDialogProps) {
-  const metaText =
-    log?.meta == null
-      ? '—'
-      : typeof log.meta === 'string'
-        ? log.meta
-        : JSON.stringify(log.meta, null, 2)
+  const metaText = formatMeta(log?.meta)
 
   return (
     <Dialog
@@ -43,7 +64,7 @@ export function ActivityLogDetailsDialog({ open, log, onClose }: ActivityLogDeta
       title="Activity details"
       description={log ? log.action : undefined}
       footer={
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="secondary" onClick={onClose}>
           Close
         </Button>
       }
@@ -53,13 +74,12 @@ export function ActivityLogDetailsDialog({ open, log, onClose }: ActivityLogDeta
           <DetailRow label="When" value={formatWhen(log.createdAt)} />
           <DetailRow label="Action" value={log.action} />
           <DetailRow label="Entity" value={log.entity ?? '—'} />
-          <DetailRow label="Entity ID" value={log.entityId ?? '—'} />
-          <DetailRow label="User" value={log.user?.email ?? log.userId ?? 'System / anonymous'} />
+          <DetailRow
+            label="User"
+            value={log.user?.email ?? (log.userId ? 'Unknown user' : 'System / anonymous')}
+          />
           <DetailRow label="User role" value={log.user?.role ? String(log.user.role) : '—'} />
-          <DetailRow label="User ID" value={log.userId ?? '—'} />
           <DetailRow label="IP" value={log.ip ?? '—'} />
-          <DetailRow label="Request ID" value={log.requestId ?? '—'} />
-          <DetailRow label="Record ID" value={log.id} />
           <Field>
             <FieldLabel>Meta</FieldLabel>
             <pre className="max-h-40 overflow-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-xs whitespace-pre-wrap">

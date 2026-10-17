@@ -20,12 +20,9 @@ export const profileUpdateSchema = z
       path: ['confirmPassword'],
     },
   )
-  .refine(
-    (value) => value.newPassword.length === 0 || value.currentPassword.length > 0,
-    {
-      message: 'Current password is required',
-      path: ['currentPassword'],
-    },
-  )
+  .refine((value) => value.newPassword.length === 0 || value.currentPassword.length > 0, {
+    message: 'Current password is required',
+    path: ['currentPassword'],
+  })
 
 export type ProfileUpdateValues = z.infer<typeof profileUpdateSchema>

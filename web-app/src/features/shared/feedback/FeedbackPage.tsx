@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
@@ -7,19 +7,19 @@ import { PageHeader } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
+import { IconAction } from '@/components/ui/icon-action'
 import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
 import { StarRating } from '@/components/ui/star-rating'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
-import { Tooltip } from '@/components/ui/tooltip'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
   createFeedback,
   deleteFeedback,
-  listFeedback,
   type FeedbackListMeta,
   type FeedbackRecord,
+  listFeedback,
 } from '@/services/feedback'
 import { listTasks, type Task } from '@/services/tasks'
 import { toastApiError } from '@/services/toast'
@@ -35,29 +35,6 @@ function formatDate(iso: string): string {
     day: 'numeric',
     year: 'numeric',
   }).format(date)
-}
-
-function IconAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip content={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-muted"
-      >
-        {children}
-      </button>
-    </Tooltip>
-  )
 }
 
 function isAdminRole(role: string | undefined): boolean {
@@ -215,7 +192,11 @@ export function FeedbackPage() {
   const rangeStart = meta && meta.total > 0 ? (meta.page - 1) * meta.limit + 1 : 0
   const rangeEnd = meta ? Math.min(meta.page * meta.limit, meta.total) : 0
 
-  const listTitle = isAdmin ? 'All feedback' : role === 'tutor' ? 'Your feedback' : 'Your submissions'
+  const listTitle = isAdmin
+    ? 'All feedback'
+    : role === 'tutor'
+      ? 'Your feedback'
+      : 'Your submissions'
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -310,21 +291,17 @@ export function FeedbackPage() {
 
             <AsyncState isLoading={isLoading} error={error} onRetry={refresh}>
               {rows.length === 0 ? (
-                <EmptyState title="No feedback yet" description="Submitted feedback will appear here." />
+                <EmptyState
+                  title="No feedback yet"
+                  description="Submitted feedback will appear here."
+                />
               ) : (
                 <>
                   <div className="overflow-x-auto rounded-md border border-border">
-                    <table className="w-full min-w-[720px] text-left text-sm">
+                    <table className="w-full min-w-[560px] text-left text-sm">
                       <thead className="border-b border-border bg-muted/40 text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2 font-medium">Rating</th>
-                          <th className="px-3 py-2 font-medium">Task</th>
-                          {isAdmin ? (
-                            <>
-                              <th className="px-3 py-2 font-medium">Tutor</th>
-                              <th className="px-3 py-2 font-medium">Client</th>
-                            </>
-                          ) : null}
                           <th className="px-3 py-2 font-medium">Comments</th>
                           <th className="px-3 py-2 font-medium">Date</th>
                           {isAdmin ? (
@@ -338,19 +315,18 @@ export function FeedbackPage() {
                             <td className="px-3 py-2">
                               <StarRating value={row.rating} readOnly label="Rating" />
                             </td>
-                            <td className="px-3 py-2 font-mono text-xs">{row.taskId.slice(0, 8)}…</td>
-                            {isAdmin ? (
-                              <>
-                                <td className="px-3 py-2 font-mono text-xs">{row.tutorId.slice(0, 8)}…</td>
-                                <td className="px-3 py-2 font-mono text-xs">{row.clientId.slice(0, 8)}…</td>
-                              </>
-                            ) : null}
                             <td className="max-w-xs truncate px-3 py-2">{row.comments ?? '—'}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{formatDate(row.createdAt)}</td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {formatDate(row.createdAt)}
+                            </td>
                             {isAdmin ? (
                               <td className="px-3 py-2">
                                 <div className="flex justify-end">
-                                  <IconAction label="Delete feedback" onClick={() => setPendingDelete(row)}>
+                                  <IconAction
+                                    label="Delete feedback"
+                                    tone="danger"
+                                    onClick={() => setPendingDelete(row)}
+                                  >
                                     <Trash2 className="size-4" />
                                   </IconAction>
                                 </div>
@@ -371,7 +347,7 @@ export function FeedbackPage() {
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         disabled={page <= 1}
                         onClick={() => setPage((value) => Math.max(1, value - 1))}
@@ -383,7 +359,7 @@ export function FeedbackPage() {
                       </span>
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         disabled={page >= totalPages}
                         onClick={() => setPage((value) => value + 1)}
@@ -408,7 +384,7 @@ export function FeedbackPage() {
         description="Remove this feedback entry permanently?"
         footer={
           <>
-            <Button variant="outline" onClick={() => setPendingDelete(null)} disabled={isActing}>
+            <Button variant="secondary" onClick={() => setPendingDelete(null)} disabled={isActing}>
               Cancel
             </Button>
             <Button variant="danger" onClick={confirmDelete} disabled={isActing}>

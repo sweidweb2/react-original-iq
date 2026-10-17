@@ -92,20 +92,16 @@ describe('auth HTTP', () => {
       .send({ email, code: '000000' })
     expect(badVerify.status).toBe(401)
 
-    const verify = await request(app)
-      .post('/api/v1/auth/password/verify')
-      .send({ email, code })
+    const verify = await request(app).post('/api/v1/auth/password/verify').send({ email, code })
     expect(verify.status).toBe(200)
 
     const newPassword = 'newpass99'
-    const reset = await request(app)
-      .post('/api/v1/auth/password/reset')
-      .send({
-        email,
-        code,
-        newPassword,
-        confirmPassword: newPassword,
-      })
+    const reset = await request(app).post('/api/v1/auth/password/reset').send({
+      email,
+      code,
+      newPassword,
+      confirmPassword: newPassword,
+    })
     expect(reset.status).toBe(200)
 
     const loginNew = await request(app)
@@ -123,7 +119,9 @@ describe('auth HTTP', () => {
       .send({ email, password: 'newpass99' })
     const accessToken = login.body.tokens.accessToken as string
 
-    const me = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${accessToken}`)
+    const me = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${accessToken}`)
     expect(me.status).toBe(200)
     expect(me.body.user).toMatchObject({ email, role: 'client' })
   })

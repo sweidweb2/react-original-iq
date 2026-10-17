@@ -7,11 +7,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
-import {
-  createPermission,
-  type RbacPermission,
-  updatePermission,
-} from '@/services/rbac'
+import { createPermission, type RbacPermission, updatePermission } from '@/services/rbac'
 import { toastApiError } from '@/services/toast'
 
 import { editPermissionFormSchema, permissionFormSchema } from './rbac.schema'
@@ -156,7 +152,7 @@ export function PermissionFormDialog({
           <FieldError>{fieldErrors.description}</FieldError>
         </Field>
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>

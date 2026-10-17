@@ -3,11 +3,7 @@ import { apiRequest } from './api'
 export type TaskType = 'assignment' | 'tutoring' | 'research' | 'editing'
 
 export type TaskStatus =
-  | 'pending'
-  | 'in-progress'
-  | 'waiting_coordinator_approval'
-  | 'completed'
-  | 'cancelled'
+  'pending' | 'in-progress' | 'waiting_coordinator_approval' | 'completed' | 'cancelled'
 
 export type TaskPaymentStatus = 'unpaid' | 'paid' | 'refund_pending'
 
@@ -31,7 +27,13 @@ export type Task = {
   updatedAt: string
 }
 
-export type TaskFile = {
+export type StoredFileMeta = {
+  originalName: string | null
+  contentType: string | null
+  sizeBytes: number | null
+}
+
+export type TaskFile = StoredFileMeta & {
   id: string
   taskId: string
   fileLocation: string
@@ -40,13 +42,31 @@ export type TaskFile = {
   updatedAt: string
 }
 
-export type TaskSolution = {
+export type TaskSolution = StoredFileMeta & {
   id: string
   taskId: string
   fileLocation: string
   createdAt: string
   updatedAt: string
 }
+
+export type FileDownload = {
+  url: string
+  filename: string
+  expiresInSec: number | null
+}
+
+type UploadTicket = {
+  uploadUrl: string
+  key: string
+  contentType: string
+  expiresInSec: number
+}
+
+export const TASK_UPLOAD_ACCEPT =
+  '.pdf,.doc,.docx,.txt,.zip,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.tif,.ico,.webp,.xls,.xlsx,.csv,.ppt,.pptx'
+
+export const TASK_UPLOAD_MAX_BYTES = 25 * 1024 * 1024
 
 export type TaskDetail = Task & {
   files: TaskFile[]
@@ -184,30 +204,57 @@ export function deleteTask(id: string) {
   return apiRequest<void>(`/tasks/${id}`, { method: 'DELETE' })
 }
 
-export function addTaskFile(id: string, fileLocation: string, note?: string) {
-  return apiRequest<TaskFile>(`/tasks/${id}/files`, {
+async function uploadToTask<T>(collection: 'files' | 'solutions', id: string, file: File) {
+  const ticket = await apiRequest<UploadTicket>(`/tasks/${id}/${collection}/upload-url`, {
     method: 'POST',
-    body: JSON.stringify({ fileLocation, note }),
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type || 'application/octet-stream',
+      sizeBytes: file.size,
+    }),
   })
+
+  const response = await fetch(ticket.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': ticket.contentType },
+    body: file,
+  })
+  if (!response.ok) {
+    throw new Error(`Could not upload ${file.name} (${response.status})`)
+  }
+
+  return apiRequest<T>(`/tasks/${id}/${collection}`, {
+    method: 'POST',
+    body: JSON.stringify({ key: ticket.key, filename: file.name }),
+  })
+}
+
+export function uploadTaskFile(id: string, file: File) {
+  return uploadToTask<TaskFile>('files', id, file)
 }
 
 export function listTaskFiles(id: string) {
   return apiRequest<TaskFile[]>(`/tasks/${id}/files`)
 }
 
+export function getTaskFileDownloadUrl(id: string, fileId: string) {
+  return apiRequest<FileDownload>(`/tasks/${id}/files/${fileId}/download`)
+}
+
 export function deleteTaskFile(id: string, fileId: string) {
   return apiRequest<void>(`/tasks/${id}/files/${fileId}`, { method: 'DELETE' })
 }
 
-export function addTaskSolution(id: string, fileLocation: string) {
-  return apiRequest<TaskSolution>(`/tasks/${id}/solutions`, {
-    method: 'POST',
-    body: JSON.stringify({ fileLocation }),
-  })
+export function uploadTaskSolution(id: string, file: File) {
+  return uploadToTask<TaskSolution>('solutions', id, file)
 }
 
 export function listTaskSolutions(id: string) {
   return apiRequest<TaskSolution[]>(`/tasks/${id}/solutions`)
+}
+
+export function getTaskSolutionDownloadUrl(id: string, solutionId: string) {
+  return apiRequest<FileDownload>(`/tasks/${id}/solutions/${solutionId}/download`)
 }
 
 export function deleteTaskSolution(id: string, solutionId: string) {

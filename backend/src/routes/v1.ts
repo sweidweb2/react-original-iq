@@ -4,16 +4,20 @@ import type { AppConfig } from '../config/index.js'
 import { loadConfig } from '../config/index.js'
 import { conflict } from '../errors/app-error.js'
 import { createAuthModule } from '../modules/auth/index.js'
+import { createContactRepository } from '../modules/contact/contact.repository.js'
 import { createContactModule } from '../modules/contact/index.js'
 import { createExportsModule } from '../modules/exports/index.js'
+import { createFeedbackRepository } from '../modules/feedback/feedback.repository.js'
 import { createFeedbackModule } from '../modules/feedback/index.js'
+import { createFxModule } from '../modules/fx/index.js'
 import { createHealthController } from '../modules/health/health.controller.js'
 import { createHealthRepository } from '../modules/health/health.repository.js'
 import { createHealthRoutes } from '../modules/health/health.routes.js'
 import { createHealthService } from '../modules/health/health.service.js'
+import { createInvoicesModule } from '../modules/invoices/index.js'
 import { createLoggingModule } from '../modules/logging/index.js'
 import { createPaymentsModule } from '../modules/payments/index.js'
-import type { PaymentsRepository } from '../modules/payments/payments.repository.js'
+import { createPaymentsRepository } from '../modules/payments/payments.repository.js'
 import { createRbacModule } from '../modules/rbac/index.js'
 import { createRevisionsModule } from '../modules/revisions/index.js'
 import { createSpecializationsModule } from '../modules/specializations/index.js'
@@ -36,17 +40,23 @@ export function createV1Router(deps: V1Deps = {}): Router {
   const healthController = createHealthController(healthService)
 
   const usersRepository = createUsersRepository(config)
-
-  const paymentsRepositoryRef: { current?: PaymentsRepository } = {}
+  const paymentsRepository = createPaymentsRepository(config)
+  const feedbackRepository = createFeedbackRepository(config)
+  const contactRepository = createContactRepository(config)
   const tasksRepository = createTasksRepository(config, {
-    hasPayments: (taskId) => {
-      const repo = paymentsRepositoryRef.current
-      return repo ? repo.hasAnyForTask(taskId) : Promise.resolve(false)
-    },
+    hasPayments: (taskId) => paymentsRepository.hasAnyForTask(taskId),
   })
 
-  const paymentsModule = createPaymentsModule(config, tasksRepository)
-  paymentsRepositoryRef.current = paymentsModule.repository
+  const invoicesModule = createInvoicesModule(config, {
+    paymentsRepository,
+    tasksRepository,
+    usersRepository,
+  })
+  const paymentsModule = createPaymentsModule(config, {
+    tasksRepository,
+    invoices: invoicesModule.service,
+    repository: paymentsRepository,
+  })
   const revisionsModule = createRevisionsModule(config, tasksRepository)
 
   const users = createUsersService(usersRepository, {
@@ -65,8 +75,9 @@ export function createV1Router(deps: V1Deps = {}): Router {
   })
 
   router.use('/health', createHealthRoutes(healthController))
-  router.use('/contact', createContactModule(config))
-  router.use('/feedback', createFeedbackModule(config))
+  router.use('/contact', createContactModule(config, contactRepository))
+  router.use('/feedback', createFeedbackModule(config, feedbackRepository))
+  router.use('/fx', createFxModule(config))
   router.use('/auth', createAuthModule(config, users))
   router.use(createLoggingModule())
   router.use('/users', createUsersModule(config, users))
@@ -80,11 +91,15 @@ export function createV1Router(deps: V1Deps = {}): Router {
     }),
   )
   router.use('/revisions', revisionsModule.detailRoutes)
+  router.use('/invoices', invoicesModule.routes)
   router.use(
     '/exports',
     createExportsModule(config, {
+      usersRepository,
       tasksRepository,
-      paymentsRepository: paymentsModule.repository,
+      paymentsRepository,
+      feedbackRepository,
+      contactRepository,
     }),
   )
   router.use('/rbac', createRbacModule(config))

@@ -12,7 +12,11 @@ import type {
 import type { RevisionDetail, RevisionSession } from './revisions.types.js'
 
 export type RevisionsService = {
-  createForTask: (taskId: string, body: CreateRevisionBody, actor: AuthActor) => Promise<RevisionSession>
+  createForTask: (
+    taskId: string,
+    body: CreateRevisionBody,
+    actor: AuthActor,
+  ) => Promise<RevisionSession>
   listForTask: (taskId: string, actor: AuthActor) => Promise<RevisionSession[]>
   getById: (id: string, actor: AuthActor) => Promise<RevisionDetail>
   update: (id: string, body: UpdateRevisionBody, actor: AuthActor) => Promise<RevisionSession>

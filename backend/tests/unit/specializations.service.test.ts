@@ -76,9 +76,9 @@ describe('specializations.service', () => {
     vi.mocked(repository.create).mockResolvedValue(makeSpec())
     const service = createSpecializationsService(repository, users)
 
-    await expect(
-      service.create({ tutorId: 'tutor-1', name: 'Calculus' }, admin),
-    ).resolves.toEqual(makeSpec())
+    await expect(service.create({ tutorId: 'tutor-1', name: 'Calculus' }, admin)).resolves.toEqual(
+      makeSpec(),
+    )
     await expect(
       service.create({ tutorId: 'tutor-1', name: 'Algebra' }, coordinator),
     ).resolves.toEqual(makeSpec())

@@ -3,14 +3,15 @@ import { Link } from 'react-router-dom'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldError, FieldLabel } from '@/components/forms'
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import type { AuthRole } from '@/services/auth'
 import { downloadExport } from '@/services/exports'
-import { toastApiError } from '@/services/toast'
 import {
   createTask,
   getTaskStats,
@@ -19,12 +20,13 @@ import {
   type TaskStats,
   taskStatusLabel,
 } from '@/services/tasks'
-import type { AuthRole } from '@/services/auth'
+import { toastApiError } from '@/services/toast'
 import { getUserStats, type UserStats } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
-import { createTaskFormSchema, type CreateTaskFormValues } from '../tasks/task-form.schema'
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
+import { createTaskFormSchema, type CreateTaskFormValues } from '../tasks/task-form.schema'
+import { taskStatusTone } from '../tasks/taskDetailsFormat'
 
 const TITLES: Record<AuthRole, { title: string; description: string }> = {
   super: {
@@ -73,17 +75,27 @@ const emptyRequest: CreateTaskFormValues = {
 
 function RecentTasksList({ base, tasks }: { base: string; tasks: Task[] }) {
   if (tasks.length === 0) {
-    return <EmptyState title="No tasks to preview" description="Tasks in your scope will appear here." />
+    return (
+      <EmptyState title="No tasks to preview" description="Tasks in your scope will appear here." />
+    )
   }
   return (
     <ul className="space-y-2 text-sm">
       {tasks.map((task) => (
-        <li key={task.id} className="flex items-center justify-between rounded-md border px-3 py-2">
-          <div>
-            <p className="font-medium">{task.topic ?? 'Untitled'}</p>
-            <p className="text-xs text-muted-foreground">{taskStatusLabel(task.status)}</p>
+        <li
+          key={task.id}
+          className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2"
+        >
+          <div className="min-w-0">
+            <p className="truncate font-medium">{task.topic ?? 'Untitled'}</p>
+            <Badge tone={taskStatusTone(task.status)} className="mt-1">
+              {taskStatusLabel(task.status)}
+            </Badge>
           </div>
-          <Link to={`${base}/tasks/${task.id}`} className="text-primary hover:underline">
+          <Link
+            to={`${base}/tasks/${task.id}`}
+            className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+          >
             Open
           </Link>
         </li>
@@ -166,23 +178,22 @@ function AdminSections({ base }: { base: string }) {
       >
         <RecentTasksList base={base} tasks={recent} />
       </SectionCard>
-      <SectionCard
-        title="Exports"
-        description="Download CSV snapshots for reporting."
-      >
+      <SectionCard title="Exports" description="Download CSV snapshots for reporting.">
         <div className="flex flex-wrap gap-2">
-          {(['users', 'tasks', 'payments', 'refunds', 'leads', 'feedback'] as const).map((resource) => (
-            <Button
-              key={resource}
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={exporting !== null}
-              onClick={() => void onExport(resource)}
-            >
-              {exporting === resource ? 'Exporting…' : resource}
-            </Button>
-          ))}
+          {(['users', 'tasks', 'payments', 'refunds', 'leads', 'feedback'] as const).map(
+            (resource) => (
+              <Button
+                key={resource}
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={exporting !== null}
+                onClick={() => void onExport(resource)}
+              >
+                {exporting === resource ? 'Exporting…' : resource}
+              </Button>
+            ),
+          )}
         </div>
       </SectionCard>
     </>
@@ -251,15 +262,26 @@ function CoordinatorSections({ base }: { base: string }) {
         }
       >
         {createOpen ? (
-          <form onSubmit={onCreate} className="mb-6 grid gap-3 rounded-lg border p-4 sm:grid-cols-2">
+          <form
+            onSubmit={onCreate}
+            className="mb-6 grid gap-3 rounded-lg border p-4 sm:grid-cols-2"
+          >
             <Field data-invalid={Boolean(fieldErrors.topic) || undefined} className="sm:col-span-2">
               <FieldLabel htmlFor="dash-topic">Topic</FieldLabel>
-              <Input id="dash-topic" value={values.topic} onChange={(e) => setValues((v) => ({ ...v, topic: e.target.value }))} />
+              <Input
+                id="dash-topic"
+                value={values.topic}
+                onChange={(e) => setValues((v) => ({ ...v, topic: e.target.value }))}
+              />
               <FieldError>{fieldErrors.topic}</FieldError>
             </Field>
             <Field data-invalid={Boolean(fieldErrors.category) || undefined}>
               <FieldLabel htmlFor="dash-category">Category</FieldLabel>
-              <Input id="dash-category" value={values.category} onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))} />
+              <Input
+                id="dash-category"
+                value={values.category}
+                onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))}
+              />
               <FieldError>{fieldErrors.category}</FieldError>
             </Field>
             <Field data-invalid={Boolean(fieldErrors.deadline) || undefined}>
@@ -272,9 +294,17 @@ function CoordinatorSections({ base }: { base: string }) {
               />
               <FieldError>{fieldErrors.deadline}</FieldError>
             </Field>
-            <Field data-invalid={Boolean(fieldErrors.description) || undefined} className="sm:col-span-2">
+            <Field
+              data-invalid={Boolean(fieldErrors.description) || undefined}
+              className="sm:col-span-2"
+            >
               <FieldLabel htmlFor="dash-desc">Description</FieldLabel>
-              <Textarea id="dash-desc" rows={2} value={values.description} onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))} />
+              <Textarea
+                id="dash-desc"
+                rows={2}
+                value={values.description}
+                onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+              />
               <FieldError>{fieldErrors.description}</FieldError>
             </Field>
             <div className="sm:col-span-2">
@@ -410,7 +440,10 @@ function ClientSections({ base }: { base: string }) {
             />
             <FieldError>{fieldErrors.deadline}</FieldError>
           </Field>
-          <Field data-invalid={Boolean(fieldErrors.description) || undefined} className="sm:col-span-2">
+          <Field
+            data-invalid={Boolean(fieldErrors.description) || undefined}
+            className="sm:col-span-2"
+          >
             <FieldLabel htmlFor="client-desc">Description</FieldLabel>
             <Textarea
               id="client-desc"

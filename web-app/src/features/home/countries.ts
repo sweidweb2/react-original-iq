@@ -1,27 +1,30 @@
+import type { Localized } from '@/i18n'
+
 export type Country = {
-  name: string
+  /** English name is the canonical value sent to the API. */
+  name: Localized<string>
   dialCode: string
 }
 
 export const countries: Country[] = [
-  { name: 'Bahrain', dialCode: '+973' },
-  { name: 'Egypt', dialCode: '+20' },
-  { name: 'Iraq', dialCode: '+964' },
-  { name: 'Jordan', dialCode: '+962' },
-  { name: 'Kuwait', dialCode: '+965' },
-  { name: 'Lebanon', dialCode: '+961' },
-  { name: 'Oman', dialCode: '+968' },
-  { name: 'Palestine', dialCode: '+970' },
-  { name: 'Qatar', dialCode: '+974' },
-  { name: 'Saudi Arabia', dialCode: '+966' },
-  { name: 'United Arab Emirates', dialCode: '+971' },
-  { name: 'Yemen', dialCode: '+967' },
-  { name: 'United States', dialCode: '+1' },
-  { name: 'United Kingdom', dialCode: '+44' },
-  { name: 'Canada', dialCode: '+1' },
-  { name: 'France', dialCode: '+33' },
-  { name: 'Germany', dialCode: '+49' },
-  { name: 'India', dialCode: '+91' },
-  { name: 'Pakistan', dialCode: '+92' },
-  { name: 'Turkey', dialCode: '+90' },
+  { name: { en: 'Bahrain', ar: 'البحرين' }, dialCode: '+973' },
+  { name: { en: 'Egypt', ar: 'مصر' }, dialCode: '+20' },
+  { name: { en: 'Iraq', ar: 'العراق' }, dialCode: '+964' },
+  { name: { en: 'Jordan', ar: 'الأردن' }, dialCode: '+962' },
+  { name: { en: 'Kuwait', ar: 'الكويت' }, dialCode: '+965' },
+  { name: { en: 'Lebanon', ar: 'لبنان' }, dialCode: '+961' },
+  { name: { en: 'Oman', ar: 'عُمان' }, dialCode: '+968' },
+  { name: { en: 'Palestine', ar: 'فلسطين' }, dialCode: '+970' },
+  { name: { en: 'Qatar', ar: 'قطر' }, dialCode: '+974' },
+  { name: { en: 'Saudi Arabia', ar: 'السعودية' }, dialCode: '+966' },
+  { name: { en: 'United Arab Emirates', ar: 'الإمارات العربية المتحدة' }, dialCode: '+971' },
+  { name: { en: 'Yemen', ar: 'اليمن' }, dialCode: '+967' },
+  { name: { en: 'United States', ar: 'الولايات المتحدة' }, dialCode: '+1' },
+  { name: { en: 'United Kingdom', ar: 'المملكة المتحدة' }, dialCode: '+44' },
+  { name: { en: 'Canada', ar: 'كندا' }, dialCode: '+1' },
+  { name: { en: 'France', ar: 'فرنسا' }, dialCode: '+33' },
+  { name: { en: 'Germany', ar: 'ألمانيا' }, dialCode: '+49' },
+  { name: { en: 'India', ar: 'الهند' }, dialCode: '+91' },
+  { name: { en: 'Pakistan', ar: 'باكستان' }, dialCode: '+92' },
+  { name: { en: 'Turkey', ar: 'تركيا' }, dialCode: '+90' },
 ]

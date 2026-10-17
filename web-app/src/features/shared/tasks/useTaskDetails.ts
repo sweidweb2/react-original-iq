@@ -1,16 +1,10 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
-import {
-  createRevision,
-  listRevisionsForTask,
-  type RevisionSession,
-} from '@/services/revisions'
-import { toastApiError } from '@/services/toast'
+import { toast } from '@/components/ui/toast'
+import { createRevision, listRevisionsForTask, type RevisionSession } from '@/services/revisions'
 import {
   activateTask,
-  addTaskFile,
-  addTaskSolution,
   approveTask,
   assignTutor,
   cancelTask,
@@ -20,18 +14,26 @@ import {
   deleteTaskFile,
   deleteTaskSolution,
   disapproveTask,
+  type FileDownload,
   getTask,
+  getTaskFileDownloadUrl,
+  getTaskSolutionDownloadUrl,
   removeTutor,
   setTaskAllowView,
   submitTask,
+  TASK_UPLOAD_MAX_BYTES,
   type TaskDetail,
   type TaskType,
   updateTask,
   updateTaskPrice,
+  uploadTaskFile,
+  uploadTaskSolution,
 } from '@/services/tasks'
+import { toastApiError } from '@/services/toast'
 import { listUsers, type ManagedUser } from '@/services/users'
-import { toast } from '@/components/ui/toast'
 import { useAuthStore } from '@/stores/authStore'
+
+export type UploadTarget = 'documents' | 'solutions'
 
 export function useTaskDetails() {
   const { taskId = '' } = useParams()
@@ -61,20 +63,18 @@ export function useTaskDetails() {
   const [revisionOpen, setRevisionOpen] = useState(false)
   const [revisionTitle, setRevisionTitle] = useState('')
   const [revisionDescription, setRevisionDescription] = useState('')
-  const [assignOpen, setAssignOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
-  const [coordOpen, setCoordOpen] = useState(false)
   const [tutors, setTutors] = useState<ManagedUser[]>([])
+  const [tutorsLoading, setTutorsLoading] = useState(false)
   const [coordinators, setCoordinators] = useState<ManagedUser[]>([])
+  const [coordinatorsLoading, setCoordinatorsLoading] = useState(false)
   const [selectedTutorId, setSelectedTutorId] = useState('')
   const [selectedCoordId, setSelectedCoordId] = useState('')
   const [editTopic, setEditTopic] = useState('')
   const [editType, setEditType] = useState<TaskType>('assignment')
   const [editCategory, setEditCategory] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [fileLocation, setFileLocation] = useState('')
-  const [fileNote, setFileNote] = useState('')
-  const [solutionLocation, setSolutionLocation] = useState('')
+  const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null)
   const [isActing, setIsActing] = useState(false)
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), [])
@@ -99,6 +99,7 @@ export function useTaskDetails() {
         setEditCategory(detail.category ?? '')
         setEditDescription(detail.description ?? '')
         setSelectedCoordId(detail.coordinatorId ?? '')
+        setSelectedTutorId(detail.tutorId ?? '')
       } catch (err) {
         if (!cancelled) setError(err)
       } finally {
@@ -112,26 +113,42 @@ export function useTaskDetails() {
   }, [taskId, reloadKey])
 
   useEffect(() => {
-    if (!assignOpen || !isStaff) return
+    if (!isStaff) return
     let cancelled = false
-    void listUsers({ page: 1, limit: 100, role: 'tutor', status: 'ACTIVE' }).then((result) => {
-      if (!cancelled) setTutors(result.data)
-    })
+    setTutorsLoading(true)
+    listUsers({ page: 1, limit: 100, role: 'tutor', status: 'ACTIVE' })
+      .then((result) => {
+        if (!cancelled) setTutors(result.data)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) toastApiError(err, 'Could not load tutors')
+      })
+      .finally(() => {
+        if (!cancelled) setTutorsLoading(false)
+      })
     return () => {
       cancelled = true
     }
-  }, [assignOpen, isStaff])
+  }, [isStaff])
 
   useEffect(() => {
-    if (!coordOpen || !isAdmin) return
+    if (!isAdmin) return
     let cancelled = false
-    void listUsers({ page: 1, limit: 100, role: 'coordinator', status: 'ACTIVE' }).then((result) => {
-      if (!cancelled) setCoordinators(result.data)
-    })
+    setCoordinatorsLoading(true)
+    listUsers({ page: 1, limit: 100, role: 'coordinator', status: 'ACTIVE' })
+      .then((result) => {
+        if (!cancelled) setCoordinators(result.data)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) toastApiError(err, 'Could not load coordinators')
+      })
+      .finally(() => {
+        if (!cancelled) setCoordinatorsLoading(false)
+      })
     return () => {
       cancelled = true
     }
-  }, [coordOpen, isAdmin])
+  }, [isAdmin])
 
   async function runAction(label: string, action: () => Promise<unknown>) {
     setIsActing(true)
@@ -176,7 +193,6 @@ export function useTaskDetails() {
     event.preventDefault()
     if (!task || !selectedTutorId) return
     await runAction('Tutor assigned', () => assignTutor(task.id, selectedTutorId))
-    setAssignOpen(false)
   }
 
   async function onSaveEdit(event: FormEvent) {
@@ -197,7 +213,6 @@ export function useTaskDetails() {
     event.preventDefault()
     if (!task || !selectedCoordId) return
     await runAction('Coordinator updated', () => changeCoordinator(task.id, selectedCoordId))
-    setCoordOpen(false)
   }
 
   async function onDeleteTask() {
@@ -215,23 +230,50 @@ export function useTaskDetails() {
     }
   }
 
-  async function onAddFile(event: FormEvent) {
-    event.preventDefault()
-    if (!task || !fileLocation.trim()) return
-    await runAction('File added', async () => {
-      await addTaskFile(task.id, fileLocation.trim(), fileNote.trim() || undefined)
-      setFileLocation('')
-      setFileNote('')
-    })
+  async function onUpload(target: UploadTarget, files: File[]) {
+    if (!task || files.length === 0) return
+    const tooLarge = files.find((file) => file.size > TASK_UPLOAD_MAX_BYTES)
+    if (tooLarge) {
+      toast.error(`${tooLarge.name} is larger than 25 MB`)
+      return
+    }
+    const upload = target === 'documents' ? uploadTaskFile : uploadTaskSolution
+    const noun = target === 'documents' ? 'File' : 'Solution'
+    setUploadTarget(target)
+    setIsActing(true)
+    let uploaded = 0
+    try {
+      for (const file of files) {
+        await upload(task.id, file)
+        uploaded += 1
+      }
+      toast.success(uploaded === 1 ? `${noun} uploaded` : `${uploaded} files uploaded`)
+    } catch (err) {
+      toastApiError(err, 'Upload failed')
+    } finally {
+      setIsActing(false)
+      setUploadTarget(null)
+      if (uploaded > 0) reload()
+    }
   }
 
-  async function onAddSolution(event: FormEvent) {
-    event.preventDefault()
-    if (!task || !solutionLocation.trim()) return
-    await runAction('Solution added', async () => {
-      await addTaskSolution(task.id, solutionLocation.trim())
-      setSolutionLocation('')
-    })
+  async function openDownload(request: () => Promise<FileDownload>) {
+    try {
+      const { url } = await request()
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      toastApiError(err, 'Could not open file')
+    }
+  }
+
+  function onOpenFile(fileId: string) {
+    if (!task) return
+    void openDownload(() => getTaskFileDownloadUrl(task.id, fileId))
+  }
+
+  function onOpenSolution(solutionId: string) {
+    if (!task) return
+    void openDownload(() => getTaskSolutionDownloadUrl(task.id, solutionId))
   }
 
   const assignedTutor = task?.tutorId === userId
@@ -271,8 +313,10 @@ export function useTaskDetails() {
     onAssignTutor,
     onSaveEdit,
     onChangeCoordinator,
-    onAddFile,
-    onAddSolution,
+    uploadTarget,
+    onUpload,
+    onOpenFile,
+    onOpenSolution,
     priceOpen,
     setPriceOpen,
     priceValue,
@@ -283,14 +327,12 @@ export function useTaskDetails() {
     setRevisionTitle,
     revisionDescription,
     setRevisionDescription,
-    assignOpen,
-    setAssignOpen,
     editOpen,
     setEditOpen,
-    coordOpen,
-    setCoordOpen,
     tutors,
+    tutorsLoading,
     coordinators,
+    coordinatorsLoading,
     selectedTutorId,
     setSelectedTutorId,
     selectedCoordId,
@@ -303,12 +345,6 @@ export function useTaskDetails() {
     setEditCategory,
     editDescription,
     setEditDescription,
-    fileLocation,
-    setFileLocation,
-    fileNote,
-    setFileNote,
-    solutionLocation,
-    setSolutionLocation,
     approveTask,
     disapproveTask,
     cancelTask,

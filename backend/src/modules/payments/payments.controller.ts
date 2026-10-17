@@ -5,13 +5,16 @@ import type {
   CheckoutPaymentBody,
   CreateManualPaymentBody,
   CreateRefundBody,
+  UpdatePaymentBody,
   UpdateRefundStatusBody,
 } from './payments.schema.js'
 import type { PaymentsService } from './payments.service.js'
 
 export type PaymentsController = {
   getTaskPayments: RequestHandler
+  getPayment: RequestHandler
   createManualPayment: RequestHandler
+  updatePayment: RequestHandler
   checkout: RequestHandler
   deletePayment: RequestHandler
   createRefund: RequestHandler
@@ -24,10 +27,21 @@ export function createPaymentsController(service: PaymentsService): PaymentsCont
     getTaskPayments: respond(200, (req) =>
       service.getTaskPayments(String(req.params.id), requireActor(req)),
     ),
+    getPayment: respond(200, (req) =>
+      service.getPayment(String(req.params.id), String(req.params.paymentId), requireActor(req)),
+    ),
     createManualPayment: respond(201, (req) =>
       service.createManualPayment(
         String(req.params.id),
         req.body as CreateManualPaymentBody,
+        requireActor(req),
+      ),
+    ),
+    updatePayment: respond(200, (req) =>
+      service.updatePayment(
+        String(req.params.id),
+        String(req.params.paymentId),
+        req.body as UpdatePaymentBody,
         requireActor(req),
       ),
     ),

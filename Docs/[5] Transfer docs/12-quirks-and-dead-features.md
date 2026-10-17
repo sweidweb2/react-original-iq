@@ -4,27 +4,27 @@ Things in the old codebase that look like product but are incomplete, inconsiste
 
 ## Dead / unused product paths
 
-| Item | Reality | Rebuild advice |
-|------|---------|----------------|
-| `messages` table / Message model | No send/receive controller UX; Excel export only | Drop unless you want real chat |
-| `assignment_transactions` | Never written by app code; export only | Drop or implement real audit log |
-| Stripe PHP package | Present in composer; business path is MontyPay | Don’t assume Stripe works |
-| `users.user_type` | Migration column; runtime uses `role` | Single column only |
+| Item                             | Reality                                          | Rebuild advice                   |
+| -------------------------------- | ------------------------------------------------ | -------------------------------- |
+| `messages` table / Message model | No send/receive controller UX; Excel export only | Drop unless you want real chat   |
+| `assignment_transactions`        | Never written by app code; export only           | Drop or implement real audit log |
+| Stripe PHP package               | Present in composer; business path is MontyPay   | Don’t assume Stripe works        |
+| `users.user_type`                | Migration column; runtime uses `role`            | Single column only               |
 
 ## Logic bugs / inconsistencies
 
-| Issue | Detail | Rebuild advice |
-|-------|--------|----------------|
-| `isSuperAdmin()` | Requires `role==='admin' AND role==='super_admin'` (impossible) | Real flag or real role |
-| Admin OTP | Gated on broken super-admin check → effectively never runs | Explicit 2FA policy |
-| `MontyPayService::verifyHash` | Referenced by callback; method missing | Implement verification before trust |
-| payment_status validation | Update path allows `pending`/`refunded` while runtime uses `unpaid`/`paid`/`refund_pending` | One enum |
-| Lockout copy vs code | Comments mention 5 min for 3–4 fails; code uses 60s | Align UX + policy |
-| Feedback.tutor_id | Required in DB/relations; not always in model fillable | Make first-class |
-| File.note / Message.subject | In migrations; weak model fillable usage | Keep or drop consciously |
-| Session lifetime | `.env` default 120 vs remember 1 week vs idle 30m | Document clearly |
-| Upload size | 10MB vs 500MB contradictions | One limit |
-| Revision upload bug | File id written into solution_id join | Solutions only |
+| Issue                         | Detail                                                                                      | Rebuild advice                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `isSuperAdmin()`              | Requires `role==='admin' AND role==='super_admin'` (impossible)                             | Real flag or real role              |
+| Admin OTP                     | Gated on broken super-admin check → effectively never runs                                  | Explicit 2FA policy                 |
+| `MontyPayService::verifyHash` | Referenced by callback; method missing                                                      | Implement verification before trust |
+| payment_status validation     | Update path allows `pending`/`refunded` while runtime uses `unpaid`/`paid`/`refund_pending` | One enum                            |
+| Lockout copy vs code          | Comments mention 5 min for 3–4 fails; code uses 60s                                         | Align UX + policy                   |
+| Feedback.tutor_id             | Required in DB/relations; not always in model fillable                                      | Make first-class                    |
+| File.note / Message.subject   | In migrations; weak model fillable usage                                                    | Keep or drop consciously            |
+| Session lifetime              | `.env` default 120 vs remember 1 week vs idle 30m                                           | Document clearly                    |
+| Upload size                   | 10MB vs 500MB contradictions                                                                | One limit                           |
+| Revision upload bug           | File id written into solution_id join                                                       | Solutions only                      |
 
 ## Schema ↔ model mismatches to fix
 
@@ -55,12 +55,12 @@ Things in the old codebase that look like product but are incomplete, inconsiste
 
 ## Decision log (fill during rebuild)
 
-| Decision | Choice | Date |
-|----------|--------|------|
-| Payment gateway | | |
-| Object storage | | |
-| Admin 2FA | | |
-| Public IDs (UUID vs int) | | |
-| Keep messages? | | |
-| Solution visibility rule | | |
-| Upload size limits | | |
+| Decision                 | Choice | Date |
+| ------------------------ | ------ | ---- |
+| Payment gateway          |        |      |
+| Object storage           |        |      |
+| Admin 2FA                |        |      |
+| Public IDs (UUID vs int) |        |      |
+| Keep messages?           |        |      |
+| Solution visibility rule |        |      |
+| Upload size limits       |        |      |

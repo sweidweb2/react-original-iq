@@ -1,35 +1,39 @@
 import { z } from 'zod'
 
-const emailField = z
-  .string()
-  .trim()
-  .min(1, 'Email is required')
-  .max(100, 'Email must be 100 characters or fewer')
-  .email('Enter a valid email')
-  .transform((value) => value.toLowerCase())
+import type { PublicDictionary } from '../i18n/en'
+import { publicEn } from '../i18n/en'
 
-export const contactMessageSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Your name is required')
-    .max(20, 'Name must be 20 characters or fewer'),
-  email: emailField,
-  subject: z
-    .string()
-    .trim()
-    .max(120, 'Subject must be 120 characters or fewer')
-    .transform((value) => value || undefined),
-  message: z
-    .string()
-    .trim()
-    .min(1, 'Message is required')
-    .max(245, 'Message must be 245 characters or fewer'),
-})
+type ContactMessages = PublicDictionary['contact']['validation']
 
-export const newsletterSchema = z.object({
-  email: emailField,
-})
+export function createContactSchemas(messages: ContactMessages) {
+  const emailField = z
+    .string()
+    .trim()
+    .min(1, messages.emailRequired)
+    .max(100, messages.emailTooLong)
+    .email(messages.emailInvalid)
+    .transform((value) => value.toLowerCase())
+
+  return {
+    contactMessageSchema: z.object({
+      name: z.string().trim().min(1, messages.nameRequired).max(20, messages.nameTooLong),
+      email: emailField,
+      subject: z
+        .string()
+        .trim()
+        .max(120, messages.subjectTooLong)
+        .transform((value) => value || undefined),
+      message: z.string().trim().min(1, messages.messageRequired).max(245, messages.messageTooLong),
+    }),
+    newsletterSchema: z.object({
+      email: emailField,
+    }),
+  }
+}
+
+export const { contactMessageSchema, newsletterSchema } = createContactSchemas(
+  publicEn.contact.validation,
+)
 
 export type ContactMessageValues = z.input<typeof contactMessageSchema>
 export type NewsletterValues = z.input<typeof newsletterSchema>

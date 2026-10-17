@@ -23,7 +23,11 @@ export type RevisionsController = {
 export function createRevisionsController(service: RevisionsService): RevisionsController {
   return {
     createForTask: respond(201, (req) =>
-      service.createForTask(String(req.params.id), req.body as CreateRevisionBody, requireActor(req)),
+      service.createForTask(
+        String(req.params.id),
+        req.body as CreateRevisionBody,
+        requireActor(req),
+      ),
     ),
     listForTask: respond(200, async (req) => ({
       data: await service.listForTask(String(req.params.id), requireActor(req)),

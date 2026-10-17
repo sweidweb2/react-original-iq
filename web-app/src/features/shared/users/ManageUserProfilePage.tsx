@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
@@ -9,21 +9,22 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { toast } from '@/components/ui/toast'
+import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import type { AuthRole } from '@/services/auth'
-import { toastApiError } from '@/services/toast'
-import {
-  createSpecialization,
-  deleteSpecialization,
-  listSpecializations,
-  type Specialization,
-} from '@/services/specializations'
 import {
   assignUserPermissions,
   getUserPermissions,
   listPermissions,
   type RbacPermission,
 } from '@/services/rbac'
+import {
+  createSpecialization,
+  deleteSpecialization,
+  listSpecializations,
+  type Specialization,
+} from '@/services/specializations'
+import { toastApiError } from '@/services/toast'
 import {
   deactivateUser,
   deleteUser,
@@ -70,8 +71,8 @@ export function ManageUserProfilePage() {
   const isAdmin = actor?.role === 'admin' || actor?.role === 'super'
   const canDelete = isAdmin || actor?.role === 'coordinator'
   const portalBase = pathname.replace(/\/users\/[^/]+\/?$/, '')
-  const backTo = portalBase.endsWith('/admin') ? `${portalBase}/users` : portalBase
-  const backLabel = portalBase.endsWith('/admin') ? 'Back to users' : 'Back to home'
+  const hasUsersList = portalBase.endsWith('/admin')
+  const backTo = hasUsersList ? `${portalBase}/users` : portalBase
 
   const [user, setUser] = useState<ManagedUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -92,6 +93,11 @@ export function ManageUserProfilePage() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([])
   const [permsBusy, setPermsBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const breadcrumbs = usePortalBreadcrumbs([
+    ...(hasUsersList ? [{ label: 'Users', path: 'users' }] : []),
+    { label: user ? userDisplayName(user) : 'Manage user' },
+  ])
 
   async function loadSpecs(tutorId: string) {
     try {
@@ -194,12 +200,13 @@ export function ManageUserProfilePage() {
     <PortalPageShell
       title="Manage user"
       description={user ? `Profile for ${userDisplayName(user)}` : 'Profile management'}
+      breadcrumbs={breadcrumbs}
       actions={
         <>
           {isAdmin && user && user.status === 'ACTIVE' && user.id !== actor?.id ? (
             <Button
               type="button"
-              variant="outline"
+              variant="danger-soft"
               size="sm"
               disabled={deactivating}
               onClick={() => void onDeactivate()}
@@ -221,12 +228,6 @@ export function ManageUserProfilePage() {
       }
       maxWidth="4xl"
     >
-      <p className="text-sm text-muted-foreground">
-        <Link to={backTo} className="font-medium text-primary hover:underline">
-          {backLabel}
-        </Link>
-      </p>
-
       <AsyncState isLoading={isLoading} error={error} onRetry={() => void load()}>
         {user ? (
           <>
@@ -252,9 +253,7 @@ export function ManageUserProfilePage() {
                     id="user-role"
                     value={values.role}
                     disabled={!isAdmin || user.id === actor?.id}
-                    onChange={(e) =>
-                      setValues((p) => ({ ...p, role: e.target.value as AuthRole }))
-                    }
+                    onChange={(e) => setValues((p) => ({ ...p, role: e.target.value as AuthRole }))}
                   >
                     {ROLE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -298,10 +297,7 @@ export function ManageUserProfilePage() {
             </SectionCard>
 
             {user.role === 'tutor' ? (
-              <SectionCard
-                title="Specializations"
-                description="Subjects or skills for this tutor."
-              >
+              <SectionCard title="Specializations" description="Subjects or skills for this tutor.">
                 <form
                   className="mb-4 flex flex-wrap gap-2"
                   onSubmit={(event) => {
@@ -329,7 +325,10 @@ export function ManageUserProfilePage() {
                   </Button>
                 </form>
                 {specs.length === 0 ? (
-                  <EmptyState title="No specializations" description="Add subjects this tutor covers." />
+                  <EmptyState
+                    title="No specializations"
+                    description="Add subjects this tutor covers."
+                  />
                 ) : (
                   <ul className="space-y-2 text-sm">
                     {specs.map((spec) => (
@@ -340,7 +339,7 @@ export function ManageUserProfilePage() {
                         <span className="font-medium">{spec.name}</span>
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
                           disabled={specBusy}
                           onClick={() => {
@@ -384,7 +383,10 @@ export function ManageUserProfilePage() {
                 description="Fine-grained permissions for this user (admin only)."
               >
                 {allPermissions.length === 0 ? (
-                  <EmptyState title="No permissions catalog" description="Create permissions in RBAC first." />
+                  <EmptyState
+                    title="No permissions catalog"
+                    description="Create permissions in RBAC first."
+                  />
                 ) : (
                   <>
                     <ul className="mb-3 max-h-48 space-y-1 overflow-y-auto text-sm">
@@ -430,7 +432,10 @@ export function ManageUserProfilePage() {
               </SectionCard>
             ) : null}
 
-            <SectionCard title="Danger zone" description="Safe delete when the user has no active tasks or money rows.">
+            <SectionCard
+              title="Danger zone"
+              description="Safe delete when the user has no active tasks or money rows."
+            >
               <Button
                 type="button"
                 variant="danger"

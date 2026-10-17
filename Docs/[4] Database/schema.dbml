@@ -293,10 +293,13 @@ Table refunds {
 Table invoices {
   id uuid [pk, default: `gen_random_uuid()`]
   payment_id uuid [not null, unique, ref: - payments.id]
-  invoice_number varchar(32)
+  invoice_seq bigint [not null, unique, note: 'nextval(invoice_number_seq)']
+  invoice_number varchar(32) [unique, note: 'INV- + lpad(invoice_seq, 6)']
   invoice_date timestamptz
-  invoice_status invoice_status
-  pdf_path text
+  invoice_status invoice_status [note: 'sent | failed (resend allowed)']
+  pdf_path text [note: 'R2 key under invoices/']
+  sent_at timestamptz
+  last_error text
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
 }

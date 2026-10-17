@@ -7,11 +7,13 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
 import { toast } from '@/components/ui/toast'
+import { useI18n } from '@/i18n'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { createLead } from '@/services/contact'
 
-import { countries } from './countries'
-import { leadSchema, type LeadValues } from './lead.schema'
+import { countries, type Country } from './countries'
+import { useHomeDictionary } from './i18n'
+import { createLeadSchema, type LeadValues } from './lead.schema'
 
 const emptyValues: LeadValues = { country: '', dialCode: '', phone: '' }
 
@@ -21,6 +23,9 @@ type LeadModalProps = {
 }
 
 export function LeadModal({ open, onClose }: LeadModalProps) {
+  const { locale } = useI18n()
+  const t = useHomeDictionary().lead
+  const schema = useMemo(() => createLeadSchema(t.validation), [t.validation])
   const [values, setValues] = useState<LeadValues>(emptyValues)
   const [query, setQuery] = useState('')
   const [listOpen, setListOpen] = useState(false)
@@ -28,11 +33,17 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
   const [formError, setFormError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const selectedName = countries.find((c) => c.name.en === values.country)?.name[locale] ?? ''
+
   const matches = useMemo(() => {
     const term = query.trim().toLowerCase()
     if (!term) return countries
-    return countries.filter((country) => country.name.toLowerCase().includes(term))
-  }, [query])
+    return countries.filter(
+      (country) =>
+        country.name[locale].toLowerCase().includes(term) ||
+        country.name.en.toLowerCase().includes(term),
+    )
+  }, [query, locale])
 
   function close() {
     setValues(emptyValues)
@@ -44,16 +55,16 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
     onClose()
   }
 
-  function selectCountry(name: string, dialCode: string) {
-    setValues((current) => ({ ...current, country: name, dialCode }))
-    setQuery(name)
+  function selectCountry(country: Country) {
+    setValues((current) => ({ ...current, country: country.name.en, dialCode: country.dialCode }))
+    setQuery(country.name[locale])
     setListOpen(false)
     setFieldErrors((current) => ({ ...current, country: undefined, dialCode: undefined }))
   }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
-    const parsed = parseForm(leadSchema, values)
+    const parsed = parseForm(schema, values)
     if (!parsed.success) {
       setFieldErrors(parsed.fieldErrors)
       return
@@ -64,10 +75,10 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
     setIsSubmitting(true)
     try {
       await createLead(parsed.data)
-      toast.success("Thanks — we'll reach out to assist you.")
+      toast.success(t.success)
       close()
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Could not send your details')
+      setFormError(error instanceof Error ? error.message : t.failed)
     } finally {
       setIsSubmitting(false)
     }
@@ -77,11 +88,11 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
     <Dialog
       open={open}
       onClose={close}
-      title="Struggling with school or university work?"
-      description="Leave your country and phone number, and we'll reach out to assist you."
+      title={t.title}
+      description={t.description}
       footer={
         <Button type="submit" form="home-lead-form" disabled={isSubmitting}>
-          {isSubmitting ? 'Sending…' : 'Send'}
+          {isSubmitting ? t.sending : t.send}
         </Button>
       }
     >
@@ -99,13 +110,14 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
               }}
             >
               <SearchField
-                label="Country"
-                placeholder="Search and select your country..."
+                label={t.countryLabel}
+                placeholder={t.countryPlaceholder}
+                clearLabel={t.clearSearch}
                 value={query}
                 onValueChange={(next) => {
                   setQuery(next)
                   setListOpen(true)
-                  if (next !== values.country) {
+                  if (next !== selectedName) {
                     setValues((current) => ({ ...current, country: '', dialCode: '' }))
                   }
                 }}
@@ -113,26 +125,28 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
               {listOpen ? (
                 <ul
                   role="listbox"
-                  aria-label="Countries"
+                  aria-label={t.countriesLabel}
                   className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-card py-1 shadow-md"
                 >
                   {matches.length === 0 ? (
-                    <li className="px-3 py-2 text-sm text-muted-foreground">No results found</li>
+                    <li className="px-3 py-2 text-sm text-muted-foreground">{t.noResults}</li>
                   ) : (
                     matches.map((country) => (
-                      <li key={country.name}>
+                      <li key={country.name.en}>
                         <button
                           type="button"
                           role="option"
-                          aria-selected={values.country === country.name}
-                          className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted"
+                          aria-selected={values.country === country.name.en}
+                          className="flex w-full items-center justify-between px-3 py-2 text-start text-sm hover:bg-muted"
                           onMouseDown={(event) => {
                             event.preventDefault()
-                            selectCountry(country.name, country.dialCode)
+                            selectCountry(country)
                           }}
                         >
-                          <span>{country.name}</span>
-                          <span className="text-muted-foreground">{country.dialCode}</span>
+                          <span>{country.name[locale]}</span>
+                          <bdi dir="ltr" className="text-muted-foreground">
+                            {country.dialCode}
+                          </bdi>
                         </button>
                       </li>
                     ))
@@ -146,19 +160,22 @@ export function LeadModal({ open, onClose }: LeadModalProps) {
           <div className="grid grid-cols-[5.5rem_1fr] gap-2">
             <Field>
               <Input
-                aria-label="Country code"
+                aria-label={t.codeLabel}
+                dir="ltr"
                 value={values.dialCode}
-                placeholder="Code"
+                placeholder={t.codePlaceholder}
                 readOnly
                 disabled={!values.dialCode}
               />
             </Field>
             <Field>
               <Input
-                aria-label="Phone number"
+                aria-label={t.phoneLabel}
+                dir="ltr"
+                className="rtl:text-end"
                 inputMode="tel"
                 autoComplete="tel-national"
-                placeholder={values.dialCode ? `${values.dialCode} Phone Number` : 'Phone Number'}
+                placeholder={t.phonePlaceholder}
                 value={values.phone}
                 onChange={(event) => {
                   const phone = event.target.value

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useHashScroll } from '@/features/public/useHashScroll'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 
+import { useHomeDictionary } from './i18n'
 import { LeadModal } from './LeadModal'
 import { CtaSection } from './sections/CtaSection'
 import { FeaturesSection } from './sections/FeaturesSection'
@@ -15,7 +16,8 @@ import { TestimonialsSection } from './sections/TestimonialsSection'
 import { WhatsAppButton } from './WhatsAppButton'
 
 export function HomePage() {
-  useDocumentTitle('Learn Smarter, Achieve More')
+  const t = useHomeDictionary()
+  useDocumentTitle(t.documentTitle)
   useHashScroll()
   const [leadOpen, setLeadOpen] = useState(false)
 

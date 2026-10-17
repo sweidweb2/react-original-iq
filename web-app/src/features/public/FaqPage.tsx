@@ -1,15 +1,19 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { Link } from 'react-router-dom'
 
 import { buttonVariants } from '@/components/ui/button'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { LocalizedLink, useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
-import { faqCategories } from './content/faq'
+import { faqContent } from './content/faq'
+import { usePublicDictionary } from './i18n'
 
 export function FaqPage() {
-  useDocumentTitle('FAQ')
+  const { pick } = useI18n()
+  const t = usePublicDictionary().faq
+  const faqCategories = pick(faqContent)
+  useDocumentTitle(t.documentTitle)
   const [categoryId, setCategoryId] = useState('all')
   const [openKey, setOpenKey] = useState<string | null>(null)
   const visible =
@@ -19,14 +23,12 @@ export function FaqPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12">
-      <h1 className="text-3xl font-semibold tracking-tight">Frequently Asked Questions</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Answers about tutoring, plans, and how Original IQ supports students.
-      </p>
+      <h1 className="text-3xl font-semibold tracking-tight">{t.title}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{t.intro}</p>
 
-      <div className="mt-6 flex flex-wrap gap-2" role="tablist" aria-label="FAQ categories">
+      <div className="mt-6 flex flex-wrap gap-2" role="tablist" aria-label={t.categoriesLabel}>
         <CategoryButton active={categoryId === 'all'} onClick={() => setCategoryId('all')}>
-          All
+          {t.all}
         </CategoryButton>
         {faqCategories.map((category) => (
           <CategoryButton
@@ -45,14 +47,14 @@ export function FaqPage() {
             <h2 className="text-lg font-semibold">{category.title}</h2>
             <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-card">
               {category.items.map((item, index) => {
-                const key = `${category.id}:${item.question}`
+                const key = `${category.id}:${index}`
                 const panelId = `faq-${category.id}-${index}`
                 const open = openKey === key
                 return (
                   <div key={key}>
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-start text-sm font-medium"
                       aria-expanded={open}
                       aria-controls={panelId}
                       onClick={() => setOpenKey(open ? null : key)}
@@ -80,13 +82,11 @@ export function FaqPage() {
       </div>
 
       <div className="mt-10 rounded-lg border border-border bg-primary/10 px-5 py-6 text-center">
-        <h2 className="text-lg font-semibold">Still Have Questions?</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Our team can help you choose the right plan.
-        </p>
-        <Link to="/contact" className={cn(buttonVariants(), 'mt-4')}>
-          Contact us
-        </Link>
+        <h2 className="text-lg font-semibold">{t.stillHaveQuestions}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t.stillHaveQuestionsBody}</p>
+        <LocalizedLink to="/contact" className={cn(buttonVariants(), 'mt-4')}>
+          {t.contactUs}
+        </LocalizedLink>
       </div>
     </div>
   )

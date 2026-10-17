@@ -1,26 +1,39 @@
 import type { AuthActor } from '../../authz/index.js'
+import { assertTaskRelated, isAdmin, isClient, isOps, isSuper, isTutor } from '../../authz/index.js'
 import {
-  assertTaskRelated,
-  isAdmin,
-  isClient,
-  isOps,
-  isSuper,
-  isTutor,
-} from '../../authz/index.js'
-import { conflict, forbidden, notFound, validationError } from '../../errors/app-error.js'
+  conflict,
+  forbidden,
+  notFound,
+  serviceUnavailable,
+  validationError,
+} from '../../errors/app-error.js'
+import { getLogger } from '../../logging/index.js'
+import {
+  isManagedObjectKey,
+  sanitizeFilename,
+  STORAGE_PREFIX,
+  type StorageService,
+} from '../../storage/index.js'
 import { getLoggingService } from '../logging/index.js'
 import type { UsersRepository } from '../users/users.repository.js'
 import type { UsersService } from '../users/users.service.js'
-import type { CreateTaskBody, ListTasksQuery, UpdateTaskBody } from './tasks.schema.js'
 import type { TasksRepository } from './tasks.repository.js'
 import type {
-  AddFileInput,
-  AddSolutionInput,
+  AddFileBody,
+  AddSolutionBody,
+  CreateTaskBody,
+  ListTasksQuery,
+  UpdateTaskBody,
+} from './tasks.schema.js'
+import type {
+  DownloadUrlResult,
   Task,
   TaskDetail,
   TaskListFilter,
   TaskStats,
   TaskStatus,
+  UploadUrlInput,
+  UploadUrlResult,
 } from './tasks.types.js'
 
 export type TaskListResult = {
@@ -50,17 +63,39 @@ export type TasksService = {
   activateTask: (id: string, actor: AuthActor) => Promise<Task>
   setAllowView: (id: string, allowView: boolean, actor: AuthActor) => Promise<Task>
   deleteTask: (id: string, actor: AuthActor) => Promise<void>
-  addFile: (id: string, input: AddFileInput, actor: AuthActor) => Promise<TaskDetail['files'][number]>
+  createFileUploadUrl: (
+    id: string,
+    input: UploadUrlInput,
+    actor: AuthActor,
+  ) => Promise<UploadUrlResult>
+  addFile: (
+    id: string,
+    input: AddFileBody,
+    actor: AuthActor,
+  ) => Promise<TaskDetail['files'][number]>
   listFiles: (id: string, actor: AuthActor) => Promise<TaskDetail['files']>
+  getFileDownloadUrl: (id: string, fileId: string, actor: AuthActor) => Promise<DownloadUrlResult>
   deleteFile: (id: string, fileId: string, actor: AuthActor) => Promise<void>
+  createSolutionUploadUrl: (
+    id: string,
+    input: UploadUrlInput,
+    actor: AuthActor,
+  ) => Promise<UploadUrlResult>
   addSolution: (
     id: string,
-    input: AddSolutionInput,
+    input: AddSolutionBody,
     actor: AuthActor,
   ) => Promise<TaskDetail['solutions'][number]>
   listSolutions: (id: string, actor: AuthActor) => Promise<TaskDetail['solutions']>
+  getSolutionDownloadUrl: (
+    id: string,
+    solutionId: string,
+    actor: AuthActor,
+  ) => Promise<DownloadUrlResult>
   deleteSolution: (id: string, solutionId: string, actor: AuthActor) => Promise<void>
 }
+
+type UploadCategory = 'documents' | 'solutions'
 
 function scopeForActor(actor: AuthActor): TaskListFilter['scope'] {
   if (isSuper(actor.roles) || isAdmin(actor.roles)) {
@@ -112,6 +147,27 @@ function filterSolutionsForActor(task: TaskDetail, actor: AuthActor): TaskDetail
   return { ...task, solutions: [] }
 }
 
+function assertCanManageDocuments(actor: AuthActor, task: Task, action: string): void {
+  const ownClient = isClient(actor.roles) && task.clientId === actor.id
+  if (!canManageTask(actor, task) && !ownClient) {
+    throw forbidden(`You cannot ${action} files for this task`)
+  }
+}
+
+function assertCanManageSolutions(actor: AuthActor, task: Task, action: string): void {
+  const assignedTutor = isTutor(actor.roles) && task.tutorId === actor.id
+  if (!canManageTask(actor, task) && !assignedTutor) {
+    throw forbidden(`You cannot ${action} solutions for this task`)
+  }
+}
+
+function isUploadKeyForTask(key: string, category: UploadCategory, taskId: string): boolean {
+  const prefix = `${STORAGE_PREFIX[category]}/${taskId}/`
+  if (!key.startsWith(prefix)) return false
+  const name = key.slice(prefix.length)
+  return name.length > 0 && !name.includes('/') && !name.includes('..')
+}
+
 async function pickLeastLoadedCoordinator(
   usersRepo: UsersRepository,
   tasksRepo: TasksRepository,
@@ -135,6 +191,7 @@ async function pickLeastLoadedCoordinator(
 export type TasksServiceDeps = {
   hasOpenRevision?: (taskId: string) => Promise<boolean>
   recomputePaymentStatus?: (taskId: string) => Promise<unknown>
+  storage?: StorageService
 }
 
 export function createTasksService(
@@ -158,6 +215,89 @@ export function createTasksService(
     }
     assertTaskRelated(actor, detail)
     return filterSolutionsForActor(detail, actor)
+  }
+
+  function requireStorage(): StorageService {
+    if (!deps.storage?.isConfigured()) {
+      throw serviceUnavailable('STORAGE_NOT_CONFIGURED', 'File storage is not configured')
+    }
+    return deps.storage
+  }
+
+  async function taskBytesUsed(taskId: string): Promise<number> {
+    const [files, solutions] = await Promise.all([
+      repository.listFiles(taskId),
+      repository.listSolutions(taskId),
+    ])
+    return [...files, ...solutions].reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0)
+  }
+
+  async function createUploadUrl(
+    category: UploadCategory,
+    taskId: string,
+    input: UploadUrlInput,
+  ): Promise<UploadUrlResult> {
+    const storage = requireStorage()
+    const signed = await storage.getSignedUploadUrl({
+      category,
+      taskId,
+      originalFilename: input.filename,
+      contentType: input.contentType,
+      sizeBytes: input.sizeBytes,
+      taskBytesUsed: await taskBytesUsed(taskId),
+    })
+    return {
+      uploadUrl: signed.url,
+      key: signed.key,
+      contentType: signed.contentType,
+      expiresInSec: signed.expiresInSec,
+    }
+  }
+
+  async function resolveUploadedObject(
+    category: UploadCategory,
+    taskId: string,
+    input: { key: string; filename: string },
+  ) {
+    const storage = requireStorage()
+    if (!isUploadKeyForTask(input.key, category, taskId)) {
+      throw validationError('Upload key does not belong to this task')
+    }
+    const info = await storage.statObject(input.key)
+    if (!info) {
+      throw validationError('Uploaded file was not found in storage')
+    }
+    return {
+      fileLocation: input.key,
+      originalName: sanitizeFilename(input.filename),
+      contentType: info.contentType ?? 'application/octet-stream',
+      sizeBytes: info.sizeBytes,
+    }
+  }
+
+  async function downloadUrlFor(
+    location: string,
+    originalName: string | null,
+    fallbackName: string,
+  ): Promise<DownloadUrlResult> {
+    const filename = originalName ?? fallbackName
+    if (isManagedObjectKey(location)) {
+      const signed = await requireStorage().getSignedDownloadUrl(location)
+      return { url: signed.url, filename, expiresInSec: signed.expiresInSec }
+    }
+    if (/^https?:\/\//i.test(location)) {
+      return { url: location, filename, expiresInSec: null }
+    }
+    throw notFound('File is not available for download', 'FILE_NOT_FOUND')
+  }
+
+  async function purgeStoredObject(location: string): Promise<void> {
+    if (!deps.storage?.isConfigured() || !isManagedObjectKey(location)) return
+    try {
+      await deps.storage.deleteObject(location)
+    } catch (error) {
+      getLogger().warn({ err: error, key: location }, 'failed to delete stored object')
+    }
   }
 
   return {
@@ -500,15 +640,19 @@ export function createTasksService(
       })
     },
 
+    async createFileUploadUrl(id, input, actor) {
+      const task = await loadOrThrow(id)
+      assertTaskRelated(actor, task)
+      assertCanManageDocuments(actor, task, 'upload')
+      return createUploadUrl('documents', id, input)
+    },
+
     async addFile(id, input, actor) {
       const task = await loadOrThrow(id)
       assertTaskRelated(actor, task)
-      const staff = canManageTask(actor, task)
-      const ownClient = isClient(actor.roles) && task.clientId === actor.id
-      if (!staff && !ownClient) {
-        throw forbidden('You cannot upload files for this task')
-      }
-      return repository.addFile(id, input)
+      assertCanManageDocuments(actor, task, 'upload')
+      const stored = await resolveUploadedObject('documents', id, input)
+      return repository.addFile(id, { ...stored, note: input.note || undefined })
     },
 
     async listFiles(id, actor) {
@@ -516,29 +660,39 @@ export function createTasksService(
       return repository.listFiles(id)
     },
 
+    async getFileDownloadUrl(id, fileId, actor) {
+      const detail = await loadDetailOrThrow(id, actor)
+      const file = detail.files.find((item) => item.id === fileId)
+      if (!file) {
+        throw notFound('File not found', 'FILE_NOT_FOUND')
+      }
+      return downloadUrlFor(file.fileLocation, file.originalName, 'document')
+    },
+
     async deleteFile(id, fileId, actor) {
       const task = await loadOrThrow(id)
       assertTaskRelated(actor, task)
-      const staff = canManageTask(actor, task)
-      const ownClient = isClient(actor.roles) && task.clientId === actor.id
-      if (!staff && !ownClient) {
-        throw forbidden('You cannot delete files for this task')
-      }
+      assertCanManageDocuments(actor, task, 'delete')
       const deleted = await repository.deleteFile(id, fileId)
       if (!deleted) {
         throw notFound('File not found', 'FILE_NOT_FOUND')
       }
+      await purgeStoredObject(deleted.fileLocation)
+    },
+
+    async createSolutionUploadUrl(id, input, actor) {
+      const task = await loadOrThrow(id)
+      assertTaskRelated(actor, task)
+      assertCanManageSolutions(actor, task, 'upload')
+      return createUploadUrl('solutions', id, input)
     },
 
     async addSolution(id, input, actor) {
       const task = await loadOrThrow(id)
       assertTaskRelated(actor, task)
-      const staff = canManageTask(actor, task)
-      const assignedTutor = isTutor(actor.roles) && task.tutorId === actor.id
-      if (!staff && !assignedTutor) {
-        throw forbidden('You cannot upload solutions for this task')
-      }
-      return repository.addSolution(id, input)
+      assertCanManageSolutions(actor, task, 'upload')
+      const stored = await resolveUploadedObject('solutions', id, input)
+      return repository.addSolution(id, stored)
     },
 
     async listSolutions(id, actor) {
@@ -546,18 +700,24 @@ export function createTasksService(
       return detail.solutions
     },
 
+    async getSolutionDownloadUrl(id, solutionId, actor) {
+      const detail = await loadDetailOrThrow(id, actor)
+      const solution = detail.solutions.find((item) => item.id === solutionId)
+      if (!solution) {
+        throw notFound('Solution not found', 'SOLUTION_NOT_FOUND')
+      }
+      return downloadUrlFor(solution.fileLocation, solution.originalName, 'solution')
+    },
+
     async deleteSolution(id, solutionId, actor) {
       const task = await loadOrThrow(id)
       assertTaskRelated(actor, task)
-      const staff = canManageTask(actor, task)
-      const assignedTutor = isTutor(actor.roles) && task.tutorId === actor.id
-      if (!staff && !assignedTutor) {
-        throw forbidden('You cannot delete solutions for this task')
-      }
+      assertCanManageSolutions(actor, task, 'delete')
       const deleted = await repository.deleteSolution(id, solutionId)
       if (!deleted) {
         throw notFound('Solution not found', 'SOLUTION_NOT_FOUND')
       }
+      await purgeStoredObject(deleted.fileLocation)
     },
   }
 }

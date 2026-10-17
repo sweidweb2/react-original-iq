@@ -1,11 +1,11 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
 import { Plus } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
@@ -14,7 +14,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
-import { toastApiError } from '@/services/toast'
 import {
   createTask,
   listTasks,
@@ -23,11 +22,13 @@ import {
   type TaskStatus,
   taskStatusLabel,
 } from '@/services/tasks'
+import { toastApiError } from '@/services/toast'
 import { listUsers, type ManagedUser, userDisplayName } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 import { createTaskFormSchema, type CreateTaskFormValues } from './task-form.schema'
+import { taskStatusTone } from './taskDetailsFormat'
 
 const PAGE_SIZE = 10
 
@@ -77,7 +78,8 @@ export function TasksPage() {
   const { pathname } = useLocation()
   const base = pathname.replace(/\/tasks\/?$/, '') || pathname
   const role = useAuthStore((s) => s.user?.role)
-  const canCreate = role === 'client' || role === 'admin' || role === 'coordinator' || role === 'super'
+  const canCreate =
+    role === 'client' || role === 'admin' || role === 'coordinator' || role === 'super'
   const needsClientPick = role === 'admin' || role === 'coordinator' || role === 'super'
 
   const [page, setPage] = useState(1)
@@ -195,7 +197,10 @@ export function TasksPage() {
         ) : undefined
       }
     >
-      <SectionCard title="Task list" description="Filter by status or search topic and description.">
+      <SectionCard
+        title="Task list"
+        description="Filter by status or search topic and description."
+      >
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <SearchField
             value={searchInput}
@@ -251,14 +256,14 @@ export function TasksPage() {
                       <p className="text-xs text-muted-foreground">{task.category ?? '—'}</p>
                     </td>
                     <td className="px-3 py-2">
-                      <Badge tone="neutral">{taskStatusLabel(task.status)}</Badge>
+                      <Badge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</Badge>
                     </td>
                     <td className="px-3 py-2 tabular-nums">{formatDate(task.deadline)}</td>
                     <td className="px-3 py-2 tabular-nums">${task.price.toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">
                       <Link
                         to={`${base}/tasks/${task.id}`}
-                        className="text-sm font-medium text-primary hover:underline"
+                        className={buttonVariants({ variant: 'secondary', size: 'sm' })}
                       >
                         Open
                       </Link>
@@ -278,7 +283,7 @@ export function TasksPage() {
             <div className="flex gap-2">
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
@@ -287,7 +292,7 @@ export function TasksPage() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
@@ -306,7 +311,7 @@ export function TasksPage() {
         description="Submit a new request. Clients create for themselves; staff can assign later."
         footer={
           <>
-            <Button type="button" variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" form="create-task-form" size="sm" disabled={isCreating}>

@@ -1,6 +1,6 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Pencil, UserPlus, UserRound, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Pencil, UserPlus, Users, UserRound } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
+import { IconAction } from '@/components/ui/icon-action'
 import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
 import { toast } from '@/components/ui/toast'
@@ -55,29 +56,6 @@ type Directory = {
   users: ManagedUser[]
   meta: UserListMeta
   stats: UserStats
-}
-
-function IconAction({
-  label,
-  onClick,
-  children,
-}: {
-  label: string
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip content={label}>
-      <button
-        type="button"
-        aria-label={label}
-        onClick={onClick}
-        className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-muted"
-      >
-        {children}
-      </button>
-    </Tooltip>
-  )
 }
 
 function AccessSwitch({
@@ -397,7 +375,7 @@ export function ManageUsersPage() {
                           </td>
                           <td className="px-2 py-3 text-muted-foreground">{user.email}</td>
                           <td className="px-2 py-3">
-                            <Badge tone={user.role === 'admin' ? 'primary' : 'neutral'}>
+                            <Badge tone="neutral">
                               {ROLE_LABEL[user.role]}
                             </Badge>
                           </td>
@@ -465,7 +443,7 @@ export function ManageUsersPage() {
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   disabled={page <= 1}
                   onClick={() => setPage((value) => Math.max(1, value - 1))}
@@ -476,7 +454,7 @@ export function ManageUsersPage() {
                   Page {meta?.page ?? page} of {totalPages}
                 </span>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   disabled={page >= totalPages}
                   onClick={() => setPage((value) => value + 1)}
@@ -513,7 +491,7 @@ export function ManageUsersPage() {
         }
         footer={
           <>
-            <Button variant="outline" onClick={() => setPending(null)} disabled={isActing}>
+            <Button variant="secondary" onClick={() => setPending(null)} disabled={isActing}>
               Cancel
             </Button>
             <Button

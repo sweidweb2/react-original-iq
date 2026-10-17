@@ -45,7 +45,7 @@ export function AsyncState({
         <p className="font-medium text-destructive">Could not load</p>
         <p className="mt-1 text-foreground">{errorMessage(error)}</p>
         {onRetry ? (
-          <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onRetry}>
+          <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
             Try again
           </Button>
         ) : null}

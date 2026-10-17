@@ -13,17 +13,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
+  type ContactMessageRecord,
   deleteContactMessage,
   exportContactMessages,
   listContactMessages,
   sendContactMessage,
-  type ContactMessageRecord,
   updateContactMessage,
 } from '@/services/contact'
 import { toastApiError } from '@/services/toast'
 
+import { formatAdminDate } from '../_shared/adminListFormat'
 import { AdminListPagination } from '../_shared/AdminListPagination'
-import { formatAdminDate, IconAction } from '../_shared/adminListUtils'
+import { IconAction } from '../_shared/adminListUtils'
 import { usePagedAdminList } from '../_shared/usePagedAdminList'
 
 export function ContactMessagesPage() {
@@ -111,7 +112,7 @@ export function ContactMessagesPage() {
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={list.isExporting}
               onClick={list.handleExport}
@@ -181,6 +182,7 @@ export function ContactMessagesPage() {
                               </IconAction>
                               <IconAction
                                 label="Delete message"
+                                tone="danger"
                                 onClick={() => list.setPendingDelete(row)}
                               >
                                 <Trash2 className="size-4" />
@@ -214,7 +216,12 @@ export function ContactMessagesPage() {
         description="Admin write for contact messages."
         footer={
           <>
-            <Button type="button" variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setFormOpen(false)}
+              disabled={saving}
+            >
               Cancel
             </Button>
             <Button type="submit" form="contact-message-form" disabled={saving}>
@@ -267,11 +274,11 @@ export function ContactMessagesPage() {
         footer={
           viewing ? (
             <>
-              <Button variant="outline" onClick={() => setViewing(null)}>
+              <Button variant="secondary" onClick={() => setViewing(null)}>
                 Close
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={() => {
                   openEdit(viewing)
                   setViewing(null)
@@ -313,7 +320,7 @@ export function ContactMessagesPage() {
         footer={
           <>
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => list.setPendingDelete(null)}
               disabled={list.isActing}
             >

@@ -12,10 +12,12 @@ type SheetProps = {
   onClose: () => void
   title: string
   children: ReactNode
-  side?: 'left' | 'right'
+  /** Pinned below the scrollable body. */
+  footer?: ReactNode
+  side?: 'start' | 'end'
 }
 
-export function Sheet({ open, onClose, title, children, side = 'right' }: SheetProps) {
+export function Sheet({ open, onClose, title, children, footer, side = 'end' }: SheetProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
   useOverlay(open, panelRef, onClose)
@@ -38,7 +40,7 @@ export function Sheet({ open, onClose, title, children, side = 'right' }: SheetP
         tabIndex={-1}
         className={cn(
           'absolute inset-y-0 flex w-full max-w-sm flex-col bg-card text-card-foreground shadow-lg outline-none',
-          side === 'left' ? 'left-0 border-r border-border' : 'right-0 border-l border-border',
+          side === 'start' ? 'start-0 border-e border-border' : 'end-0 border-s border-border',
         )}
       >
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -55,6 +57,9 @@ export function Sheet({ open, onClose, title, children, side = 'right' }: SheetP
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        {footer ? (
+          <div className="shrink-0 border-t border-border px-4 py-4">{footer}</div>
+        ) : null}
       </div>
     </div>,
     document.body,

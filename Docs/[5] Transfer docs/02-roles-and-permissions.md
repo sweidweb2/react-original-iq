@@ -21,81 +21,81 @@ Legend: **Y** = yes · **L** = limited · **—** = no
 
 ### Users & accounts
 
-| Action | Client | Tutor | Coordinator | Admin |
-|--------|--------|-------|-------------|-------|
-| Self-register | Y | — | — | — |
-| Login / logout / password reset | Y | Y | Y | Y |
-| Manage own profile | Y | Y | Y | Y |
-| Delete own account | Y | L | L | L |
-| Create users (any role) | — | — | — | Y |
-| Activate / deactivate users | — | — | — | Y |
-| Change user role / permissions | — | — | — | Y |
-| Safe-delete users without active tasks | — | — | L | Y |
-| View / manage leads, contact, newsletter | — | — | — | Y |
+| Action                                   | Client | Tutor | Coordinator | Admin |
+| ---------------------------------------- | ------ | ----- | ----------- | ----- |
+| Self-register                            | Y      | —     | —           | —     |
+| Login / logout / password reset          | Y      | Y     | Y           | Y     |
+| Manage own profile                       | Y      | Y     | Y           | Y     |
+| Delete own account                       | Y      | L     | L           | L     |
+| Create users (any role)                  | —      | —     | —           | Y     |
+| Activate / deactivate users              | —      | —     | —           | Y     |
+| Change user role / permissions           | —      | —     | —           | Y     |
+| Safe-delete users without active tasks   | —      | —     | L           | Y     |
+| View / manage leads, contact, newsletter | —      | —     | —           | Y     |
 
 ### Tasks
 
-| Action | Client | Tutor | Coordinator | Admin |
-|--------|--------|-------|-------------|-------|
-| Create own task request | Y | — | — | — |
-| Create task (ops) | — | — | Y | Y |
-| View own / assigned tasks | Y (own) | Y (assigned) | Y (assigned/ops) | Y (all) |
-| Edit unpaid / allowed fields | Y (own) | — | Y | Y |
-| Delete task (if no payments/refunds) | Y (own) | — | L | Y |
-| Assign / remove tutor | — | — | Y | Y |
-| Set / edit price | — | — | Y | Y |
-| Cancel / activate task | — | — | Y | Y |
-| Submit delivery | — | Y | — | — |
-| Cancel own submission | — | Y | — | — |
-| Approve / disapprove delivery | — | — | Y | Y |
-| Toggle `allow_view` (client sees solutions) | — | — | — | Y |
-| Reassign coordinator | — | — | — | Y |
+| Action                                      | Client  | Tutor        | Coordinator      | Admin   |
+| ------------------------------------------- | ------- | ------------ | ---------------- | ------- |
+| Create own task request                     | Y       | —            | —                | —       |
+| Create task (ops)                           | —       | —            | Y                | Y       |
+| View own / assigned tasks                   | Y (own) | Y (assigned) | Y (assigned/ops) | Y (all) |
+| Edit unpaid / allowed fields                | Y (own) | —            | Y                | Y       |
+| Delete task (if no payments/refunds)        | Y (own) | —            | L                | Y       |
+| Assign / remove tutor                       | —       | —            | Y                | Y       |
+| Set / edit price                            | —       | —            | Y                | Y       |
+| Cancel / activate task                      | —       | —            | Y                | Y       |
+| Submit delivery                             | —       | Y            | —                | —       |
+| Cancel own submission                       | —       | Y            | —                | —       |
+| Approve / disapprove delivery               | —       | —            | Y                | Y       |
+| Toggle `allow_view` (client sees solutions) | —       | —            | —                | Y       |
+| Reassign coordinator                        | —       | —            | —                | Y       |
 
 ### Revisions
 
-| Action | Client | Tutor | Coordinator | Admin |
-|--------|--------|-------|-------------|-------|
-| Create revision session | — | — | Y | Y |
-| Upload revision solutions | — | Y | — | — |
-| Submit / cancel revision submission | — | Y | — | — |
-| Approve / reject / cancel session | — | — | Y | Y |
+| Action                              | Client | Tutor | Coordinator | Admin |
+| ----------------------------------- | ------ | ----- | ----------- | ----- |
+| Create revision session             | —      | —     | Y           | Y     |
+| Upload revision solutions           | —      | Y     | —           | —     |
+| Submit / cancel revision submission | —      | Y     | —           | —     |
+| Approve / reject / cancel session   | —      | —     | Y           | Y     |
 
 ### Payments & money
 
-| Action | Client | Tutor | Coordinator | Admin |
-|--------|--------|-------|-------------|-------|
-| Pay remaining balance (gateway) | Y (own) | — | — | — |
-| View payment history on own tasks | Y | snapshot | Y | Y |
-| Manual create/delete payment | — | — | — | Y |
-| Create refund | — | — | L | Y |
-| Download invoice | Y (own) | — | — | Y |
+| Action                            | Client  | Tutor    | Coordinator | Admin |
+| --------------------------------- | ------- | -------- | ----------- | ----- |
+| Pay remaining balance (gateway)   | Y (own) | —        | —           | —     |
+| View payment history on own tasks | Y       | snapshot | Y           | Y     |
+| Manual create/delete payment      | —       | —        | —           | Y     |
+| Create refund                     | —       | —        | L           | Y     |
+| Download invoice                  | Y (own) | —        | —           | Y     |
 
 ### Files
 
-| Action | Client | Tutor | Coordinator | Admin |
-|--------|--------|-------|-------------|-------|
-| Upload task documents | Y (own, rules) | — | Y | Y |
-| Download task documents | Y | Y (assigned) | Y | Y |
-| Upload solutions | — | Y | Y | Y |
-| Download solutions | Y if `allow_view` / rules | Y | Y | Y |
-| Delete files (role-gated) | L | L | Y | Y |
-| Bulk download | L | L | Y | Y |
+| Action                    | Client                    | Tutor        | Coordinator | Admin |
+| ------------------------- | ------------------------- | ------------ | ----------- | ----- |
+| Upload task documents     | Y (own, rules)            | —            | Y           | Y     |
+| Download task documents   | Y                         | Y (assigned) | Y           | Y     |
+| Upload solutions          | —                         | Y            | Y           | Y     |
+| Download solutions        | Y if `allow_view` / rules | Y            | Y           | Y     |
+| Delete files (role-gated) | L                         | L            | Y           | Y     |
+| Bulk download             | L                         | L            | Y           | Y     |
 
 ### Feedback & scoring
 
-| Action | Client | Tutor | Coordinator | Admin |
-|--------|--------|-------|-------------|-------|
-| Submit feedback on completed work | Y | — | — | — |
-| View feedback | Y | Y | Y | Y |
-| Evaluate tutor metrics (punctuality/quality/perfection/stars) | shared ops | — | Y | Y |
+| Action                                                        | Client     | Tutor | Coordinator | Admin |
+| ------------------------------------------------------------- | ---------- | ----- | ----------- | ----- |
+| Submit feedback on completed work                             | Y          | —     | —           | —     |
+| View feedback                                                 | Y          | Y     | Y           | Y     |
+| Evaluate tutor metrics (punctuality/quality/perfection/stars) | shared ops | —     | Y           | Y     |
 
 ### Reporting
 
-| Action | Client | Tutor | Coordinator | Admin |
-|--------|--------|-------|-------------|-------|
-| Dashboard stats | own | own | assigned | global |
-| CSV / PDF exports | — | — | — | Y |
-| Custom admin emails | — | — | — | Y |
+| Action              | Client | Tutor | Coordinator | Admin  |
+| ------------------- | ------ | ----- | ----------- | ------ |
+| Dashboard stats     | own    | own   | assigned    | global |
+| CSV / PDF exports   | —      | —     | —           | Y      |
+| Custom admin emails | —      | —     | —           | Y      |
 
 ## Admin permission keys (JSON)
 
@@ -109,7 +109,7 @@ Stored on `users.permissions` (array). Intended keys:
 
 **Current reality:** route access is mostly **role-string** gated; these helpers exist on `User` but are lightly enforced. In the rebuild, either:
 
-1. Enforce them properly, or  
+1. Enforce them properly, or
 2. Drop them and use role-only RBAC until needed.
 
 ## `isSuperAdmin` note

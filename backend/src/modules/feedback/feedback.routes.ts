@@ -15,7 +15,12 @@ export function createFeedbackRoutes(controller: FeedbackController): Router {
 
   router.use(authenticate)
 
-  router.post('/', authorize('client'), validate({ body: createFeedbackBodySchema }), controller.create)
+  router.post(
+    '/',
+    authorize('client'),
+    validate({ body: createFeedbackBodySchema }),
+    controller.create,
+  )
   router.get('/', validate({ query: listFeedbackQuerySchema }), controller.list)
   router.delete(
     '/:id',

@@ -13,11 +13,7 @@ export type PagedListResult<T> = {
 
 export type UsePagedAdminListOptions<T extends { id: string }> = {
   pageSize?: number
-  fetchPage: (args: {
-    page: number
-    limit: number
-    search?: string
-  }) => Promise<PagedListResult<T>>
+  fetchPage: (args: { page: number; limit: number; search?: string }) => Promise<PagedListResult<T>>
   deleteRow: (id: string) => Promise<void>
   exportRows: (search?: string) => Promise<void>
   deleteSuccessMessage: string
@@ -27,12 +23,12 @@ export type UsePagedAdminListOptions<T extends { id: string }> = {
   onDeleted?: (row: T) => void
 }
 
-export function usePagedAdminList<T extends { id: string }>(
-  options: UsePagedAdminListOptions<T>,
-) {
+export function usePagedAdminList<T extends { id: string }>(options: UsePagedAdminListOptions<T>) {
   const pageSize = options.pageSize ?? ADMIN_LIST_PAGE_SIZE
   const optionsRef = useRef(options)
-  optionsRef.current = options
+  useEffect(() => {
+    optionsRef.current = options
+  })
 
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')

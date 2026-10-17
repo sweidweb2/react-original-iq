@@ -29,12 +29,7 @@ export function createContactRoutes(controller: ContactController, config: AppCo
     validate({ body: contactMessageBodySchema }),
     controller.createMessage,
   )
-  router.get(
-    '/messages/export',
-    authenticate,
-    authorize(...ADMIN_GATE),
-    controller.exportMessages,
-  )
+  router.get('/messages/export', authenticate, authorize(...ADMIN_GATE), controller.exportMessages)
   router.get(
     '/messages',
     authenticate,
