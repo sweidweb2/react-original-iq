@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import {
@@ -22,7 +21,7 @@ import {
   type TaskStatus,
   taskStatusLabel,
 } from '@/services/tasks'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import { listUsers, type ManagedUser, userDisplayName } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -171,12 +170,12 @@ export function TasksPage() {
         deadline: deadlineToApi(parsed.data.deadline),
         ...(needsClientPick && parsed.data.clientId ? { clientId: parsed.data.clientId } : {}),
       })
-      toast.success('Task created')
+      toastSuccess('Task created', `“${parsed.data.topic}” was added to the task list.`)
       setCreateOpen(false)
       setCreateValues(emptyCreateForm)
       setReloadKey((k) => k + 1)
     } catch (err) {
-      toastApiError(err, 'Could not create task')
+      toastApiError(err, `Couldn't create “${parsed.data.topic}”`)
     } finally {
       setIsCreating(false)
     }
@@ -256,7 +255,9 @@ export function TasksPage() {
                       <p className="text-xs text-muted-foreground">{task.category ?? '—'}</p>
                     </td>
                     <td className="px-3 py-2">
-                      <Badge tone={taskStatusTone(task.status)}>{taskStatusLabel(task.status)}</Badge>
+                      <Badge tone={taskStatusTone(task.status)}>
+                        {taskStatusLabel(task.status)}
+                      </Badge>
                     </td>
                     <td className="px-3 py-2 tabular-nums">{formatDate(task.deadline)}</td>
                     <td className="px-3 py-2 tabular-nums">${task.price.toFixed(2)}</td>
@@ -311,7 +312,12 @@ export function TasksPage() {
         description="Submit a new request. Clients create for themselves; staff can assign later."
         footer={
           <>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setCreateOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setCreateOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" form="create-task-form" size="sm" disabled={isCreating}>

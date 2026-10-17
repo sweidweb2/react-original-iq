@@ -6,11 +6,10 @@ import { GuestOnly } from '@/components/auth'
 import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { forgotPassword } from '@/services/auth'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { AuthCard } from './AuthCard'
 import { forgotPasswordSchema, type ForgotPasswordValues } from './password-reset.schema'
@@ -34,12 +33,12 @@ export function ForgotPasswordPage() {
     setIsSubmitting(true)
     try {
       const result = await forgotPassword(parsed.data.email)
-      toast.success(result.message)
+      toastSuccess('Check your email', result.message)
       void navigate('/password-reset/verify', {
         state: { email: parsed.data.email },
       })
     } catch (error) {
-      toastApiError(error, 'Could not start password reset')
+      toastApiError(error, "Couldn't start the password reset")
     } finally {
       setIsSubmitting(false)
     }

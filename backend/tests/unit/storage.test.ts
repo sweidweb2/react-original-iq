@@ -12,6 +12,7 @@ import { assertValidUpload } from '../../src/storage/validate.js'
 describe('storage keys', () => {
   it('sanitizes filenames and builds managed keys', () => {
     expect(sanitizeFilename('../../etc/passwd.pdf')).toBe('passwd.pdf')
+    expect(sanitizeFilename('notes [final] {v2}.pdf')).toBe('notes _final_ _v2_.pdf')
     expect(extensionOf('Report.DOCX')).toBe('docx')
 
     const key = buildObjectKey({

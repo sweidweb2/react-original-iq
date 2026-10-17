@@ -75,7 +75,6 @@ export type ManualPaymentInput = {
   amount: number
   status?: PaymentStatus
   paymentMethod?: string
-  userId?: string
 }
 
 export type UpdatePaymentInput = {

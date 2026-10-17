@@ -122,12 +122,15 @@ describe('users.service', () => {
     )
     const service = createUsersService(repository)
 
-    const created = await service.createUser({
-      email: 'new@example.com',
-      name: 'New User',
-      password: 'password1',
-      role: 'tutor',
-    })
+    const created = await service.createUser(
+      {
+        email: 'new@example.com',
+        name: 'New User',
+        password: 'password1',
+        role: 'tutor',
+      },
+      admin,
+    )
 
     expect(created).toMatchObject({ email: 'new@example.com', role: 'tutor' })
     expect(created).not.toHaveProperty('passwordHash')
@@ -147,13 +150,109 @@ describe('users.service', () => {
     const service = createUsersService(repository)
 
     await expect(
-      service.createUser({
-        email: 'ada@example.com',
-        name: 'Ada',
-        password: 'password1',
-        role: 'client',
-      }),
+      service.createUser(
+        {
+          email: 'ada@example.com',
+          name: 'Ada',
+          password: 'password1',
+          role: 'client',
+        },
+        admin,
+      ),
     ).rejects.toMatchObject({ status: 409 })
+  })
+
+  describe('super hierarchy', () => {
+    const superActor: AuthActor = { id: 'super-1', roles: ['super'] }
+    const newUser = (role: 'super' | 'admin') => ({
+      email: `${role}-new@example.com`,
+      name: 'New',
+      password: 'password1',
+      role,
+    })
+
+    beforeEach(() => {
+      vi.mocked(repository.findByEmail).mockResolvedValue(null)
+      vi.mocked(repository.createAccount).mockImplementation(async (input) =>
+        makeAccount({ id: 'new-1', email: input.email, role: input.role }),
+      )
+    })
+
+    it('lets super create super accounts', async () => {
+      const service = createUsersService(repository)
+      await expect(service.createUser(newUser('super'), superActor)).resolves.toMatchObject({
+        role: 'super',
+      })
+    })
+
+    it('lets admin create every role below super, but not super', async () => {
+      const service = createUsersService(repository)
+      await expect(service.createUser(newUser('admin'), admin)).resolves.toMatchObject({
+        role: 'admin',
+      })
+      await expect(service.createUser(newUser('super'), admin)).rejects.toMatchObject({
+        status: 403,
+      })
+    })
+
+    it('blocks admin from promoting anyone to super', async () => {
+      vi.mocked(repository.findById).mockResolvedValue(makeAccount({ role: 'admin' }))
+      const service = createUsersService(repository)
+
+      await expect(service.updateUser('user-1', { role: 'super' }, admin)).rejects.toMatchObject({
+        status: 403,
+      })
+      expect(repository.updateAccount).not.toHaveBeenCalled()
+    })
+
+    it('blocks admin and coordinator from editing, deactivating, or deleting super', async () => {
+      const coordinator: AuthActor = { id: 'coord-1', roles: ['coordinator'] }
+      vi.mocked(repository.findById).mockResolvedValue(makeAccount({ role: 'super' }))
+      const service = createUsersService(repository)
+
+      await expect(service.updateUser('user-1', { name: 'X' }, admin)).rejects.toMatchObject({
+        status: 403,
+      })
+      await expect(service.updateUser('user-1', { name: 'X' }, coordinator)).rejects.toMatchObject({
+        status: 403,
+      })
+      await expect(service.deactivateUser('user-1', admin)).rejects.toMatchObject({ status: 403 })
+      await expect(service.deleteUser('user-1', admin)).rejects.toMatchObject({ status: 403 })
+      expect(repository.updateAccount).not.toHaveBeenCalled()
+      expect(repository.deleteAccount).not.toHaveBeenCalled()
+    })
+
+    it('lets super manage other super accounts', async () => {
+      vi.mocked(repository.findById).mockResolvedValue(makeAccount({ role: 'super' }))
+      vi.mocked(repository.updateAccount).mockResolvedValue(
+        makeAccount({ role: 'admin', status: 'INACTIVE' }),
+      )
+      const service = createUsersService(repository)
+
+      await expect(
+        service.updateUser('user-1', { role: 'admin' }, superActor),
+      ).resolves.toMatchObject({ role: 'admin' })
+      await expect(service.deactivateUser('user-1', superActor)).resolves.toMatchObject({
+        status: 'INACTIVE',
+      })
+    })
+  })
+
+  it('signs the user out everywhere when an admin resets their password or deactivates them', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeAccount())
+    vi.mocked(repository.updateAccount).mockResolvedValue(makeAccount())
+    const revokeSessions = vi.fn().mockResolvedValue(undefined)
+    const service = createUsersService(repository, { revokeSessions })
+
+    await service.updateUser('user-1', { name: 'Ada' }, admin)
+    expect(revokeSessions).not.toHaveBeenCalled()
+
+    await service.updateUser('user-1', { password: 'newpass99' }, admin)
+    expect(revokeSessions).toHaveBeenCalledWith('user-1')
+
+    revokeSessions.mockClear()
+    await service.deactivateUser('user-1', admin)
+    expect(revokeSessions).toHaveBeenCalledWith('user-1')
   })
 
   it('lets an admin update a user', async () => {

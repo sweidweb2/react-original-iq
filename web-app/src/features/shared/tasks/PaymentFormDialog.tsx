@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import {
   createManualPayment,
@@ -15,7 +14,7 @@ import {
   type PaymentStatus,
   updatePayment,
 } from '@/services/payments'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { paymentFormSchema } from './payments.schema'
 
@@ -82,21 +81,29 @@ export function PaymentFormDialog({
           status: parsed.data.status,
           paymentMethod: parsed.data.paymentMethod || 'manual',
         })
-        toast.success('Payment recorded')
+        toastSuccess(
+          'Payment recorded',
+          `$${parsed.data.amount.toFixed(2)} marked as ${parsed.data.status}.`,
+        )
       } else if (payment) {
         await updatePayment(taskId, payment.id, {
           amount: parsed.data.amount,
           status: parsed.data.status,
           paymentMethod: parsed.data.paymentMethod || null,
         })
-        toast.success('Payment updated')
+        toastSuccess(
+          'Payment updated',
+          `Now $${parsed.data.amount.toFixed(2)}, ${parsed.data.status}.`,
+        )
       }
       onSaved()
       onClose()
     } catch (error) {
       toastApiError(
         error,
-        mode === 'create' ? 'Could not record payment' : 'Could not update payment',
+        mode === 'create'
+          ? `Couldn't record the $${parsed.data.amount.toFixed(2)} payment`
+          : "Couldn't save the payment changes",
       )
     } finally {
       setIsSubmitting(false)

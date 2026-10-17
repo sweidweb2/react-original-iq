@@ -2,9 +2,16 @@
 
 ## Storage backend
 
-- Object storage (currently Cloudflare R2 via S3 API).
-- App stores a URL or key in `files.file_location` / `solutions.file_location` / `invoices.pdf_path`.
-- Rebuild recommendation: store **object key** + generate signed URLs at download time.
+- Old app: Cloudflare R2 via S3 API.
+- **Rebuild (applied):** Supabase Storage, one private bucket `main_bucket` (`SUPABASE_STORAGE_BUCKET`), accessed only by the backend with the service-role key. Prefixes below are folders in that bucket.
+- DB stores the **object key** in `files.file_location` / `solutions.file_location` / `invoices.pdf_path`; signed URLs are generated at access time.
+
+### Upload flow (rebuild)
+
+1. Browser calls `POST /api/v1/tasks/:id/files/upload-url` (or `/solutions/upload-url`); backend authorizes, validates type/size, returns a signed upload URL + key.
+2. Browser `PUT`s the file directly to the signed URL (no API body-size limits).
+3. Browser registers it with `POST /api/v1/tasks/:id/files` (or `/solutions`) `{ key, filename }`; backend checks the key belongs to the task, re-validates the stored object's real size/type (deleting it if invalid), then inserts the row.
+4. Downloads: `GET .../:fileId/download` returns a short-lived signed URL after authorization.
 
 ## Object categories & path conventions
 
@@ -78,7 +85,7 @@ Documents (client uploads) are available to client + assigned tutor + coordinato
 
 1. Never trust client-supplied paths; resolve via DB id → stored key.
 2. Authorize task membership/role before any get/put/delete.
-3. Use short-lived signed URLs if browser fetches from R2 directly.
+3. Use short-lived signed URLs whenever the browser reads or writes storage directly.
 4. Virus scanning optional but valuable for student uploads.
 5. Cap concurrent large uploads (timeouts in old app were extremely high — don’t blindly copy 3+ hour PHP limits; use direct-to-storage uploads).
 

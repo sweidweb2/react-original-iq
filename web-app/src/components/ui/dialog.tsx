@@ -2,6 +2,7 @@ import { type ReactNode, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
+import { cn } from '@/lib/utils'
 import { zIndex } from '@/theme'
 
 import { useOverlay } from './use-overlay'
@@ -13,9 +14,23 @@ type DialogProps = {
   description?: string
   children?: ReactNode
   footer?: ReactNode
+  size?: 'md' | 'lg'
 }
 
-export function Dialog({ open, onClose, title, description, children, footer }: DialogProps) {
+const SIZE_CLASS: Record<NonNullable<DialogProps['size']>, string> = {
+  md: 'max-w-md',
+  lg: 'max-w-2xl',
+}
+
+export function Dialog({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  size = 'md',
+}: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
   const descriptionId = useId()
@@ -41,7 +56,10 @@ export function Dialog({ open, onClose, title, description, children, footer }: 
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-lg border border-border bg-card p-5 text-card-foreground shadow-lg outline-none"
+        className={cn(
+          'relative w-full rounded-lg border border-border bg-card p-5 text-card-foreground shadow-lg outline-none',
+          SIZE_CLASS[size],
+        )}
       >
         <div className="flex items-start justify-between gap-3">
           <h2 id={titleId} className="text-base font-semibold">

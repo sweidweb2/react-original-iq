@@ -22,3 +22,21 @@ export const STAFF_ROLES: AuthRole[] = ['super', 'admin', 'coordinator', 'tutor'
 export const SUPER_ROLES: AuthRole[] = ['super']
 
 export const ADMIN_ROLES: AuthRole[] = ['admin']
+
+export const ROLE_OPTIONS: { value: AuthRole; label: string }[] = [
+  { value: 'super', label: 'Super' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'coordinator', label: 'Coordinator' },
+  { value: 'tutor', label: 'Tutor' },
+  { value: 'client', label: 'Client' },
+]
+
+/** Super accounts are managed only by super; admins manage every role below super. */
+export function canManageRole(actorRole: AuthRole | null | undefined, role: AuthRole): boolean {
+  return role !== 'super' || actorRole === 'super'
+}
+
+/** Roles the actor may assign when creating or editing a user. */
+export function assignableRoles(actorRole: AuthRole | null | undefined) {
+  return ROLE_OPTIONS.filter((option) => canManageRole(actorRole, option.value))
+}

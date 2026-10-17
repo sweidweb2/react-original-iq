@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'express'
 
+import { reportError } from '../../errors/report-error.js'
 import { requireActor, respond, respondEmpty } from '../../middleware/respond.js'
 import type {
   AddFileBody,
@@ -12,8 +13,32 @@ import type {
   UpdatePriceBody,
   UpdateTaskBody,
   UploadUrlBody,
+  ZipQuery,
 } from './tasks.schema.js'
 import type { TasksService } from './tasks.service.js'
+import type { TaskFileKind } from './tasks.types.js'
+
+/** Errors before streaming go to the error middleware; mid-stream failures abort the response. */
+function zipHandler(service: TasksService, kind: TaskFileKind): RequestHandler {
+  return async (req, res, next) => {
+    let zip
+    try {
+      const { ids } = req.query as unknown as ZipQuery
+      zip = await service.buildZip(String(req.params.id), kind, ids, requireActor(req))
+    } catch (error) {
+      next(error)
+      return
+    }
+    res.setHeader('Content-Type', 'application/zip')
+    res.setHeader('Content-Disposition', `attachment; filename="${zip.filename}"`)
+    try {
+      await zip.write(res)
+    } catch (error) {
+      reportError(error, { source: 'tasks.zip_stream', meta: { taskId: req.params.id, kind } })
+      res.destroy(error instanceof Error ? error : undefined)
+    }
+  }
+}
 
 export type TasksController = {
   list: RequestHandler
@@ -43,6 +68,8 @@ export type TasksController = {
   listSolutions: RequestHandler
   downloadSolution: RequestHandler
   deleteSolution: RequestHandler
+  downloadFilesZip: RequestHandler
+  downloadSolutionsZip: RequestHandler
 }
 
 export function createTasksController(service: TasksService): TasksController {
@@ -140,5 +167,7 @@ export function createTasksController(service: TasksService): TasksController {
         requireActor(req),
       ),
     ),
+    downloadFilesZip: zipHandler(service, 'documents'),
+    downloadSolutionsZip: zipHandler(service, 'solutions'),
   }
 }

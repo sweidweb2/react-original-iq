@@ -1,11 +1,4 @@
-import {
-  DeleteObjectCommand,
-  DeleteObjectsCommand,
-  GetObjectCommand,
-  HeadObjectCommand,
-  PutObjectCommand,
-} from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 import {
   type AppConfig,
@@ -14,11 +7,13 @@ import {
   requireStorageConfig,
   type StorageConfig,
 } from '../config/index.js'
+import { getSupabaseAdmin } from '../database/index.js'
+import { validationError } from '../errors/app-error.js'
+import { reportError } from '../errors/report-error.js'
 import { getLogger } from '../logging/index.js'
-import { getS3Client } from './client.js'
 import type { StorageCategory } from './constants.js'
 import { buildObjectKey, isManagedObjectKey } from './keys.js'
-import { assertValidUpload } from './validate.js'
+import { assertValidUpload, type ValidatedUpload } from './validate.js'
 
 export type PutObjectInput = {
   category: StorageCategory
@@ -50,6 +45,11 @@ export type ObjectInfo = {
   contentType: string | null
 }
 
+export type StoredObject = {
+  key: string
+  sizeBytes: number
+}
+
 export type StorageService = {
   isConfigured: () => boolean
   putObject: (input: PutObjectInput) => Promise<PutObjectResult>
@@ -61,41 +61,81 @@ export type StorageService = {
     contentType: string
     sizeBytes: number
     taskBytesUsed?: number
-    expiresInSec?: number
   }) => Promise<SignedUrlResult & { key: string; contentType: string; sizeBytes: number }>
+  /**
+   * Re-checks an object uploaded through a signed URL against the type/size rules.
+   * Deletes the object and throws when it is invalid.
+   */
+  validateStoredObject: (input: {
+    key: string
+    originalFilename: string
+    taskBytesUsed?: number
+  }) => Promise<ValidatedUpload>
   deleteObject: (key: string) => Promise<void>
   deleteObjects: (keys: string[]) => Promise<void>
   objectExists: (key: string) => Promise<boolean>
   statObject: (key: string) => Promise<ObjectInfo | null>
+  /** Folder names directly under `prefix` ('' = bucket root). Read-only, used by backups. */
+  listFolders: (prefix?: string) => Promise<string[]>
+  /** Every object under `prefix`, recursively ('' = whole bucket). Read-only, used by backups. */
+  listObjects: (prefix?: string) => Promise<StoredObject[]>
+  downloadObject: (key: string) => Promise<Buffer>
+}
+
+/** Supabase signed upload URLs have a fixed lifetime of 2 hours. */
+const SIGNED_UPLOAD_TTL_SEC = 2 * 60 * 60
+const DELETE_BATCH_SIZE = 1000
+const LIST_PAGE_SIZE = 1000
+
+type ListEntry = {
+  name: string
+  id: string | null
+  metadata: { size?: number } | null
+}
+
+function joinKey(prefix: string, name: string): string {
+  return prefix ? `${prefix}/${name}` : name
 }
 
 function isNotFoundError(error: unknown): boolean {
-  const name = error instanceof Error ? error.name : ''
-  const status =
-    error && typeof error === 'object' && '$metadata' in error
-      ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode
-      : undefined
-  return name === 'NotFound' || name === 'NoSuchKey' || status === 404
+  if (!error || typeof error !== 'object') return false
+  const { status, statusCode, message } = error as {
+    status?: number
+    statusCode?: string | number
+    message?: string
+  }
+  return (
+    status === 404 ||
+    String(statusCode) === '404' ||
+    (typeof message === 'string' && /not\s*found/i.test(message))
+  )
 }
 
 function createUnconfiguredStorageService(): StorageService {
   const unavailable = () => {
-    throw new Error('Storage is not configured (STORAGE_PROVIDER=r2 + AWS_* required)')
+    throw new Error('Storage is not configured (SUPABASE_STORAGE_BUCKET required)')
   }
   return {
     isConfigured: () => false,
     putObject: async () => unavailable(),
     getSignedDownloadUrl: async () => unavailable(),
     getSignedUploadUrl: async () => unavailable(),
+    validateStoredObject: async () => unavailable(),
     deleteObject: async () => unavailable(),
     deleteObjects: async () => unavailable(),
     objectExists: async () => unavailable(),
     statObject: async () => unavailable(),
+    listFolders: async () => unavailable(),
+    listObjects: async () => unavailable(),
+    downloadObject: async () => unavailable(),
   }
 }
 
-function createR2StorageService(config: StorageConfig): StorageService {
-  const client = getS3Client(config)
+export function createSupabaseStorageService(
+  client: SupabaseClient,
+  config: StorageConfig,
+): StorageService {
+  const bucket = () => client.storage.from(config.bucket)
   const log = getLogger().child({ component: 'storage' })
 
   function assertManagedKey(key: string) {
@@ -104,7 +144,7 @@ function createR2StorageService(config: StorageConfig): StorageService {
     }
   }
 
-  return {
+  const service: StorageService = {
     isConfigured: () => true,
 
     async putObject(input) {
@@ -124,15 +164,11 @@ function createR2StorageService(config: StorageConfig): StorageService {
         objectId: input.objectId,
       })
 
-      await client.send(
-        new PutObjectCommand({
-          Bucket: config.bucket,
-          Key: key,
-          Body: input.body,
-          ContentType: validated.contentType,
-          ContentLength: validated.sizeBytes,
-        }),
-      )
+      const { error } = await bucket().upload(key, input.body, {
+        contentType: validated.contentType,
+        upsert: false,
+      })
+      if (error) throw error
 
       log.info({ key, sizeBytes: validated.sizeBytes, category: input.category }, 'object uploaded')
 
@@ -147,12 +183,9 @@ function createR2StorageService(config: StorageConfig): StorageService {
 
     async getSignedDownloadUrl(key, expiresInSec = config.signedUrlTtlSec) {
       assertManagedKey(key)
-      const url = await getSignedUrl(
-        client,
-        new GetObjectCommand({ Bucket: config.bucket, Key: key }),
-        { expiresIn: expiresInSec },
-      )
-      return { url, expiresInSec, key }
+      const { data, error } = await bucket().createSignedUrl(key, expiresInSec)
+      if (error) throw error
+      return { url: data.signedUrl, expiresInSec, key }
     },
 
     async getSignedUploadUrl(input) {
@@ -170,31 +203,49 @@ function createR2StorageService(config: StorageConfig): StorageService {
         taskId: input.taskId,
         originalFilename: validated.originalFilename,
       })
-      const expiresInSec = input.expiresInSec ?? config.signedUrlTtlSec
 
-      const url = await getSignedUrl(
-        client,
-        new PutObjectCommand({
-          Bucket: config.bucket,
-          Key: key,
-          ContentType: validated.contentType,
-          ContentLength: validated.sizeBytes,
-        }),
-        { expiresIn: expiresInSec },
-      )
+      const { data, error } = await bucket().createSignedUploadUrl(key)
+      if (error) throw error
 
       return {
-        url,
-        expiresInSec,
+        url: data.signedUrl,
+        expiresInSec: SIGNED_UPLOAD_TTL_SEC,
         key,
         contentType: validated.contentType,
         sizeBytes: validated.sizeBytes,
       }
     },
 
+    async validateStoredObject(input) {
+      const info = await service.statObject(input.key)
+      if (!info) {
+        throw validationError('Uploaded file was not found in storage')
+      }
+      try {
+        return assertValidUpload({
+          originalFilename: input.originalFilename,
+          contentType: info.contentType ?? '',
+          sizeBytes: info.sizeBytes,
+          taskBytesUsed: input.taskBytesUsed,
+          maxFileBytes: config.maxFileBytes,
+          maxTaskBytes: config.maxTaskBytes,
+        })
+      } catch (error) {
+        await service.deleteObject(input.key).catch((deleteError: unknown) => {
+          reportError(deleteError, {
+            source: 'storage.delete_rejected_upload',
+            level: 'warning',
+            meta: { key: input.key },
+          })
+        })
+        throw error
+      }
+    },
+
     async deleteObject(key) {
       assertManagedKey(key)
-      await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }))
+      const { error } = await bucket().remove([key])
+      if (error) throw error
       log.info({ key }, 'object deleted')
     },
 
@@ -202,51 +253,85 @@ function createR2StorageService(config: StorageConfig): StorageService {
       const managed = [...new Set(keys)].filter(isManagedObjectKey)
       if (managed.length === 0) return
 
-      // R2/S3 delete batch max 1000
-      for (let i = 0; i < managed.length; i += 1000) {
-        const chunk = managed.slice(i, i + 1000)
-        await client.send(
-          new DeleteObjectsCommand({
-            Bucket: config.bucket,
-            Delete: {
-              Objects: chunk.map((Key) => ({ Key })),
-              Quiet: true,
-            },
-          }),
-        )
+      for (let i = 0; i < managed.length; i += DELETE_BATCH_SIZE) {
+        const { error } = await bucket().remove(managed.slice(i, i + DELETE_BATCH_SIZE))
+        if (error) throw error
       }
       log.info({ count: managed.length }, 'objects deleted')
     },
 
     async objectExists(key) {
       assertManagedKey(key)
-      try {
-        await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: key }))
-        return true
-      } catch (error) {
-        if (isNotFoundError(error)) return false
-        throw error
-      }
+      const { data, error } = await bucket().exists(key)
+      if (error && !isNotFoundError(error)) throw error
+      return data
     },
 
     async statObject(key) {
       assertManagedKey(key)
-      try {
-        const head = await client.send(new HeadObjectCommand({ Bucket: config.bucket, Key: key }))
-        return { sizeBytes: head.ContentLength ?? 0, contentType: head.ContentType ?? null }
-      } catch (error) {
+      const { data, error } = await bucket().info(key)
+      if (error) {
         if (isNotFoundError(error)) return null
         throw error
       }
+      return { sizeBytes: data.size ?? 0, contentType: data.contentType ?? null }
+    },
+
+    async listFolders(prefix = '') {
+      const entries = await listLevel(prefix)
+      return entries.filter((entry) => entry.id === null).map((entry) => entry.name)
+    },
+
+    async listObjects(prefix = '') {
+      const objects: StoredObject[] = []
+      const pending = [prefix]
+      while (pending.length > 0) {
+        const current = pending.pop() as string
+        for (const entry of await listLevel(current)) {
+          const key = joinKey(current, entry.name)
+          if (entry.id === null) {
+            pending.push(key)
+          } else {
+            objects.push({ key, sizeBytes: entry.metadata?.size ?? 0 })
+          }
+        }
+      }
+      return objects.sort((a, b) => a.key.localeCompare(b.key))
+    },
+
+    async downloadObject(key) {
+      const { data, error } = await bucket().download(key)
+      if (error) throw error
+      return Buffer.from(await data.arrayBuffer())
     },
   }
+
+  async function listLevel(prefix: string): Promise<ListEntry[]> {
+    const entries: ListEntry[] = []
+    for (let offset = 0; ; offset += LIST_PAGE_SIZE) {
+      const { data, error } = await bucket().list(prefix, {
+        limit: LIST_PAGE_SIZE,
+        offset,
+        sortBy: { column: 'name', order: 'asc' },
+      })
+      if (error) throw error
+      const page = (data ?? []) as ListEntry[]
+      // Supabase lists a placeholder object for empty folders.
+      entries.push(...page.filter((entry) => entry.name !== '.emptyFolderPlaceholder'))
+      if (page.length < LIST_PAGE_SIZE) break
+    }
+    return entries
+  }
+
+  return service
 }
 
 export function createStorageService(config: AppConfig = loadConfig()): StorageService {
-  if (!isStorageConfigured(config)) {
+  const client = getSupabaseAdmin(config)
+  if (!isStorageConfigured(config) || !client) {
     return createUnconfiguredStorageService()
   }
-  return createR2StorageService(requireStorageConfig(config))
+  return createSupabaseStorageService(client, requireStorageConfig(config))
 }
 
 let shared: StorageService | null = null

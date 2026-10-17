@@ -1,4 +1,4 @@
-import { apiDownload, apiRequest } from './api'
+import { apiRequest } from './api'
 
 export type ContactMessagePayload = {
   name: string
@@ -113,13 +113,6 @@ export function updateLead(
   })
 }
 
-export function exportLeads(search?: string) {
-  const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  const suffix = params.toString() ? `?${params.toString()}` : ''
-  return apiDownload(`/contact/leads/export${suffix}`, 'leads.csv')
-}
-
 export function listNewsletter(query: ContactListQuery) {
   return apiRequest<{ data: StayUpdatedRecord[]; meta: ContactListMeta }>(
     `/contact/newsletter?${listQueryParams(query)}`,
@@ -135,13 +128,6 @@ export function updateNewsletterSubscriber(id: string, email: string) {
     method: 'PATCH',
     body: JSON.stringify({ email }),
   })
-}
-
-export function exportNewsletter(search?: string) {
-  const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  const suffix = params.toString() ? `?${params.toString()}` : ''
-  return apiDownload(`/contact/newsletter/export${suffix}`, 'stay-updated.csv')
 }
 
 export function listContactMessages(query: ContactListQuery) {
@@ -166,11 +152,4 @@ export function updateContactMessage(
     method: 'PATCH',
     body: JSON.stringify(input),
   })
-}
-
-export function exportContactMessages(search?: string) {
-  const params = new URLSearchParams()
-  if (search) params.set('search', search)
-  const suffix = params.toString() ? `?${params.toString()}` : ''
-  return apiDownload(`/contact/messages/export${suffix}`, 'contact-messages.csv')
 }

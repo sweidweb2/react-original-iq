@@ -145,14 +145,20 @@ export function createRevisionsService(
       if (revision.status !== 'in-revision') {
         throw validationError('Revision is not open for submission')
       }
+      if (body.solutionIds?.length) {
+        const own = new Set(
+          (await tasksRepository.listSolutions(task.id)).map((solution) => solution.id),
+        )
+        if (body.solutionIds.some((solutionId) => !own.has(solutionId))) {
+          throw forbidden('Solutions must belong to this task')
+        }
+        await repository.linkSolutions(id, body.solutionIds)
+      }
       const submitDate = new Date().toISOString()
       const updated = await repository.setStatus(id, 'waiting_coordinator_approval', {
         submitDate,
       })
       if (!updated) throw notFound('Revision not found', 'REVISION_NOT_FOUND')
-      if (body.solutionIds?.length) {
-        await repository.linkSolutions(id, body.solutionIds)
-      }
       return loadRevision(id)
     },
 

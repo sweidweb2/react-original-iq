@@ -1,12 +1,13 @@
 import type { NextFunction, Request, Response } from 'express'
 
-import type { ListActivityQuery } from './logging.schema.js'
+import type { ListActivityQuery, ListErrorsQuery } from './logging.schema.js'
 import type { LoggingService } from './logging.service.js'
 
 export type LoggingController = {
   listActivity: (req: Request, res: Response, next: NextFunction) => Promise<void>
   activityStats: (req: Request, res: Response, next: NextFunction) => Promise<void>
   listErrors: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  errorStats: (req: Request, res: Response, next: NextFunction) => Promise<void>
 }
 
 export function createLoggingController(service: LoggingService): LoggingController {
@@ -39,12 +40,25 @@ export function createLoggingController(service: LoggingService): LoggingControl
 
     async listErrors(req, res, next) {
       try {
-        const query = req.query as { page?: number; limit?: number }
+        const query = req.query as unknown as ListErrorsQuery
         const result = await service.listErrors({
           page: query.page ?? 1,
           limit: query.limit ?? 20,
+          search: query.search,
+          source: query.source,
+          level: query.level,
+          since: query.since,
         })
         res.status(200).json(result)
+      } catch (error) {
+        next(error)
+      }
+    },
+
+    async errorStats(_req, res, next) {
+      try {
+        const stats = await service.getErrorStats()
+        res.status(200).json(stats)
       } catch (error) {
         next(error)
       }

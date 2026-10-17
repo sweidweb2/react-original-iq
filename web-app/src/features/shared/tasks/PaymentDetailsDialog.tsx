@@ -52,7 +52,7 @@ export function PaymentDetailsDialog({
         if (!cancelled) setDetail(data)
       })
       .catch((error: unknown) => {
-        if (!cancelled) toastApiError(error, 'Could not load payment')
+        if (!cancelled) toastApiError(error, "Couldn't load the payment details")
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)

@@ -9,6 +9,7 @@ import { taskStatusLabel } from '@/services/tasks'
 import { PortalPageShell } from '../PortalPageShell'
 import { TaskCoordinatorSection, TaskTutorSection } from './TaskAssignmentSection'
 import { TaskControlsSection } from './TaskControlsSection'
+import { TaskCurrencyConverter } from './TaskCurrencyConverter'
 import { TaskDetailsActions } from './TaskDetailsActions'
 import { TaskDetailsDialogs } from './TaskDetailsDialogs'
 import {
@@ -101,25 +102,49 @@ export function TaskDetailsPage() {
   return (
     <PortalPageShell
       title={task.topic ?? 'Task details'}
-      description={`${task.type ?? 'Task'} · ${task.category ?? 'General'}`}
+      hideTitle
       breadcrumbs={breadcrumbs}
       actions={
-        <TaskDetailsActions
-          isActing={model.isActing}
-          canApprove={model.canApprove}
-          canSubmit={model.canSubmit}
-          canCancelSubmit={model.canCancelSubmit}
-          onApprove={() => model.runAction('Task approved', () => model.approveTask(task.id))}
-          onDisapprove={() =>
-            model.runAction('Returned to tutor', () => model.disapproveTask(task.id))
-          }
-          onSubmit={() =>
-            model.runAction('Submitted for approval', () => model.submitTask(task.id))
-          }
-          onCancelSubmit={() =>
-            model.runAction('Submission cancelled', () => model.cancelTaskSubmit(task.id))
-          }
-        />
+        model.canApprove || model.canSubmit || model.canCancelSubmit ? (
+          <TaskDetailsActions
+            isActing={model.isActing}
+            canApprove={model.canApprove}
+            canSubmit={model.canSubmit}
+            canCancelSubmit={model.canCancelSubmit}
+            onApprove={() =>
+              model.runTaskAction(
+                { success: 'Task approved', failure: "Couldn't approve the task" },
+                () => model.approveTask(task.id),
+              )
+            }
+            onDisapprove={() =>
+              model.runTaskAction(
+                {
+                  success: 'Returned to tutor',
+                  failure: "Couldn't return the task to the tutor",
+                  detail: 'The tutor can now rework the submission.',
+                },
+                () => model.disapproveTask(task.id),
+              )
+            }
+            onSubmit={() =>
+              model.runTaskAction(
+                {
+                  success: 'Submitted for approval',
+                  failure: "Couldn't submit the task",
+                  detail: 'The coordinator will review your work.',
+                },
+                () => model.submitTask(task.id),
+              )
+            }
+            onCancelSubmit={() =>
+              model.runTaskAction(
+                { success: 'Submission withdrawn', failure: "Couldn't withdraw the submission" },
+                () => model.cancelTaskSubmit(task.id),
+              )
+            }
+          />
+        ) : undefined
       }
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-card px-4 py-3 text-sm">
@@ -167,7 +192,10 @@ export function TaskDetailsPage() {
                   onSelectedTutorIdChange={model.setSelectedTutorId}
                   onAssignTutor={(event) => void model.onAssignTutor(event)}
                   onRemoveTutor={() =>
-                    void model.runAction('Tutor removed', () => model.removeTutor(task.id))
+                    void model.runTaskAction(
+                      { success: 'Tutor removed', failure: "Couldn't remove the tutor" },
+                      () => model.removeTutor(task.id),
+                    )
                   }
                 />
                 {model.isAdmin ? (
@@ -188,13 +216,31 @@ export function TaskDetailsPage() {
                 task={task}
                 isAdmin={model.isAdmin}
                 isActing={model.isActing}
-                onCancel={() => model.runAction('Task cancelled', () => model.cancelTask(task.id))}
+                onCancel={() =>
+                  model.runTaskAction(
+                    { success: 'Task cancelled', failure: "Couldn't cancel the task" },
+                    () => model.cancelTask(task.id),
+                  )
+                }
                 onActivate={() =>
-                  model.runAction('Task activated', () => model.activateTask(task.id))
+                  model.runTaskAction(
+                    { success: 'Task reactivated', failure: "Couldn't reactivate the task" },
+                    () => model.activateTask(task.id),
+                  )
                 }
                 onToggleAllowView={() =>
-                  model.runAction(
-                    task.allowView ? 'Client view disabled' : 'Client view enabled',
+                  model.runTaskAction(
+                    task.allowView
+                      ? {
+                          success: 'Client view turned off',
+                          failure: "Couldn't hide the task from the client",
+                          detail: 'The client can no longer see this task.',
+                        }
+                      : {
+                          success: 'Client view turned on',
+                          failure: "Couldn't share the task with the client",
+                          detail: 'The client can now see this task.',
+                        },
                     () => model.setTaskAllowView(task.id, !task.allowView),
                   )
                 }
@@ -211,25 +257,23 @@ export function TaskDetailsPage() {
               task={task}
               canUpload={Boolean(canUploadDocs)}
               isActing={model.isActing}
-              isUploading={model.uploadTarget === 'documents'}
+              uploadProgress={model.uploadTarget === 'documents' ? model.uploadProgress : null}
+              isZipping={model.zipping === 'documents'}
               onUpload={(files) => void model.onUpload('documents', files)}
               onOpenFile={model.onOpenFile}
-              onRemoveFile={(fileId) =>
-                void model.runAction('File removed', () => model.deleteTaskFile(task.id, fileId))
-              }
+              onRemoveFile={model.onRemoveFile}
+              onDownloadZip={(ids) => model.downloadZip('documents', ids)}
             />
             <TaskSolutionsSection
               task={task}
               canManage={Boolean(canManageSolutions)}
               isActing={model.isActing}
-              isUploading={model.uploadTarget === 'solutions'}
+              uploadProgress={model.uploadTarget === 'solutions' ? model.uploadProgress : null}
+              isZipping={model.zipping === 'solutions'}
               onUpload={(files) => void model.onUpload('solutions', files)}
               onOpenSolution={model.onOpenSolution}
-              onRemoveSolution={(solutionId) =>
-                void model.runAction('Solution removed', () =>
-                  model.deleteTaskSolution(task.id, solutionId),
-                )
-              }
+              onRemoveSolution={model.onRemoveSolution}
+              onDownloadZip={(ids) => model.downloadZip('solutions', ids)}
             />
           </div>
         </TabPanel>
@@ -237,14 +281,19 @@ export function TaskDetailsPage() {
 
       {activeTab === 'payments' ? (
         <TabPanel idPrefix={TABS_ID} id="payments">
-          <TaskPaymentsSection
-            task={task}
-            taskId={model.taskId}
-            tasksBase={model.tasksBase}
-            canViewPayments={model.canViewPayments}
-            canEditPrice={model.isStaff}
-            onEditPrice={() => model.setPriceOpen(true)}
-          />
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+            <TaskPaymentsSection
+              task={task}
+              taskId={model.taskId}
+              tasksBase={model.tasksBase}
+              canViewPayments={model.canViewPayments}
+              canEditPrice={model.isStaff}
+              onEditPrice={() => model.setPriceOpen(true)}
+            />
+            <aside aria-label="Currency conversion">
+              <TaskCurrencyConverter amountUsd={task.price} />
+            </aside>
+          </div>
         </TabPanel>
       ) : null}
 

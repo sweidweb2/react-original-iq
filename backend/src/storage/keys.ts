@@ -3,10 +3,10 @@ import path from 'node:path'
 
 import { STORAGE_PREFIX, type StorageCategory } from './constants.js'
 
-/** Strip path segments and keep a safe basename. */
+/** Strip path segments and keep a basename that is valid as a Supabase Storage key. */
 export function sanitizeFilename(filename: string): string {
   const base = path.basename(filename.replace(/\\/g, '/')).trim()
-  const cleaned = base.replace(/[^\w.\- ()[\]]+/g, '_').replace(/^\.+/, '')
+  const cleaned = base.replace(/[^\w.\- ()]+/g, '_').replace(/^\.+/, '')
   return cleaned.slice(0, 180) || 'file'
 }
 

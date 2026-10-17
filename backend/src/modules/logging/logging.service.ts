@@ -1,53 +1,71 @@
 import { getLogger } from '../../logging/index.js'
-import type { PaginationQuery } from '../_shared/pagination.schema.js'
 import type {
   ActivityLogStats,
   CreateActivityInput,
   CreateErrorInput,
   LoggingRepository,
 } from './logging.repository.js'
-import type { ListActivityQuery } from './logging.schema.js'
-import type { ActivityLogDto, ErrorLogDto, PaginatedLogs } from './logging.types.js'
+import type { ListActivityQuery, ListErrorsQuery } from './logging.schema.js'
+import type { ActivityLogDto, ErrorLogDto, ErrorLogStats, PaginatedLogs } from './logging.types.js'
 
 const MAX_STACK_LENGTH = 4000
+const MAX_MESSAGE_LENGTH = 2000
 
 export type LoggingService = {
   recordActivity: (input: CreateActivityInput) => Promise<void>
   recordError: (input: CreateErrorInput) => Promise<void>
   /** Fire-and-forget; never throws to callers. */
   recordActivitySafe: (input: CreateActivityInput) => void
+  /** Fire-and-forget; write failures go to stdout only (never back into `error_logs`). */
   recordErrorSafe: (input: CreateErrorInput) => void
   listActivity: (query: ListActivityQuery) => Promise<PaginatedLogs<ActivityLogDto>>
   getActivityStats: () => Promise<ActivityLogStats>
-  listErrors: (query: PaginationQuery) => Promise<PaginatedLogs<ErrorLogDto>>
+  listErrors: (query: ListErrorsQuery) => Promise<PaginatedLogs<ErrorLogDto>>
+  getErrorStats: () => Promise<ErrorLogStats>
 }
 
-export function createLoggingService(repository: LoggingRepository): LoggingService {
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value
+}
+
+function normalizeError(input: CreateErrorInput): CreateErrorInput {
+  return {
+    ...input,
+    message: truncate(input.message, MAX_MESSAGE_LENGTH),
+    stack: input.stack ? truncate(input.stack, MAX_STACK_LENGTH) : (input.stack ?? null),
+  }
+}
+
+export type LoggingServiceOptions = {
+  /** Defaults to stdout only; the module wires this to `reportError`. */
+  onActivityWriteFailure?: (error: unknown, input: CreateActivityInput) => void
+}
+
+export function createLoggingService(
+  repository: LoggingRepository,
+  options: LoggingServiceOptions = {},
+): LoggingService {
   return {
     async recordActivity(input) {
       await repository.createActivity(input)
     },
 
     async recordError(input) {
-      const stack =
-        input.stack && input.stack.length > MAX_STACK_LENGTH
-          ? `${input.stack.slice(0, MAX_STACK_LENGTH)}…`
-          : input.stack
-      await repository.createError({ ...input, stack: stack ?? null })
+      await repository.createError(normalizeError(input))
     },
 
     recordActivitySafe(input) {
-      void repository.createActivity(input).catch((error) => {
+      void repository.createActivity(input).catch((error: unknown) => {
+        if (options.onActivityWriteFailure) {
+          options.onActivityWriteFailure(error, input)
+          return
+        }
         getLogger().error({ err: error }, 'failed to write activity')
       })
     },
 
     recordErrorSafe(input) {
-      const stack =
-        input.stack && input.stack.length > MAX_STACK_LENGTH
-          ? `${input.stack.slice(0, MAX_STACK_LENGTH)}…`
-          : input.stack
-      void repository.createError({ ...input, stack: stack ?? null }).catch((error) => {
+      void repository.createError(normalizeError(input)).catch((error: unknown) => {
         getLogger().error({ err: error }, 'failed to write error log')
       })
     },
@@ -93,10 +111,19 @@ export function createLoggingService(repository: LoggingRepository): LoggingServ
     },
 
     async listErrors(query) {
-      const { items, total } = await repository.listErrors(query.page, query.limit)
+      const { items, total } = await repository.listErrors({
+        page: query.page,
+        limit: query.limit,
+        search: query.search,
+        source: query.source,
+        level: query.level,
+        since: query.since,
+      })
       return {
         data: items.map((row) => ({
           id: row.id,
+          source: row.source,
+          level: row.level,
           requestId: row.requestId,
           userId: row.userId,
           code: row.code,
@@ -105,7 +132,15 @@ export function createLoggingService(repository: LoggingRepository): LoggingServ
           path: row.path,
           method: row.method,
           status: row.status,
+          meta: row.meta,
           createdAt: row.createdAt.toISOString(),
+          user: row.user
+            ? {
+                id: row.user.id,
+                email: row.user.email,
+                role: row.user.role,
+              }
+            : null,
         })),
         meta: {
           page: query.page,
@@ -113,6 +148,10 @@ export function createLoggingService(repository: LoggingRepository): LoggingServ
           total,
         },
       }
+    },
+
+    getErrorStats() {
+      return repository.countErrorStats()
     },
   }
 }

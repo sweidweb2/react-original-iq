@@ -1,7 +1,7 @@
 /**
- * Object storage (Cloudflare R2 via S3 API).
+ * Object storage (Supabase Storage, private bucket from SUPABASE_STORAGE_BUCKET).
  *
- * - Controllers/services call `getStorageService()` — never raw S3 from modules.
+ * - Controllers/services call `getStorageService()` — never the storage client from modules.
  * - Persist **object keys** in `files.file_location` / `solutions.file_location`.
  * - Issue short-lived signed URLs for download/upload; do not expose public ACLs.
  */
@@ -18,6 +18,7 @@ export {
 export { buildObjectKey, extensionOf, isManagedObjectKey, sanitizeFilename } from './keys.js'
 export {
   createStorageService,
+  createSupabaseStorageService,
   getStorageService,
   type ObjectInfo,
   type PutObjectInput,
@@ -25,5 +26,6 @@ export {
   resetStorageServiceForTests,
   type SignedUrlResult,
   type StorageService,
+  type StoredObject,
 } from './storage.service.js'
 export { assertValidUpload, type UploadValidationInput, type ValidatedUpload } from './validate.js'

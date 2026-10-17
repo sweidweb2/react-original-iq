@@ -1,17 +1,15 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { AsyncState, EmptyState } from '@/components/feedback'
+import { EmptyState } from '@/components/feedback'
 import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import type { AuthRole } from '@/services/auth'
-import { downloadExport } from '@/services/exports'
 import {
   createTask,
   getTaskStats,
@@ -20,23 +18,17 @@ import {
   type TaskStats,
   taskStatusLabel,
 } from '@/services/tasks'
-import { toastApiError } from '@/services/toast'
-import { getUserStats, type UserStats } from '@/services/users'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
 import { createTaskFormSchema, type CreateTaskFormValues } from '../tasks/task-form.schema'
 import { taskStatusTone } from '../tasks/taskDetailsFormat'
 
-const TITLES: Record<AuthRole, { title: string; description: string }> = {
-  super: {
-    title: 'Super dashboard',
-    description: 'Platform activity and audit trail.',
-  },
-  admin: {
-    title: 'Admin dashboard',
-    description: 'Platform overview — KPIs, tasks, payments, and exports.',
-  },
+/** Super and admin have their own home pages (activity log, analytics). */
+type DashboardRole = Exclude<AuthRole, 'super' | 'admin'>
+
+const TITLES: Record<DashboardRole, { title: string; description: string }> = {
   coordinator: {
     title: 'Coordinator dashboard',
     description: 'Ops overview — requests, tasks, and workload.',
@@ -104,102 +96,6 @@ function RecentTasksList({ base, tasks }: { base: string; tasks: Task[] }) {
   )
 }
 
-function AdminSections({ base }: { base: string }) {
-  const [stats, setStats] = useState<TaskStats | null>(null)
-  const [userStats, setUserStats] = useState<UserStats | null>(null)
-  const [recent, setRecent] = useState<Task[]>([])
-  const [error, setError] = useState<unknown>(null)
-  const [exporting, setExporting] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const [taskStats, users, tasksPage] = await Promise.all([
-          getTaskStats(),
-          getUserStats(),
-          listTasks({ page: 1, limit: 5 }),
-        ])
-        if (!cancelled) {
-          setStats(taskStats)
-          setUserStats(users)
-          setRecent(tasksPage.data)
-        }
-      } catch (err) {
-        if (!cancelled) setError(err)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  async function onExport(resource: Parameters<typeof downloadExport>[0]) {
-    setExporting(resource)
-    try {
-      await downloadExport(resource)
-      toast.success(`Downloaded ${resource}.csv`)
-    } catch (err) {
-      toastApiError(err, 'Export failed')
-    } finally {
-      setExporting(null)
-    }
-  }
-
-  if (error) {
-    return (
-      <AsyncState error={error} onRetry={() => window.location.reload()}>
-        <span className="sr-only">Dashboard unavailable</span>
-      </AsyncState>
-    )
-  }
-
-  const openTasks =
-    (stats?.pending ?? 0) +
-    (stats?.['in-progress'] ?? 0) +
-    (stats?.waiting_coordinator_approval ?? 0)
-
-  return (
-    <>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Open tasks" value={openTasks} />
-        <Kpi label="Users" value={userStats?.total ?? '—'} />
-        <Kpi label="All tasks" value={stats?.total ?? '—'} />
-        <Kpi label="Completed" value={stats?.completed ?? '—'} />
-      </div>
-      <SectionCard
-        title="Tasks preview"
-        description="Recent ops tasks."
-        actions={
-          <Link to={`${base}/tasks`} className="text-sm font-medium text-primary hover:underline">
-            View all
-          </Link>
-        }
-      >
-        <RecentTasksList base={base} tasks={recent} />
-      </SectionCard>
-      <SectionCard title="Exports" description="Download CSV snapshots for reporting.">
-        <div className="flex flex-wrap gap-2">
-          {(['users', 'tasks', 'payments', 'refunds', 'leads', 'feedback'] as const).map(
-            (resource) => (
-              <Button
-                key={resource}
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={exporting !== null}
-                onClick={() => void onExport(resource)}
-              >
-                {exporting === resource ? 'Exporting…' : resource}
-              </Button>
-            ),
-          )}
-        </div>
-      </SectionCard>
-    </>
-  )
-}
-
 function CoordinatorSections({ base }: { base: string }) {
   const [stats, setStats] = useState<TaskStats | null>(null)
   const [recent, setRecent] = useState<Task[]>([])
@@ -232,13 +128,13 @@ function CoordinatorSections({ base }: { base: string }) {
         ...parsed.data,
         deadline: deadlineToApi(parsed.data.deadline),
       })
-      toast.success('Task created')
+      toastSuccess('Task created', `“${parsed.data.topic}” was added to the task list.`)
       setValues(emptyRequest)
       setCreateOpen(false)
       const tasksPage = await listTasks({ page: 1, limit: 5 })
       setRecent(tasksPage.data)
     } catch (err) {
-      toastApiError(err, 'Could not create task')
+      toastApiError(err, `Couldn't create “${parsed.data.topic}”`)
     } finally {
       setIsSubmitting(false)
     }
@@ -380,12 +276,15 @@ function ClientSections({ base }: { base: string }) {
         ...parsed.data,
         deadline: deadlineToApi(parsed.data.deadline),
       })
-      toast.success('Request submitted')
+      toastSuccess(
+        'Request submitted',
+        `“${parsed.data.topic}” was sent. A coordinator will review it and assign a tutor.`,
+      )
       setValues(emptyRequest)
       const page = await listTasks({ page: 1, limit: 5 })
       setRecent(page.data)
     } catch (err) {
-      toastApiError(err, 'Could not submit request')
+      toastApiError(err, `Couldn't submit “${parsed.data.topic}”`)
     } finally {
       setIsSubmitting(false)
     }
@@ -477,16 +376,10 @@ function ClientSections({ base }: { base: string }) {
 
 export function PortalDashboardPage() {
   const user = useAuthStore((s) => s.user)
-  const role = user?.role ?? 'client'
+  const role: DashboardRole =
+    user?.role === 'coordinator' || user?.role === 'tutor' ? user.role : 'client'
   const copy = TITLES[role]
-  const base =
-    role === 'super' || role === 'admin'
-      ? '/admin'
-      : role === 'coordinator'
-        ? '/coordinator'
-        : role === 'tutor'
-          ? '/tutor'
-          : '/client'
+  const base = `/${role}`
 
   return (
     <PortalPageShell title={copy.title} description={copy.description}>
@@ -495,7 +388,6 @@ export function PortalDashboardPage() {
           Signed in as <span className="font-medium text-foreground">{user.email}</span>
         </p>
       ) : null}
-      {role === 'super' || role === 'admin' ? <AdminSections base={base} /> : null}
       {role === 'coordinator' ? <CoordinatorSections base={base} /> : null}
       {role === 'tutor' ? <TutorSections base={base} /> : null}
       {role === 'client' ? <ClientSections base={base} /> : null}

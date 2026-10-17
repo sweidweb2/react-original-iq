@@ -100,7 +100,7 @@ export function createAuthController(service: AuthService): AuthController {
         if (!userId) {
           throw unauthorized()
         }
-        const user = await service.updateMe(userId, req.body)
+        const user = await service.updateMe(userId, req.body, req.user?.sessionId)
         res.status(200).json({ user })
       } catch (error) {
         next(error)

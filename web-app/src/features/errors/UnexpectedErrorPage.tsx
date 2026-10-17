@@ -24,7 +24,7 @@ export function UnexpectedErrorPage({ onReset }: UnexpectedErrorPageProps) {
               Try again
             </Button>
           ) : null}
-          <Link to="/" className={cn(buttonVariants({ variant: 'outline' }))} onClick={onReset}>
+          <Link to="/" className={cn(buttonVariants({ variant: 'secondary' }))} onClick={onReset}>
             Back home
           </Link>
         </>

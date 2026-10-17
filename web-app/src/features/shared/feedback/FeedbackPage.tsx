@@ -12,7 +12,6 @@ import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
 import { StarRating } from '@/components/ui/star-rating'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
   createFeedback,
@@ -22,7 +21,7 @@ import {
   listFeedback,
 } from '@/services/feedback'
 import { listTasks, type Task } from '@/services/tasks'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastInvalid, toastSuccess } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 const PAGE_SIZE = 10
@@ -60,7 +59,6 @@ export function FeedbackPage() {
   const [isActing, setIsActing] = useState(false)
 
   const [taskId, setTaskId] = useState('')
-  const [tutorId, setTutorId] = useState('')
   const [rating, setRating] = useState(0)
   const [comments, setComments] = useState('')
   const [suggestions, setSuggestions] = useState('')
@@ -77,7 +75,7 @@ export function FeedbackPage() {
     if (!isClient) return
     let cancelled = false
     setTasksLoading(true)
-    listTasks({ page: 1, limit: 100 })
+    listTasks({ page: 1, limit: 100, status: 'completed' })
       .then((result) => {
         if (cancelled) return
         setClientTasks(result.data.filter((task) => task.tutorId))
@@ -134,40 +132,42 @@ export function FeedbackPage() {
     setReloadKey((value) => value + 1)
   }
 
-  function onTaskChange(nextTaskId: string) {
-    setTaskId(nextTaskId)
-    const selected = clientTasks.find((task) => task.id === nextTaskId)
-    setTutorId(selected?.tutorId ?? '')
-  }
+  const reviewedTaskIds = new Set(rows.map((row) => row.taskId))
+  const reviewableTasks = clientTasks.filter((task) => !reviewedTaskIds.has(task.id))
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!taskId || !tutorId) {
-      toast.error('Select a task with an assigned tutor')
+    if (!taskId) {
+      toastInvalid('Pick a task', 'Choose one of your completed tasks before sending feedback.')
       return
     }
-    if (rating < 0 || rating > 5) {
-      toast.error('Choose a rating between 0 and 5')
+    if (rating < 1 || rating > 5) {
+      toastInvalid('Pick a rating', 'Choose between 1 and 5 stars.')
       return
     }
+    const taskTopic = clientTasks.find((task) => task.id === taskId)?.topic
     setIsSubmitting(true)
     try {
       await createFeedback({
         taskId,
-        tutorId,
         rating,
         comments: comments.trim() || undefined,
         suggestions: suggestions.trim() || undefined,
       })
-      toast.success('Feedback submitted')
+      toastSuccess(
+        'Feedback sent',
+        `${rating}/5 stars${taskTopic ? ` for “${taskTopic}”` : ''}. Thank you!`,
+      )
       setTaskId('')
-      setTutorId('')
       setRating(0)
       setComments('')
       setSuggestions('')
       refresh()
     } catch (submitError) {
-      toastApiError(submitError, 'Could not submit feedback')
+      toastApiError(
+        submitError,
+        taskTopic ? `Couldn't send feedback for “${taskTopic}”` : "Couldn't send your feedback",
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -178,11 +178,11 @@ export function FeedbackPage() {
     setIsActing(true)
     try {
       await deleteFeedback(pendingDelete.id)
-      toast.success('Feedback deleted')
+      toastSuccess('Feedback deleted', `The ${pendingDelete.rating}/5 review was removed.`)
       setPendingDelete(null)
       refresh()
     } catch (actionError) {
-      toastApiError(actionError, 'Could not delete feedback')
+      toastApiError(actionError, "Couldn't delete this feedback")
     } finally {
       setIsActing(false)
     }
@@ -221,21 +221,20 @@ export function FeedbackPage() {
                 <Select
                   id="feedback-task-id"
                   value={taskId}
-                  onChange={(event) => onTaskChange(event.target.value)}
+                  onChange={(event) => setTaskId(event.target.value)}
                   required
-                  disabled={tasksLoading || clientTasks.length === 0}
+                  disabled={tasksLoading || reviewableTasks.length === 0}
                 >
                   <option value="">
                     {tasksLoading
                       ? 'Loading tasks…'
-                      : clientTasks.length === 0
-                        ? 'No assigned tasks available'
+                      : reviewableTasks.length === 0
+                        ? 'No completed tasks waiting for feedback'
                         : 'Select a task'}
                   </option>
-                  {clientTasks.map((task) => (
+                  {reviewableTasks.map((task) => (
                     <option key={task.id} value={task.id}>
                       {(task.topic ?? 'Untitled').slice(0, 60)}
-                      {task.status === 'completed' ? ' (completed)' : ''}
                     </option>
                   ))}
                 </Select>

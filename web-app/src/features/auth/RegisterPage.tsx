@@ -6,10 +6,9 @@ import { GuestOnly } from '@/components/auth'
 import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 import { AuthCard } from './AuthCard'
@@ -46,9 +45,9 @@ export function RegisterPage() {
         firstName: firstName || undefined,
         lastName: lastName || undefined,
       })
-      toast.success('Account created')
+      toastSuccess('Account created', `You're signed in as ${email}.`)
     } catch (error) {
-      toastApiError(error, 'Could not register')
+      toastApiError(error, "Couldn't create your account")
     } finally {
       setIsSubmitting(false)
     }

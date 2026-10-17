@@ -1,6 +1,6 @@
 import { Router } from 'express'
 
-import { ADMIN_ROLES } from '../../authz/index.js'
+import { USER_ADMIN_ROLES } from '../../authz/index.js'
 import { authenticate } from '../../middleware/authenticate.js'
 import { authorize } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
@@ -19,15 +19,15 @@ export function createUsersRoutes(controller: UsersController): Router {
 
   router.get(
     '/',
-    authorize('admin', 'coordinator'),
+    authorize(...USER_ADMIN_ROLES, 'coordinator'),
     validate({ query: listUsersQuerySchema }),
     controller.list,
   )
-  router.get('/stats', authorize(...ADMIN_ROLES), controller.stats)
+  router.get('/stats', authorize(...USER_ADMIN_ROLES), controller.stats)
   router.get('/:id', validate({ params: userIdParamsSchema }), controller.getById)
   router.post(
     '/',
-    authorize(...ADMIN_ROLES),
+    authorize(...USER_ADMIN_ROLES),
     validate({ body: createUserBodySchema }),
     controller.create,
   )
@@ -38,13 +38,13 @@ export function createUsersRoutes(controller: UsersController): Router {
   )
   router.post(
     '/:id/deactivate',
-    authorize(...ADMIN_ROLES),
+    authorize(...USER_ADMIN_ROLES),
     validate({ params: userIdParamsSchema }),
     controller.deactivate,
   )
   router.delete(
     '/:id',
-    authorize('admin', 'coordinator'),
+    authorize(...USER_ADMIN_ROLES, 'coordinator'),
     validate({ params: userIdParamsSchema }),
     controller.remove,
   )

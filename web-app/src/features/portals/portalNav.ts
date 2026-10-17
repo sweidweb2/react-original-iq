@@ -1,6 +1,8 @@
 import {
+  Bug,
   ClipboardList,
   Contact,
+  DatabaseBackup,
   Home,
   KeyRound,
   Mail,
@@ -33,7 +35,10 @@ export const PORTALS: readonly PortalDefinition[] = [
     description: 'Platform activity and audit trail.',
     nav: [
       { to: '/super', label: 'Activity log', icon: ScrollText, end: true },
+      { to: '/super/errors', label: 'Error log', icon: Bug },
+      { to: '/super/users', label: 'Users', icon: Users },
       { to: '/super/rbac', label: 'RBAC', icon: KeyRound },
+      { to: '/super/backup', label: 'Backup', icon: DatabaseBackup },
       { to: '/super/profile', label: 'Profile', icon: UserCircle },
     ],
   },
@@ -41,8 +46,8 @@ export const PORTALS: readonly PortalDefinition[] = [
     role: 'admin',
     path: '/admin',
     title: 'Admin portal',
-    homeTitle: 'Admin home',
-    description: 'Admin portal landing — tools will land here.',
+    homeTitle: 'Home',
+    description: 'Platform analytics — revenue, users, tasks, and feedback.',
     nav: [
       { to: '/admin', label: 'Home', icon: Home, end: true },
       { to: '/admin/users', label: 'Users', icon: Users },

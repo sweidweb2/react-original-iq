@@ -5,10 +5,9 @@ import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { checkoutTaskPayment } from '@/services/payments'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { checkoutSchema } from './payments.schema'
 
@@ -79,13 +78,13 @@ export function SimulatedCheckoutDialog({
     try {
       const payment = await checkoutTaskPayment(taskId, { amount: parsed.data.amount })
       const invoiceNote = payment.invoice
-        ? ` Invoice ${payment.invoice.invoiceNumber} ${payment.invoice.invoiceStatus === 'sent' ? 'emailed' : 'created'}.`
+        ? ` Invoice ${payment.invoice.invoiceNumber} ${payment.invoice.invoiceStatus === 'sent' ? 'was emailed to you' : 'was created'}.`
         : ''
-      toast.success(`Payment of $${payment.amount.toFixed(2)} completed.${invoiceNote}`)
+      toastSuccess('Payment completed', `$${payment.amount.toFixed(2)} paid.${invoiceNote}`)
       onPaid()
       onClose()
     } catch (error) {
-      toastApiError(error, 'Payment failed')
+      toastApiError(error, `Your $${parsed.data.amount.toFixed(2)} payment didn't go through`)
     } finally {
       setIsSubmitting(false)
     }

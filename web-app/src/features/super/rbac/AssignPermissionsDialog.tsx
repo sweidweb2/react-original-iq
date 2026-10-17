@@ -3,10 +3,9 @@ import { Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { assignRolePermissions, type RbacPermission, type RbacRole } from '@/services/rbac'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 type AssignPermissionsDialogProps = {
   open: boolean
@@ -55,11 +54,14 @@ export function AssignPermissionsDialog({
     setIsSubmitting(true)
     try {
       await assignRolePermissions(role.id, [...selected])
-      toast.success('Permissions assigned')
+      toastSuccess(
+        'Permissions saved',
+        `“${role.name}” now has ${selected.size} permission${selected.size === 1 ? '' : 's'}.`,
+      )
       onSaved()
       onClose()
     } catch (error) {
-      toastApiError(error, 'Could not assign permissions')
+      toastApiError(error, `Couldn't save permissions for “${role.name}”`)
     } finally {
       setIsSubmitting(false)
     }

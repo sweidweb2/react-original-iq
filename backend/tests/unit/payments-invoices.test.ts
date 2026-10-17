@@ -16,6 +16,7 @@ import {
   type PaymentsRepository,
   resetPaymentsRepositoryForTests,
 } from '../../src/modules/payments/payments.repository.js'
+import { createManualPaymentBodySchema } from '../../src/modules/payments/payments.schema.js'
 import {
   createPaymentsService,
   type PaymentsService,
@@ -27,7 +28,7 @@ import type { StorageService } from '../../src/storage/index.js'
 import { loadTestConfig } from '../helpers/test-config.js'
 
 vi.mock('../../src/modules/logging/index.js', () => ({
-  getLoggingService: () => ({ recordActivitySafe: vi.fn() }),
+  getLoggingService: () => ({ recordActivitySafe: vi.fn(), recordErrorSafe: vi.fn() }),
 }))
 
 const TASK_ID = '11111111-1111-1111-1111-111111111111'
@@ -178,6 +179,14 @@ describe('payments + invoices', () => {
     const manual = await payments.createManualPayment(TASK_ID, { amount: 100 }, admin)
     expect(manual).toMatchObject({ gateway: 'No Gateway', status: 'paid' })
     expect(manual.invoice?.invoiceStatus).toBe('sent')
+  })
+
+  it('always attributes manual payments to the task client, ignoring a supplied userId', async () => {
+    const body = createManualPaymentBodySchema.parse({ amount: 50, userId: 'someone-else' })
+
+    const manual = await payments.createManualPayment(TASK_ID, body, admin)
+    expect(manual.userId).toBe(task.clientId)
+    expect(vi.mocked(mailer.send).mock.calls[0]![0].to).toBe('client@example.com')
   })
 
   it('marks the invoice failed but keeps the PDF when email fails, then resend fixes it', async () => {

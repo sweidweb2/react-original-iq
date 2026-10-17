@@ -10,6 +10,8 @@ export function TaskFileRow({
   removeLabel,
   onOpen,
   onRemove,
+  selected,
+  onToggle,
 }: {
   name: string
   details: (string | null | undefined)[]
@@ -18,11 +20,23 @@ export function TaskFileRow({
   removeLabel: string
   onOpen: () => void
   onRemove: () => void
+  /** When `onToggle` is set, the row shows a checkbox for bulk download. */
+  selected?: boolean
+  onToggle?: () => void
 }) {
   const meta = details.filter(Boolean).join(' · ')
 
   return (
     <li className="flex items-center gap-3 rounded-md border border-border bg-card p-3">
+      {onToggle ? (
+        <input
+          type="checkbox"
+          checked={Boolean(selected)}
+          onChange={onToggle}
+          aria-label={`Select ${name}`}
+          className="size-4 shrink-0 cursor-pointer accent-primary"
+        />
+      ) : null}
       <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <FileText className="size-4" aria-hidden />
       </span>

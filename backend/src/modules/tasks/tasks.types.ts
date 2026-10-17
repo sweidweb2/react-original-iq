@@ -129,6 +129,15 @@ export type DownloadUrlResult = {
   expiresInSec: number | null
 }
 
+export type TaskFileKind = 'documents' | 'solutions'
+
+/** A prepared, authorized zip; `write` streams it into the given sink. */
+export type TaskZip = {
+  filename: string
+  entryCount: number
+  write: (out: NodeJS.WritableStream) => Promise<void>
+}
+
 export const TASK_STATUSES: TaskStatus[] = [
   'pending',
   'in-progress',

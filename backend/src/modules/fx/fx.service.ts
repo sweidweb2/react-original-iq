@@ -1,4 +1,4 @@
-import { getLogger } from '../../logging/index.js'
+import { reportError } from '../../errors/report-error.js'
 import type { FxRepository } from './fx.repository.js'
 import type { ConvertQuery } from './fx.schema.js'
 import {
@@ -25,10 +25,11 @@ export function createFxService(repository: FxRepository): FxService {
       return await repository.getUsdRates()
     } catch (error) {
       const stale = repository.peekCached()
-      getLogger().warn(
-        { err: error, component: 'fx', servingStale: Boolean(stale) },
-        'exchange rate fetch failed',
-      )
+      reportError(error, {
+        source: 'fx.fetch_rates',
+        level: stale ? 'warning' : 'error',
+        meta: { servingStale: Boolean(stale) },
+      })
       return stale
     }
   }

@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { Download, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -9,17 +9,15 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
   createLead,
   deleteLead,
-  exportLeads,
   type LeadRecord,
   listLeads,
   updateLead,
 } from '@/services/contact'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { formatAdminDate } from '../_shared/adminListFormat'
 import { AdminListPagination } from '../_shared/AdminListPagination'
@@ -32,10 +30,9 @@ export function LeadsPage() {
   const list = usePagedAdminList<LeadRecord>({
     fetchPage: listLeads,
     deleteRow: deleteLead,
-    exportRows: exportLeads,
     deleteSuccessMessage: 'Lead deleted',
-    deleteErrorMessage: 'Could not delete lead',
-    exportErrorMessage: 'Could not export leads',
+    deleteErrorMessage: "Couldn't delete lead",
+    rowLabel: (lead) => lead.email || lead.phone,
   })
 
   const [formOpen, setFormOpen] = useState(false)
@@ -74,19 +71,19 @@ export function LeadsPage() {
           phone: phone.trim(),
           email: email.trim() || null,
         })
-        toast.success('Lead updated')
+        toastSuccess('Lead saved', `Changes to ${email.trim() || phone.trim()} were saved.`)
       } else {
         await createLead({
           country: country.trim(),
           dialCode: dialCode.trim() || '+',
           phone: phone.trim(),
         })
-        toast.success('Lead created')
+        toastSuccess('Lead added', `${dialCode.trim()} ${phone.trim()} added to the list.`)
       }
       setFormOpen(false)
       list.refresh()
     } catch (err) {
-      toastApiError(err, 'Could not save lead')
+      toastApiError(err, editing ? "Couldn't save the lead" : "Couldn't add the lead")
     } finally {
       setSaving(false)
     }
@@ -96,24 +93,12 @@ export function LeadsPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="Leads"
-        description="Home lead modal submissions — search, create, edit, delete, and export."
+        description="Home lead modal submissions — search, create, edit, and delete."
         actions={
-          <>
-            <Button type="button" size="sm" onClick={openCreate}>
-              <Plus className="size-4" />
-              New lead
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={list.isExporting}
-              onClick={list.handleExport}
-            >
-              <Download className="size-4" />
-              Export CSV
-            </Button>
-          </>
+          <Button type="button" size="sm" onClick={openCreate}>
+            <Plus className="size-4" />
+            New lead
+          </Button>
         }
       />
 

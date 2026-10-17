@@ -1,19 +1,23 @@
+import { ZipArchive } from 'archiver'
+
 import type { AuthActor } from '../../authz/index.js'
 import { assertTaskRelated, isAdmin, isClient, isOps, isSuper, isTutor } from '../../authz/index.js'
 import {
+  AppError,
   conflict,
   forbidden,
   notFound,
   serviceUnavailable,
   validationError,
 } from '../../errors/app-error.js'
-import { getLogger } from '../../logging/index.js'
+import { reportError } from '../../errors/report-error.js'
 import {
+  DEFAULT_MAX_TASK_BYTES,
   isManagedObjectKey,
-  sanitizeFilename,
   STORAGE_PREFIX,
   type StorageService,
 } from '../../storage/index.js'
+import { exportFilename } from '../_shared/export-file.js'
 import { getLoggingService } from '../logging/index.js'
 import type { UsersRepository } from '../users/users.repository.js'
 import type { UsersService } from '../users/users.service.js'
@@ -29,9 +33,11 @@ import type {
   DownloadUrlResult,
   Task,
   TaskDetail,
+  TaskFileKind,
   TaskListFilter,
   TaskStats,
   TaskStatus,
+  TaskZip,
   UploadUrlInput,
   UploadUrlResult,
 } from './tasks.types.js'
@@ -93,9 +99,37 @@ export type TasksService = {
     actor: AuthActor,
   ) => Promise<DownloadUrlResult>
   deleteSolution: (id: string, solutionId: string, actor: AuthActor) => Promise<void>
+  /** Authorize and prepare a zip of all (or the selected) documents or solutions. */
+  buildZip: (
+    id: string,
+    kind: TaskFileKind,
+    ids: string[] | undefined,
+    actor: AuthActor,
+  ) => Promise<TaskZip>
 }
 
 type UploadCategory = 'documents' | 'solutions'
+
+type ZipEntry = { name: string; location: string }
+
+/** Zip-safe entry name, unique (case-insensitive) within the archive: `name (2).ext`. */
+function uniqueEntryName(raw: string, used: Set<string>): string {
+  const safe =
+    raw
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_')
+      .trim()
+      .slice(0, 200) || 'file'
+  const dot = safe.lastIndexOf('.')
+  const stem = dot > 0 ? safe.slice(0, dot) : safe
+  const ext = dot > 0 ? safe.slice(dot) : ''
+  let candidate = safe
+  for (let n = 2; used.has(candidate.toLowerCase()); n += 1) {
+    candidate = `${stem} (${n})${ext}`
+  }
+  used.add(candidate.toLowerCase())
+  return candidate
+}
 
 function scopeForActor(actor: AuthActor): TaskListFilter['scope'] {
   if (isSuper(actor.roles) || isAdmin(actor.roles)) {
@@ -161,6 +195,11 @@ function assertCanManageSolutions(actor: AuthActor, task: Task, action: string):
   }
 }
 
+function displayFilename(filename: string): string {
+  const base = filename.split(/[\\/]/).pop()?.trim() ?? ''
+  return base.slice(0, 255) || 'file'
+}
+
 function isUploadKeyForTask(key: string, category: UploadCategory, taskId: string): boolean {
   const prefix = `${STORAGE_PREFIX[category]}/${taskId}/`
   if (!key.startsWith(prefix)) return false
@@ -192,6 +231,8 @@ export type TasksServiceDeps = {
   hasOpenRevision?: (taskId: string) => Promise<boolean>
   recomputePaymentStatus?: (taskId: string) => Promise<unknown>
   storage?: StorageService
+  /** Upper bound on the summed size of files in one zip (defaults to the task storage cap). */
+  maxZipBytes?: number
 }
 
 export function createTasksService(
@@ -263,15 +304,16 @@ export function createTasksService(
     if (!isUploadKeyForTask(input.key, category, taskId)) {
       throw validationError('Upload key does not belong to this task')
     }
-    const info = await storage.statObject(input.key)
-    if (!info) {
-      throw validationError('Uploaded file was not found in storage')
-    }
+    const validated = await storage.validateStoredObject({
+      key: input.key,
+      originalFilename: input.key.slice(input.key.lastIndexOf('/') + 1),
+      taskBytesUsed: await taskBytesUsed(taskId),
+    })
     return {
       fileLocation: input.key,
-      originalName: sanitizeFilename(input.filename),
-      contentType: info.contentType ?? 'application/octet-stream',
-      sizeBytes: info.sizeBytes,
+      originalName: displayFilename(input.filename),
+      contentType: validated.contentType,
+      sizeBytes: validated.sizeBytes,
     }
   }
 
@@ -296,7 +338,11 @@ export function createTasksService(
     try {
       await deps.storage.deleteObject(location)
     } catch (error) {
-      getLogger().warn({ err: error, key: location }, 'failed to delete stored object')
+      reportError(error, {
+        source: 'tasks.storage_delete',
+        level: 'warning',
+        meta: { key: location },
+      })
     }
   }
 
@@ -378,7 +424,7 @@ export function createTasksService(
         description: body.description,
         deadline: body.deadline,
         price: privileged ? body.price : 0,
-        status: privileged ? body.status : 'pending',
+        status: privileged && body.tutorId ? 'in-progress' : 'pending',
       })
 
       getLoggingService().recordActivitySafe({
@@ -411,26 +457,10 @@ export function createTasksService(
         if (body.category !== undefined) patch.category = body.category
         if (body.description !== undefined) patch.description = body.description
         if (body.deadline !== undefined) patch.deadline = body.deadline
-        if (
-          body.status !== undefined ||
-          body.price !== undefined ||
-          body.tutorId !== undefined ||
-          body.paymentStatus !== undefined
-        ) {
-          throw forbidden('Clients cannot change status, price, or assignment')
-        }
       }
 
       if (Object.keys(patch).length === 0) {
         throw validationError('No editable fields provided')
-      }
-
-      if (
-        patch.status === 'completed' &&
-        deps.hasOpenRevision &&
-        (await deps.hasOpenRevision(id))
-      ) {
-        throw validationError('Cannot complete task while an open revision exists')
       }
 
       const updated = await repository.update(id, patch)
@@ -718,6 +748,103 @@ export function createTasksService(
         throw notFound('Solution not found', 'SOLUTION_NOT_FOUND')
       }
       await purgeStoredObject(deleted.fileLocation)
+    },
+
+    async buildZip(id, kind, ids, actor) {
+      const detail = await loadDetailOrThrow(id, actor)
+      if (kind === 'solutions' && !canViewSolutions(actor, detail)) {
+        throw forbidden('You cannot download solutions for this task')
+      }
+
+      const available = kind === 'documents' ? detail.files : detail.solutions
+      let items = available
+      if (ids && ids.length > 0) {
+        const wanted = new Set(ids)
+        items = available.filter((item) => wanted.has(item.id))
+        if (items.length !== wanted.size) {
+          throw notFound('One or more selected files were not found', 'FILE_NOT_FOUND')
+        }
+      }
+      if (items.length === 0) {
+        throw notFound('There are no files to download', 'NO_FILES')
+      }
+
+      const maxBytes = deps.maxZipBytes ?? DEFAULT_MAX_TASK_BYTES
+      const totalBytes = items.reduce((sum, item) => sum + (item.sizeBytes ?? 0), 0)
+      if (totalBytes > maxBytes) {
+        throw new AppError(
+          'ZIP_TOO_LARGE',
+          `Selected files exceed the ${Math.round(maxBytes / (1024 * 1024))} MB zip limit`,
+          413,
+          { totalBytes, maxBytes },
+        )
+      }
+
+      const storage = requireStorage()
+      const used = new Set<string>()
+      const fallback = kind === 'documents' ? 'document' : 'solution'
+      const entries: ZipEntry[] = items.map((item) => ({
+        name: uniqueEntryName(
+          item.originalName ?? item.fileLocation.split('/').pop() ?? fallback,
+          used,
+        ),
+        location: item.fileLocation,
+      }))
+
+      getLoggingService().recordActivitySafe({
+        userId: actor.id,
+        action: 'tasks.files.zip',
+        entity: 'task',
+        entityId: id,
+        meta: { taskId: id, kind, count: entries.length, selected: Boolean(ids?.length) },
+      })
+
+      return {
+        filename: exportFilename(`task-${id.slice(0, 8)}_${kind}`, 'zip'),
+        entryCount: entries.length,
+        async write(out) {
+          const archive = new ZipArchive({ zlib: { level: 6 } })
+          const finished = new Promise<void>((resolve, reject) => {
+            out.on('finish', () => resolve())
+            out.on('close', () => resolve())
+            out.on('error', reject)
+            archive.on('error', reject)
+          })
+          archive.pipe(out)
+
+          const missing: string[] = []
+          for (const entry of entries) {
+            if (!isManagedObjectKey(entry.location)) {
+              missing.push(`${entry.name}: stored outside managed storage (${entry.location})`)
+              continue
+            }
+            try {
+              const body = await storage.downloadObject(entry.location)
+              // Wait until archiver has consumed this entry so only one file is buffered.
+              const consumed = new Promise<void>((resolve) =>
+                archive.once('entry', () => resolve()),
+              )
+              archive.append(body, { name: entry.name })
+              await consumed
+            } catch (error) {
+              reportError(error, {
+                source: 'tasks.zip_entry',
+                level: 'warning',
+                meta: { key: entry.location },
+              })
+              missing.push(`${entry.name}: file could not be read from storage`)
+            }
+          }
+          if (missing.length > 0) {
+            archive.append(`These files could not be included:\n\n${missing.join('\n')}\n`, {
+              name: 'MISSING_FILES.txt',
+            })
+          }
+
+          await archive.finalize()
+          await finished
+        },
+      }
     },
   }
 }

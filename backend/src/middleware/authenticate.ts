@@ -3,6 +3,7 @@ import type { RequestHandler } from 'express'
 import { loadConfig } from '../config/index.js'
 import { unauthorized } from '../errors/app-error.js'
 import { verifyAccessToken } from '../modules/auth/auth.tokens.js'
+import { setRequestUserId } from './request-context.js'
 
 /**
  * Require a valid Bearer access JWT. Attaches `req.user`.
@@ -24,7 +25,9 @@ export const authenticate: RequestHandler = (req, _res, next) => {
     req.user = {
       id: payload.sub,
       roles: [payload.role],
+      ...(payload.sid ? { sessionId: payload.sid } : {}),
     }
+    setRequestUserId(payload.sub)
     next()
   } catch (error) {
     if (error && typeof error === 'object' && 'status' in error) {

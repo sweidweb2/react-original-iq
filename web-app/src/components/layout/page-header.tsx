@@ -7,9 +7,23 @@ type PageHeaderProps = {
   description?: string
   actions?: ReactNode
   className?: string
+  hideTitle?: boolean
 }
 
-export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, className, hideTitle }: PageHeaderProps) {
+  if (hideTitle) {
+    return (
+      <>
+        <h1 className="sr-only">{title}</h1>
+        {actions ? (
+          <div className={cn('flex flex-wrap items-center justify-end gap-2', className)}>
+            {actions}
+          </div>
+        ) : null}
+      </>
+    )
+  }
+
   return (
     <div
       className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between', className)}

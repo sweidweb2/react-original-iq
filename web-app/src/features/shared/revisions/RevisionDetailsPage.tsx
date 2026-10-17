@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
 import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
 import {
   approveRevision,
@@ -21,7 +20,7 @@ import {
   submitRevision,
   updateRevision,
 } from '@/services/revisions'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
@@ -84,17 +83,22 @@ export function RevisionDetailsPage() {
     }
   }, [revisionId, reloadKey])
 
-  async function runAction(label: string, action: () => Promise<unknown>) {
+  async function runAction(
+    copy: { success: string; failure: string; detail?: string },
+    action: () => Promise<unknown>,
+  ): Promise<boolean> {
     setIsActing(true)
     try {
       const result = await action()
       if (result && typeof result === 'object' && 'status' in result) {
         setRevision((prev) => (prev ? { ...prev, ...(result as RevisionDetail) } : prev))
       }
-      toast.success(label)
+      toastSuccess(copy.success, copy.detail)
       setReloadKey((k) => k + 1)
+      return true
     } catch (err) {
-      toastApiError(err, 'Action failed')
+      toastApiError(err, copy.failure)
+      return false
     } finally {
       setIsActing(false)
     }
@@ -103,13 +107,15 @@ export function RevisionDetailsPage() {
   async function onSaveEdit(event: FormEvent) {
     event.preventDefault()
     if (!revisionId) return
-    await runAction('Revision updated', () =>
-      updateRevision(revisionId, {
-        title,
-        description,
-      }),
+    const ok = await runAction(
+      { success: 'Revision details saved', failure: "Couldn't save the revision details" },
+      () =>
+        updateRevision(revisionId, {
+          title,
+          description,
+        }),
     )
-    setEditOpen(false)
+    if (ok) setEditOpen(false)
   }
 
   if (!revisionId) {
@@ -171,7 +177,15 @@ export function RevisionDetailsPage() {
                   variant="danger-soft"
                   size="sm"
                   disabled={isActing}
-                  onClick={() => runAction('Revision cancelled', () => cancelRevision(revision.id))}
+                  onClick={() =>
+                    runAction(
+                      {
+                        success: 'Revision session cancelled',
+                        failure: "Couldn't cancel the revision session",
+                      },
+                      () => cancelRevision(revision.id),
+                    )
+                  }
                 >
                   Cancel session
                 </Button>
@@ -184,7 +198,16 @@ export function RevisionDetailsPage() {
                 type="button"
                 size="sm"
                 disabled={isActing}
-                onClick={() => runAction('Revision approved', () => approveRevision(revision.id))}
+                onClick={() =>
+                  runAction(
+                    {
+                      success: 'Revision approved',
+                      failure: "Couldn't approve the revision",
+                      detail: 'The revision session is now completed.',
+                    },
+                    () => approveRevision(revision.id),
+                  )
+                }
               >
                 Approve
               </Button>
@@ -193,7 +216,16 @@ export function RevisionDetailsPage() {
                 variant="secondary"
                 size="sm"
                 disabled={isActing}
-                onClick={() => runAction('Revision rejected', () => rejectRevision(revision.id))}
+                onClick={() =>
+                  runAction(
+                    {
+                      success: 'Revision sent back',
+                      failure: "Couldn't send the revision back",
+                      detail: 'The tutor can rework and resubmit it.',
+                    },
+                    () => rejectRevision(revision.id),
+                  )
+                }
               >
                 Reject
               </Button>
@@ -204,7 +236,16 @@ export function RevisionDetailsPage() {
               type="button"
               size="sm"
               disabled={isActing}
-              onClick={() => runAction('Revision submitted', () => submitRevision(revision.id))}
+              onClick={() =>
+                runAction(
+                  {
+                    success: 'Revision submitted',
+                    failure: "Couldn't submit the revision",
+                    detail: 'The coordinator will review it.',
+                  },
+                  () => submitRevision(revision.id),
+                )
+              }
             >
               Submit revision
             </Button>
@@ -216,7 +257,10 @@ export function RevisionDetailsPage() {
               size="sm"
               disabled={isActing}
               onClick={() =>
-                runAction('Submission cancelled', () => cancelRevisionSubmit(revision.id))
+                runAction(
+                  { success: 'Submission withdrawn', failure: "Couldn't withdraw the submission" },
+                  () => cancelRevisionSubmit(revision.id),
+                )
               }
             >
               Cancel submission
@@ -226,7 +270,9 @@ export function RevisionDetailsPage() {
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={revisionStatusTone(revision.status)}>{revisionStatusLabel(revision.status)}</Badge>
+        <Badge tone={revisionStatusTone(revision.status)}>
+          {revisionStatusLabel(revision.status)}
+        </Badge>
         <span className="text-sm text-muted-foreground">
           Started {formatDate(revision.startDate)}
         </span>

@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { Download, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -9,17 +9,15 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
   deleteNewsletterSubscriber,
-  exportNewsletter,
   listNewsletter,
   type StayUpdatedRecord,
   subscribeNewsletter,
   updateNewsletterSubscriber,
 } from '@/services/contact'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { formatAdminDate } from '../_shared/adminListFormat'
 import { AdminListPagination } from '../_shared/AdminListPagination'
@@ -32,10 +30,9 @@ export function StayUpdatedPage() {
   const list = usePagedAdminList<StayUpdatedRecord>({
     fetchPage: listNewsletter,
     deleteRow: deleteNewsletterSubscriber,
-    exportRows: exportNewsletter,
     deleteSuccessMessage: 'Subscriber removed',
-    deleteErrorMessage: 'Could not remove subscriber',
-    exportErrorMessage: 'Could not export subscribers',
+    deleteErrorMessage: "Couldn't remove subscriber",
+    rowLabel: (row) => row.email,
   })
 
   const [formOpen, setFormOpen] = useState(false)
@@ -61,15 +58,20 @@ export function StayUpdatedPage() {
     try {
       if (editing) {
         await updateNewsletterSubscriber(editing.id, email.trim())
-        toast.success('Subscriber updated')
+        toastSuccess('Subscriber updated', `Email changed to ${email.trim()}.`)
       } else {
         await subscribeNewsletter(email.trim())
-        toast.success('Subscriber added')
+        toastSuccess('Subscriber added', `${email.trim()} will receive updates.`)
       }
       setFormOpen(false)
       list.refresh()
     } catch (err) {
-      toastApiError(err, 'Could not save subscriber')
+      toastApiError(
+        err,
+        editing
+          ? `Couldn't update ${editing.email}`
+          : `Couldn't add ${email.trim() || 'subscriber'}`,
+      )
     } finally {
       setSaving(false)
     }
@@ -79,24 +81,12 @@ export function StayUpdatedPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="Stay updated"
-        description="Newsletter sign-ups — create, edit, remove, export."
+        description="Newsletter sign-ups — create, edit, and remove."
         actions={
-          <>
-            <Button type="button" size="sm" onClick={openCreate}>
-              <Plus className="size-4" />
-              Add email
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={list.isExporting}
-              onClick={list.handleExport}
-            >
-              <Download className="size-4" />
-              Export CSV
-            </Button>
-          </>
+          <Button type="button" size="sm" onClick={openCreate}>
+            <Plus className="size-4" />
+            Add email
+          </Button>
         }
       />
 

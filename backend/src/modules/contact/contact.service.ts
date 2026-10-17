@@ -1,5 +1,8 @@
 import { notFound } from '../../errors/app-error.js'
+import { renderTablePdf, type TableColumn } from '../../pdf/index.js'
 import { rowsToCsv } from '../_shared/csv.js'
+import { csvExport, type ExportFile, pdfExport } from '../_shared/export-file.js'
+import { getLoggingService } from '../logging/index.js'
 import type { ContactRepository } from './contact.repository.js'
 import type {
   ContactMessageBody,
@@ -25,16 +28,61 @@ export type ContactService = {
   updateLead: (id: string, input: UpdateLeadBody) => Promise<LeadRecord>
   listLeads: (query: ListContactQuery) => Promise<ContactListResult<LeadRecord>>
   deleteLead: (id: string) => Promise<void>
-  exportLeadsCsv: (search?: string) => Promise<string>
+  exportLeads: (format: ExportFormat, options: ExportOptions) => Promise<ExportFile>
   listNewsletter: (query: ListContactQuery) => Promise<ContactListResult<StayUpdatedRecord>>
   updateNewsletter: (id: string, input: UpdateNewsletterBody) => Promise<StayUpdatedRecord>
   deleteNewsletter: (id: string) => Promise<void>
-  exportNewsletterCsv: (search?: string) => Promise<string>
+  exportNewsletter: (format: ExportFormat, options: ExportOptions) => Promise<ExportFile>
   listMessages: (query: ListContactQuery) => Promise<ContactListResult<ContactMessageRecord>>
   getMessage: (id: string) => Promise<ContactMessageRecord>
   updateMessage: (id: string, input: UpdateMessageBody) => Promise<ContactMessageRecord>
   deleteMessage: (id: string) => Promise<void>
-  exportMessagesCsv: (search?: string) => Promise<string>
+  exportMessages: (options: ExportOptions) => Promise<ExportFile>
+}
+
+export type ExportFormat = 'csv' | 'pdf'
+
+export type ExportOptions = {
+  search?: string
+  actorId?: string | null
+}
+
+const LEAD_COLUMNS: TableColumn[] = [
+  { key: 'first_name', label: 'First name', width: 1.2 },
+  { key: 'last_name', label: 'Last name', width: 1.2 },
+  { key: 'phone', label: 'Phone', width: 1.4 },
+  { key: 'email', label: 'Email', width: 2 },
+  { key: 'country', label: 'Country', width: 1.2 },
+  { key: 'zip', label: 'ZIP', width: 0.7 },
+  { key: 'created_at', label: 'Created', width: 1.4 },
+]
+
+const NEWSLETTER_COLUMNS: TableColumn[] = [
+  { key: 'email', label: 'Email', width: 3 },
+  { key: 'created_at', label: 'Subscribed', width: 1.5 },
+]
+
+function leadRow(row: LeadRecord) {
+  return {
+    id: row.id,
+    first_name: row.firstName,
+    last_name: row.lastName,
+    phone: row.phone,
+    email: row.email,
+    country: row.country,
+    zip: row.zip,
+    created_at: row.createdAt,
+  }
+}
+
+function auditExport(resource: string, format: ExportFormat, rows: number, options: ExportOptions) {
+  getLoggingService().recordActivitySafe({
+    userId: options.actorId ?? null,
+    action: 'exports.download',
+    entity: 'export',
+    entityId: resource,
+    meta: { resource, format, rows, search: options.search ?? null },
+  })
 }
 
 function toListResult<T>(
@@ -89,20 +137,24 @@ export function createContactService(repository: ContactRepository): ContactServ
     async deleteLead(id) {
       await deleteOrThrow(await repository.deleteLead(id))
     },
-    async exportLeadsCsv(search) {
-      const rows = await repository.exportLeads(search)
-      return rowsToCsv(
-        ['id', 'first_name', 'last_name', 'phone', 'email', 'country', 'zip', 'created_at'],
-        rows.map((row) => [
-          row.id,
-          row.firstName,
-          row.lastName,
-          row.phone,
-          row.email,
-          row.country,
-          row.zip,
-          row.createdAt,
-        ]),
+    async exportLeads(format, options) {
+      const rows = (await repository.exportLeads(options.search)).map(leadRow)
+      auditExport('leads', format, rows.length, options)
+      if (format === 'pdf') {
+        return pdfExport(
+          'leads',
+          await renderTablePdf({ title: 'Leads', columns: LEAD_COLUMNS, rows }),
+        )
+      }
+      const keys = ['id', ...LEAD_COLUMNS.map((col) => col.key)] as (keyof ReturnType<
+        typeof leadRow
+      >)[]
+      return csvExport(
+        'leads',
+        rowsToCsv(
+          keys,
+          rows.map((row) => keys.map((key) => row[key])),
+        ),
       )
     },
     async listNewsletter(query) {
@@ -117,11 +169,26 @@ export function createContactService(repository: ContactRepository): ContactServ
     async deleteNewsletter(id) {
       await deleteOrThrow(await repository.deleteNewsletter(id))
     },
-    async exportNewsletterCsv(search) {
-      const rows = await repository.exportNewsletter(search)
-      return rowsToCsv(
-        ['id', 'email', 'created_at'],
-        rows.map((row) => [row.id, row.email, row.createdAt]),
+    async exportNewsletter(format, options) {
+      const records = await repository.exportNewsletter(options.search)
+      auditExport('stay-updated', format, records.length, options)
+      if (format === 'pdf') {
+        const rows = records.map((row) => ({ email: row.email, created_at: row.createdAt }))
+        return pdfExport(
+          'stay-updated',
+          await renderTablePdf({
+            title: 'Stay updated subscribers',
+            columns: NEWSLETTER_COLUMNS,
+            rows,
+          }),
+        )
+      }
+      return csvExport(
+        'stay-updated',
+        rowsToCsv(
+          ['id', 'email', 'created_at'],
+          records.map((row) => [row.id, row.email, row.createdAt]),
+        ),
       )
     },
     async listMessages(query) {
@@ -143,11 +210,15 @@ export function createContactService(repository: ContactRepository): ContactServ
     async deleteMessage(id) {
       await deleteOrThrow(await repository.deleteMessage(id))
     },
-    async exportMessagesCsv(search) {
-      const rows = await repository.exportMessages(search)
-      return rowsToCsv(
-        ['id', 'name', 'email', 'subject', 'message', 'created_at'],
-        rows.map((row) => [row.id, row.name, row.email, row.subject, row.message, row.createdAt]),
+    async exportMessages(options) {
+      const rows = await repository.exportMessages(options.search)
+      auditExport('contact-messages', 'csv', rows.length, options)
+      return csvExport(
+        'contact-messages',
+        rowsToCsv(
+          ['id', 'name', 'email', 'subject', 'message', 'created_at'],
+          rows.map((row) => [row.id, row.name, row.email, row.subject, row.message, row.createdAt]),
+        ),
       )
     },
   }

@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { assignableRoles } from '@/lib/permissions'
 import type { AuthRole } from '@/services/auth'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import {
   createUser,
   type ManagedUser,
@@ -17,16 +17,9 @@ import {
   userDisplayName,
   type UserStatus,
 } from '@/services/users'
+import { useAuthStore } from '@/stores/authStore'
 
 import { createUserSchema, editUserSchema } from './users.schema'
-
-const ROLES: { value: AuthRole; label: string }[] = [
-  { value: 'super', label: 'Super' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'coordinator', label: 'Coordinator' },
-  { value: 'tutor', label: 'Tutor' },
-  { value: 'client', label: 'Client' },
-]
 
 type FormState = {
   name: string
@@ -66,6 +59,7 @@ export function UserFormDialog({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const isSelf = Boolean(user && user.id === currentUserId)
+  const roleOptions = assignableRoles(useAuthStore((state) => state.user?.role))
 
   useEffect(() => {
     if (!open) return
@@ -96,7 +90,7 @@ export function UserFormDialog({
         }
         setFieldErrors({})
         await createUser(parsed.data)
-        toast.success('User created')
+        toastSuccess('User created', `${parsed.data.name} (${parsed.data.email}) can now sign in.`)
       } else if (user) {
         const parsed = parseForm(editUserSchema, values)
         if (!parsed.success) {
@@ -110,12 +104,17 @@ export function UserFormDialog({
           status: parsed.data.status,
           ...(parsed.data.password ? { password: parsed.data.password } : {}),
         })
-        toast.success('User updated')
+        toastSuccess('User saved', `Changes to ${parsed.data.name} were saved.`)
       }
       onSaved()
       onClose()
     } catch (error) {
-      toastApiError(error, mode === 'create' ? 'Could not create user' : 'Could not update user')
+      toastApiError(
+        error,
+        mode === 'create'
+          ? "Couldn't create the user"
+          : `Couldn't save changes to ${user ? userDisplayName(user) : 'this user'}`,
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -171,7 +170,7 @@ export function UserFormDialog({
               setValues((prev) => ({ ...prev, role: event.target.value as AuthRole }))
             }
           >
-            {ROLES.map((role) => (
+            {roleOptions.map((role) => (
               <option key={role.value} value={role.value}>
                 {role.label}
               </option>

@@ -38,18 +38,18 @@ Provision these for each environment (local / staging / production). **Never com
 | `MAIL_ENCRYPTION`                      | tls/ssl      |
 | `MAIL_FROM_ADDRESS` / `MAIL_FROM_NAME` |              |
 
-## Object storage (R2 / S3)
+## Object storage (Supabase Storage)
 
-| Key                           | Purpose             |
-| ----------------------------- | ------------------- |
-| `AWS_ACCESS_KEY_ID`           |                     |
-| `AWS_SECRET_ACCESS_KEY`       |                     |
-| `AWS_DEFAULT_REGION`          | often `auto` for R2 |
-| `AWS_BUCKET`                  |                     |
-| `AWS_ENDPOINT`                | R2 endpoint         |
-| `AWS_URL`                     | Optional base URL   |
-| `AWS_USE_PATH_STYLE_ENDPOINT` | `true` for R2       |
-| `FILESYSTEM_DISK`             | e.g. `s3`           |
+Uses the same `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` as the database (backend only).
+
+| Key                          | Purpose                                                        |
+| ---------------------------- | -------------------------------------------------------------- |
+| `SUPABASE_STORAGE_BUCKET`    | Private bucket name (`main_bucket`); unset disables uploads    |
+| `STORAGE_MAX_FILE_BYTES`     | Per-file limit (default 25 MiB)                                |
+| `STORAGE_MAX_TASK_BYTES`     | Total per task (default 100 MiB)                               |
+| `STORAGE_SIGNED_URL_TTL_SEC` | Signed download URL lifetime (default 900)                     |
+
+The old Cloudflare R2 keys (`STORAGE_PROVIDER`, `AWS_*`) are no longer read; they stay commented out in `backend/.env` for reference.
 
 ## MontyPay
 
@@ -76,7 +76,7 @@ Provision these for each environment (local / staging / production). **Never com
 - [ ] HTTPS + secure cookies
 - [ ] MontyPay callback URL reachable publicly
 - [ ] Mail deliverability (SPF/DKIM)
-- [ ] R2 bucket private; only signed/authenticated access
+- [ ] Storage bucket private; only signed/authenticated access
 - [ ] Backups for DB
 - [ ] Log redaction (no card data / raw passwords)
 - [ ] Rate limits enabled on auth + chatbot + webhooks
@@ -86,7 +86,7 @@ Provision these for each environment (local / staging / production). **Never com
 
 1. DB + migrate
 2. Mail trap (Mailpit/Mailhog)
-3. R2 or local disk adapter
+3. Supabase Storage bucket (or leave `SUPABASE_STORAGE_BUCKET` unset to disable uploads)
 4. MontyPay sandbox **or** mock PaymentGateway
 5. Optional: skip Gemini with stub chatbot
 

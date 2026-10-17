@@ -2,13 +2,18 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import { conflict } from '../../errors/app-error.js'
 import type { CreateFeedbackInput, FeedbackListFilter, FeedbackRecord } from './feedback.types.js'
 
 export type FeedbackRepository = {
+  /** Throws 409 when the client already left feedback for the task. */
   create: (input: CreateFeedbackInput) => Promise<FeedbackRecord>
+  existsForTaskAndClient: (taskId: string, clientId: string) => Promise<boolean>
   findPage: (filter: FeedbackListFilter) => Promise<{ items: FeedbackRecord[]; total: number }>
   deleteById: (id: string) => Promise<boolean>
 }
+
+const DUPLICATE_FEEDBACK_MESSAGE = 'You already left feedback for this task'
 
 const memoryFeedbacks: FeedbackRecord[] = []
 
@@ -85,12 +90,22 @@ function searchOr(search: string): string | null {
 }
 
 function createMemoryFeedbackRepository(): FeedbackRepository {
+  function exists(taskId: string, clientId: string): boolean {
+    return memoryFeedbacks.some((row) => row.taskId === taskId && row.clientId === clientId)
+  }
+
   return {
     async create(input) {
+      if (exists(input.taskId, input.clientId)) {
+        throw conflict(DUPLICATE_FEEDBACK_MESSAGE)
+      }
       const stamp = nowIso()
       const record = toRecord(input, randomUUID(), stamp)
       memoryFeedbacks.push(record)
       return record
+    },
+    async existsForTaskAndClient(taskId, clientId) {
+      return exists(taskId, clientId)
     },
     async findPage(filter) {
       const sorted = memoryFeedbacks
@@ -131,8 +146,18 @@ function createSupabaseFeedbackRepository(config: AppConfig): FeedbackRepository
         })
         .select('*')
         .single()
+      if (error?.code === '23505') throw conflict(DUPLICATE_FEEDBACK_MESSAGE)
       if (error) throw error
       return fromRow(data as FeedbackRow)
+    },
+    async existsForTaskAndClient(taskId, clientId) {
+      const { count, error } = await client
+        .from('feedbacks')
+        .select('id', { count: 'exact', head: true })
+        .eq('task_id', taskId)
+        .eq('client_id', clientId)
+      if (error) throw error
+      return (count ?? 0) > 0
     },
     async findPage(filter) {
       const from = (filter.page - 1) * filter.limit

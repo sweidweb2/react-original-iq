@@ -5,10 +5,9 @@ import { AsyncState, EmptyState, InlineSpinner } from '@/components/feedback'
 import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
-import { downloadExport, type ExportResource } from '@/services/exports'
-import { toastApiError } from '@/services/toast'
+import { downloadExport, EXPORT_GROUPS, type ExportResource } from '@/services/exports'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
@@ -98,9 +97,14 @@ export function ProfilePage() {
         newPassword: '',
         confirmPassword: '',
       }))
-      toast.success('Profile updated')
+      toastSuccess(
+        'Profile saved',
+        payload.newPassword
+          ? 'Your details and password were updated.'
+          : 'Your details were updated.',
+      )
     } catch (error) {
-      toastApiError(error, 'Could not save profile')
+      toastApiError(error, "Couldn't save your profile")
     } finally {
       setIsSaving(false)
     }
@@ -264,36 +268,41 @@ export function ProfilePage() {
         </SectionCard>
       </form>
 
-      {user?.role === 'admin' || user?.role === 'super' ? (
+      {user?.role === 'super' ? (
         <SectionCard
           title="Exports"
-          description="Download CSV snapshots for users, tasks, billing, and CRM data."
+          description="Download CSV snapshots (UTF-8, Excel-ready). Leads and subscriber PDFs live on their pages."
         >
-          <div className="flex flex-wrap gap-2">
-            {(['users', 'tasks', 'payments', 'refunds', 'leads', 'feedback'] as const).map(
-              (resource) => (
-                <Button
-                  key={resource}
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={exporting !== null}
-                  onClick={async () => {
-                    setExporting(resource)
-                    try {
-                      await downloadExport(resource)
-                      toast.success(`Downloaded ${resource}.csv`)
-                    } catch (error) {
-                      toastApiError(error, 'Export failed')
-                    } finally {
-                      setExporting(null)
-                    }
-                  }}
-                >
-                  {exporting === resource ? 'Exporting…' : resource}
-                </Button>
-              ),
-            )}
+          <div className="flex flex-col gap-4">
+            {EXPORT_GROUPS.map((group) => (
+              <div key={group.label}>
+                <p className="mb-2 text-xs font-medium text-muted-foreground">{group.label}</p>
+                <div className="flex flex-wrap gap-2">
+                  {group.items.map(({ resource, label }) => (
+                    <Button
+                      key={resource}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={exporting !== null}
+                      onClick={async () => {
+                        setExporting(resource)
+                        try {
+                          await downloadExport(resource, label)
+                          toastSuccess('Export downloaded', `${label} saved to your downloads.`)
+                        } catch (error) {
+                          toastApiError(error, `Couldn't export ${label}`)
+                        } finally {
+                          setExporting(null)
+                        }
+                      }}
+                    >
+                      {exporting === resource ? 'Exporting…' : label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </SectionCard>
       ) : null}

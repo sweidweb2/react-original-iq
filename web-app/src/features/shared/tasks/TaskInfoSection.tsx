@@ -41,8 +41,17 @@ export function TaskInfoSection({
         ) : undefined
       }
     >
-      <p className="whitespace-pre-wrap text-sm text-foreground">{task.description ?? '—'}</p>
+      <h3 className="text-base font-semibold text-foreground">{task.topic ?? 'Untitled task'}</h3>
+      <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{task.description ?? '—'}</p>
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-muted-foreground">Type</dt>
+          <dd>{task.type ?? '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Category</dt>
+          <dd>{task.category ?? '—'}</dd>
+        </div>
         <div>
           <dt className="text-muted-foreground">Tutor</dt>
           <dd>{task.tutorId ? 'Assigned' : 'Unassigned'}</dd>

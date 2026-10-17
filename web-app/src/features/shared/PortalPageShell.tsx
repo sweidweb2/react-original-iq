@@ -13,6 +13,7 @@ type PortalPageShellProps = {
   children: ReactNode
   className?: string
   maxWidth?: '2xl' | '4xl' | '6xl'
+  hideTitle?: boolean
 }
 
 const MAX_WIDTH = {
@@ -29,6 +30,7 @@ export function PortalPageShell({
   children,
   className,
   maxWidth = '6xl',
+  hideTitle,
 }: PortalPageShellProps) {
   useDocumentTitle(title)
 
@@ -39,7 +41,12 @@ export function PortalPageShell({
           <Breadcrumbs items={breadcrumbs} />
         </div>
       ) : null}
-      <PageHeader title={title} description={description} actions={actions} />
+      <PageHeader
+        title={title}
+        description={description}
+        actions={actions}
+        hideTitle={hideTitle}
+      />
       {children}
     </div>
   )

@@ -35,6 +35,7 @@ export function createTasksModule(
       ? (taskId) => deps.paymentsModule!.recomputeForTask(taskId)
       : undefined,
     storage: deps.storage ?? getStorageService(config),
+    maxZipBytes: config.storage?.maxTaskBytes,
   })
   const controller = createTasksController(service)
   return createTasksRoutes(controller, {

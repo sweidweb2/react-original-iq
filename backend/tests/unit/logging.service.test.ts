@@ -30,6 +30,8 @@ function activity(overrides: Partial<ActivityLogRecord> = {}): ActivityLogRecord
 function errorRow(overrides: Partial<ErrorLogRecord> = {}): ErrorLogRecord {
   return {
     id: 'err-1',
+    source: 'http',
+    level: 'error',
     requestId: 'req-1',
     userId: null,
     code: 'INTERNAL_ERROR',
@@ -38,7 +40,9 @@ function errorRow(overrides: Partial<ErrorLogRecord> = {}): ErrorLogRecord {
     path: '/api/v1/health',
     method: 'GET',
     status: 500,
+    meta: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    user: null,
     ...overrides,
   }
 }
@@ -53,6 +57,7 @@ describe('logging.service', () => {
       listActivity: vi.fn(),
       countActivityStats: vi.fn(),
       listErrors: vi.fn(),
+      countErrorStats: vi.fn(),
     }
   })
 
@@ -138,8 +143,77 @@ describe('logging.service', () => {
 
     expect(activityPage.data[0]?.user).toBeNull()
     expect(errorPage).toMatchObject({
-      data: [{ id: 'err-1', message: 'boom', createdAt: '2026-01-01T00:00:00.000Z' }],
+      data: [
+        {
+          id: 'err-1',
+          source: 'http',
+          level: 'error',
+          message: 'boom',
+          meta: null,
+          user: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
       meta: { page: 1, limit: 20, total: 4 },
+    })
+  })
+
+  it('passes error filters through and maps the reporting user', async () => {
+    vi.mocked(repository.listErrors).mockResolvedValue({
+      items: [
+        errorRow({
+          level: 'warning',
+          source: 'invoices.email',
+          userId: 'user-1',
+          meta: { invoiceId: 'inv-1' },
+          user: { id: 'user-1', email: 'ada@example.com', role: 'admin' },
+        }),
+      ],
+      total: 1,
+    })
+    const service = createLoggingService(repository)
+
+    const page = await service.listErrors({
+      page: 1,
+      limit: 10,
+      search: 'smtp',
+      source: 'invoices.email',
+      level: 'warning',
+      since: '2026-01-01T00:00:00.000Z',
+    })
+
+    expect(repository.listErrors).toHaveBeenCalledWith({
+      page: 1,
+      limit: 10,
+      search: 'smtp',
+      source: 'invoices.email',
+      level: 'warning',
+      since: '2026-01-01T00:00:00.000Z',
+    })
+    expect(page.data[0]).toMatchObject({
+      level: 'warning',
+      meta: { invoiceId: 'inv-1' },
+      user: { email: 'ada@example.com' },
+    })
+  })
+
+  it('returns error stats from the repository', async () => {
+    const stats = { total: 5, today: 2, lastWeek: 4, errors: 3, warnings: 2 }
+    vi.mocked(repository.countErrorStats).mockResolvedValue(stats)
+
+    await expect(createLoggingService(repository).getErrorStats()).resolves.toEqual(stats)
+  })
+
+  it('routes activity write failures to the injected reporter', async () => {
+    const failure = new Error('db down')
+    vi.mocked(repository.createActivity).mockRejectedValue(failure)
+    const onActivityWriteFailure = vi.fn()
+    const service = createLoggingService(repository, { onActivityWriteFailure })
+
+    service.recordActivitySafe({ action: 'auth.login' })
+
+    await vi.waitFor(() => {
+      expect(onActivityWriteFailure).toHaveBeenCalledWith(failure, { action: 'auth.login' })
     })
   })
 })

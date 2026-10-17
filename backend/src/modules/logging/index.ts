@@ -1,4 +1,5 @@
 import { loadConfig } from '../../config/index.js'
+import { reportError } from '../../errors/report-error.js'
 import { createLoggingController } from './logging.controller.js'
 import { createLoggingRepository } from './logging.repository.js'
 import { createLoggingRoutes } from './logging.routes.js'
@@ -8,7 +9,13 @@ let sharedService: LoggingService | null = null
 
 export function getLoggingService(): LoggingService {
   if (!sharedService) {
-    sharedService = createLoggingService(createLoggingRepository(loadConfig()))
+    sharedService = createLoggingService(createLoggingRepository(loadConfig()), {
+      onActivityWriteFailure: (error, input) =>
+        reportError(error, {
+          source: 'logging.activity',
+          meta: { action: input.action, entity: input.entity, entityId: input.entityId },
+        }),
+    })
   }
   return sharedService
 }

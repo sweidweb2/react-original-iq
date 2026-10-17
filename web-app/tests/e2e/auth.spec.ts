@@ -32,7 +32,7 @@ test.describe('auth flows', () => {
   test('each role lands on its portal', async ({ page }) => {
     test.setTimeout(60_000)
     const portals = [
-      { email: 'admin@original-iq.com', heading: 'Admin home', path: /\/admin$/ },
+      { email: 'admin@original-iq.com', heading: 'Home', path: /\/admin$/ },
       { email: 'coordinator@original-iq.com', heading: 'Coordinator home', path: /\/coordinator$/ },
       { email: 'tutor@original-iq.com', heading: 'Tutor home', path: /\/tutor$/ },
       { email: 'client@original-iq.com', heading: 'Client home', path: /\/client$/ },

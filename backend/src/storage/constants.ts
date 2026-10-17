@@ -37,7 +37,7 @@ export const ALLOWED_UPLOAD_MIME_BY_EXT: Readonly<Record<string, readonly string
 
 export const ALLOWED_UPLOAD_EXTENSIONS = Object.keys(ALLOWED_UPLOAD_MIME_BY_EXT)
 
-/** Defaults when STORAGE_* env vars are unset (tests / no R2). */
+/** Defaults when STORAGE_* env vars are unset (tests / no storage bucket). */
 export const DEFAULT_MAX_FILE_BYTES = 25 * 1024 * 1024
 export const DEFAULT_MAX_TASK_BYTES = 100 * 1024 * 1024
 export const DEFAULT_SIGNED_URL_TTL_SEC = 900

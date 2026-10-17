@@ -6,6 +6,9 @@ export const SUPER_ROLES: readonly RoleName[] = ['super'] as const
 /** Elevated admins (ops). */
 export const ADMIN_ROLES: readonly RoleName[] = ['admin'] as const
 
+/** May manage user accounts. Super outranks admin — see `assertCanManageRole`. */
+export const USER_ADMIN_ROLES: readonly RoleName[] = ['super', 'admin'] as const
+
 /** Staff roles (UI + coarse route gates). Not a permission matrix. */
 export const STAFF_ROLES: readonly RoleName[] = ['super', 'admin', 'coordinator', 'tutor'] as const
 
@@ -26,6 +29,10 @@ export function isSuper(roles: readonly string[] | undefined): boolean {
 
 export function isAdmin(roles: readonly string[] | undefined): boolean {
   return hasAnyRole(roles, ADMIN_ROLES)
+}
+
+export function isUserAdmin(roles: readonly string[] | undefined): boolean {
+  return hasAnyRole(roles, USER_ADMIN_ROLES)
 }
 
 export function isStaff(roles: readonly string[] | undefined): boolean {

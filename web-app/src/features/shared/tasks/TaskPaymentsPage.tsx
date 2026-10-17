@@ -10,7 +10,6 @@ import { Dialog } from '@/components/ui/dialog'
 import { IconAction } from '@/components/ui/icon-action'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
 import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
 import { getInvoiceDownloadUrl, resendInvoice } from '@/services/invoices'
 import {
@@ -24,7 +23,7 @@ import {
   type TaskPaymentsView,
   updateRefundStatus,
 } from '@/services/payments'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastFailure, toastInvalid, toastSuccess } from '@/services/toast'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
@@ -111,19 +110,19 @@ export function TaskPaymentsPage() {
     event.preventDefault()
     const parsed = Number(refundAmount)
     if (Number.isNaN(parsed) || parsed <= 0) {
-      toast.error('Enter a valid amount')
+      toastInvalid('Invalid refund amount', 'Enter an amount greater than 0, e.g. 25.00.')
       return
     }
     setIsActing(true)
     try {
       await createRefund(taskId, { amount: parsed, refundReason: refundReason.trim() || undefined })
-      toast.success('Refund created')
+      toastSuccess('Refund requested', `${formatMoney(parsed)} is pending until it's marked paid.`)
       setRefundOpen(false)
       setRefundAmount('')
       setRefundReason('')
       reload()
     } catch (err) {
-      toastApiError(err, 'Could not create refund')
+      toastApiError(err, `Couldn't request a refund of ${formatMoney(parsed)}`)
     } finally {
       setIsActing(false)
     }
@@ -131,14 +130,15 @@ export function TaskPaymentsPage() {
 
   async function confirmDelete() {
     if (!pendingDelete) return
+    const amount = formatMoney(pendingDelete.amount, pendingDelete.currency)
     setIsActing(true)
     try {
       await deletePayment(taskId, pendingDelete.id)
-      toast.success('Payment deleted')
+      toastSuccess('Payment deleted', `The ${amount} payment was removed.`)
       setPendingDelete(null)
       reload()
     } catch (err) {
-      toastApiError(err, 'Could not delete payment')
+      toastApiError(err, `Couldn't delete the ${amount} payment`)
     } finally {
       setIsActing(false)
     }
@@ -150,7 +150,7 @@ export function TaskPaymentsPage() {
       const { url } = await getInvoiceDownloadUrl(payment.invoice.id)
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch (err) {
-      toastApiError(err, 'Could not download invoice')
+      toastApiError(err, `Couldn't open invoice ${payment.invoice.invoiceNumber}`)
     }
   }
 
@@ -159,37 +159,53 @@ export function TaskPaymentsPage() {
     setIsActing(true)
     try {
       const invoice = await resendInvoice(payment.invoice.id)
-      if (invoice.invoiceStatus === 'sent') toast.success(`Invoice ${invoice.invoiceNumber} sent`)
-      else toast.error(invoice.lastError ?? 'Invoice could not be sent')
+      if (invoice.invoiceStatus === 'sent') {
+        toastSuccess('Invoice sent', `Invoice ${invoice.invoiceNumber} was emailed to the client.`)
+      } else {
+        toastFailure(
+          `Invoice ${invoice.invoiceNumber} wasn't delivered`,
+          "The email couldn't be sent. Check the client's email address and try again.",
+          invoice.lastError,
+        )
+      }
       reload()
     } catch (err) {
-      toastApiError(err, 'Could not resend invoice')
+      toastApiError(err, `Couldn't resend invoice ${payment.invoice.invoiceNumber}`)
     } finally {
       setIsActing(false)
     }
   }
 
   async function onRefundStatus(refund: RefundRecord, status: 'paid' | 'canceled') {
+    const amount = formatMoney(refund.amount, refund.currency)
     setIsActing(true)
     try {
       await updateRefundStatus(taskId, refund.id, status)
-      toast.success(status === 'paid' ? 'Refund marked paid' : 'Refund canceled')
+      if (status === 'paid')
+        toastSuccess('Refund marked paid', `${amount} was returned to the client.`)
+      else toastSuccess('Refund canceled', `The ${amount} refund won't be paid.`)
       reload()
     } catch (err) {
-      toastApiError(err, 'Could not update refund')
+      toastApiError(
+        err,
+        status === 'paid'
+          ? `Couldn't mark the ${amount} refund as paid`
+          : `Couldn't cancel the ${amount} refund`,
+      )
     } finally {
       setIsActing(false)
     }
   }
 
   async function onDeleteRefund(refund: RefundRecord) {
+    const amount = formatMoney(refund.amount, refund.currency)
     setIsActing(true)
     try {
       await deleteRefund(taskId, refund.id)
-      toast.success('Refund deleted')
+      toastSuccess('Refund deleted', `The ${amount} refund was removed.`)
       reload()
     } catch (err) {
-      toastApiError(err, 'Could not delete refund')
+      toastApiError(err, `Couldn't delete the ${amount} refund`)
     } finally {
       setIsActing(false)
     }
@@ -251,7 +267,12 @@ export function TaskPaymentsPage() {
           ) : null}
           {isStaff ? (
             <>
-              <Button type="button" variant="secondary" size="sm" onClick={() => setRefundOpen(true)}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setRefundOpen(true)}
+              >
                 Create refund
               </Button>
               <Button
@@ -535,7 +556,12 @@ export function TaskPaymentsPage() {
         description="Issue a refund against this task."
         footer={
           <>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setRefundOpen(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setRefundOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" form="refund-form" size="sm" disabled={isActing}>

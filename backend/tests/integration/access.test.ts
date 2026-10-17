@@ -11,6 +11,8 @@ describe('users and logs HTTP', () => {
   const app = createApp({ config })
   let adminToken = ''
   let clientToken = ''
+  let superToken = ''
+  let superId = ''
 
   beforeAll(async () => {
     const repo = createUsersRepository(config)
@@ -21,6 +23,20 @@ describe('users and logs HTTP', () => {
       firstName: 'Admin',
       lastName: 'User',
     })
+    const superAccount = await repo.createAccount({
+      email: 'access-super@originaliq.test',
+      passwordHash: await hashPassword('password1'),
+      role: 'super',
+      firstName: 'Super',
+      lastName: 'User',
+    })
+    superId = superAccount.id
+
+    const superLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'access-super@originaliq.test', password: 'password1' })
+    expect(superLogin.status).toBe(200)
+    superToken = superLogin.body.tokens.accessToken as string
 
     const client = await request(app).post('/api/v1/auth/register').send({
       email: 'access-client@originaliq.test',
@@ -97,7 +113,7 @@ describe('users and logs HTTP', () => {
       .get('/api/v1/users/stats')
       .set('Authorization', `Bearer ${adminToken}`)
     expect(stats.status).toBe(200)
-    expect(stats.body.total).toBeGreaterThanOrEqual(3)
+    expect(stats.body.total).toBeGreaterThanOrEqual(4)
     expect(stats.body.byRole.tutor).toBeGreaterThanOrEqual(1)
 
     const updated = await request(app)
@@ -112,6 +128,69 @@ describe('users and logs HTTP', () => {
       .set('Authorization', `Bearer ${adminToken}`)
     expect(deactivated.status).toBe(200)
     expect(deactivated.body.status).toBe('INACTIVE')
+  })
+
+  it('lets only super create or manage super accounts', async () => {
+    const adminCreatesSuper = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        email: 'sneaky@originaliq.test',
+        name: 'Sneaky',
+        password: 'password1',
+        role: 'super',
+      })
+    expect(adminCreatesSuper.status).toBe(403)
+
+    const adminCreatesAdmin = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        email: 'admin-2@originaliq.test',
+        name: 'Admin Two',
+        password: 'password1',
+        role: 'admin',
+      })
+    expect(adminCreatesAdmin.status).toBe(201)
+
+    const adminPromotes = await request(app)
+      .patch(`/api/v1/users/${adminCreatesAdmin.body.id as string}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'super' })
+    expect(adminPromotes.status).toBe(403)
+
+    const adminEditsSuper = await request(app)
+      .patch(`/api/v1/users/${superId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Renamed' })
+    expect(adminEditsSuper.status).toBe(403)
+
+    const adminDeactivatesSuper = await request(app)
+      .post(`/api/v1/users/${superId}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+    expect(adminDeactivatesSuper.status).toBe(403)
+
+    const adminDeletesSuper = await request(app)
+      .delete(`/api/v1/users/${superId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+    expect(adminDeletesSuper.status).toBe(403)
+
+    const superCreatesSuper = await request(app)
+      .post('/api/v1/users')
+      .set('Authorization', `Bearer ${superToken}`)
+      .send({
+        email: 'super-2@originaliq.test',
+        name: 'Super Two',
+        password: 'password1',
+        role: 'super',
+      })
+    expect(superCreatesSuper.status).toBe(201)
+    expect(superCreatesSuper.body).toMatchObject({ role: 'super' })
+
+    const superLists = await request(app)
+      .get('/api/v1/users')
+      .set('Authorization', `Bearer ${superToken}`)
+    expect(superLists.status).toBe(200)
   })
 
   it('returns 404 when update or deactivate targets a missing user', async () => {
@@ -134,7 +213,7 @@ describe('users and logs HTTP', () => {
     expect(adminDeactivate.body).toMatchObject({ code: 'USER_NOT_FOUND' })
   })
 
-  it('limits activity and error logs to admins', async () => {
+  it('limits activity logs to admins and error logs to super', async () => {
     const anonymous = await request(app).get('/api/v1/activity-logs')
     expect(anonymous.status).toBe(401)
 
@@ -150,9 +229,14 @@ describe('users and logs HTTP', () => {
     expect(activity.body.meta).toMatchObject({ page: 1, limit: 20 })
     expect(Array.isArray(activity.body.data)).toBe(true)
 
-    const errors = await request(app)
+    const adminErrors = await request(app)
       .get('/api/v1/error-logs')
       .set('Authorization', `Bearer ${adminToken}`)
+    expect(adminErrors.status).toBe(403)
+
+    const errors = await request(app)
+      .get('/api/v1/error-logs')
+      .set('Authorization', `Bearer ${superToken}`)
     expect(errors.status).toBe(200)
     expect(errors.body.meta).toMatchObject({ page: 1, limit: 20 })
     expect(Array.isArray(errors.body.data)).toBe(true)

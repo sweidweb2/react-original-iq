@@ -38,7 +38,10 @@ describe('authenticate middleware', () => {
   })
 
   it('rejects refresh token used as access token', async () => {
-    const refresh = signRefreshToken(config, 'user-1', 'client')
+    const refresh = signRefreshToken(config, 'user-1', 'client', {
+      id: 'session-1',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
     const res = await request(protectedApp())
       .get('/protected')
       .set('Authorization', `Bearer ${refresh}`)

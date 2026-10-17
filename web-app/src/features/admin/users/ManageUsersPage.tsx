@@ -12,12 +12,12 @@ import { Dialog } from '@/components/ui/dialog'
 import { IconAction } from '@/components/ui/icon-action'
 import { SearchField } from '@/components/ui/search-field'
 import { Select } from '@/components/ui/select'
-import { toast } from '@/components/ui/toast'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
+import { canManageRole, ROLE_OPTIONS } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import type { AuthRole } from '@/services/auth'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import {
   deactivateUser,
   getUserStats,
@@ -35,22 +35,14 @@ import { UserFormDialog } from './UserFormDialog'
 
 const PAGE_SIZE = 10
 
-const ROLE_OPTIONS: { value: '' | AuthRole; label: string }[] = [
+const ROLE_FILTER_OPTIONS: { value: '' | AuthRole; label: string }[] = [
   { value: '', label: 'All roles' },
-  { value: 'super', label: 'Super' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'coordinator', label: 'Coordinator' },
-  { value: 'tutor', label: 'Tutor' },
-  { value: 'client', label: 'Client' },
+  ...ROLE_OPTIONS,
 ]
 
-const ROLE_LABEL: Record<AuthRole, string> = {
-  super: 'Super',
-  admin: 'Admin',
-  coordinator: 'Coordinator',
-  tutor: 'Tutor',
-  client: 'Client',
-}
+const ROLE_LABEL = Object.fromEntries(
+  ROLE_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<AuthRole, string>
 
 type Directory = {
   users: ManagedUser[]
@@ -107,6 +99,7 @@ function formatDate(iso: string): string {
 export function ManageUsersPage() {
   useDocumentTitle('Users')
   const currentUserId = useAuthStore((state) => state.user?.id)
+  const actorRole = useAuthStore((state) => state.user?.role)
 
   const [page, setPage] = useState(1)
   const [searchInput, setSearchInput] = useState('')
@@ -179,15 +172,20 @@ export function ManageUsersPage() {
     try {
       if (pending.status === 'ACTIVE') {
         await deactivateUser(pending.id)
-        toast.success('User deactivated')
+        toastSuccess('User deactivated', `${userDisplayName(pending)} can no longer sign in.`)
       } else {
         await updateUser(pending.id, { status: 'ACTIVE' })
-        toast.success('User activated')
+        toastSuccess('User activated', `${userDisplayName(pending)} can sign in again.`)
       }
       setPending(null)
       refresh()
     } catch (actionError) {
-      toastApiError(actionError, 'Could not update status')
+      toastApiError(
+        actionError,
+        pending.status === 'ACTIVE'
+          ? `Couldn't deactivate ${userDisplayName(pending)}`
+          : `Couldn't activate ${userDisplayName(pending)}`,
+      )
     } finally {
       setIsActing(false)
     }
@@ -301,7 +299,7 @@ export function ManageUsersPage() {
                 value={role}
                 onChange={(event) => setRole(event.target.value as '' | AuthRole)}
               >
-                {ROLE_OPTIONS.map((option) => (
+                {ROLE_FILTER_OPTIONS.map((option) => (
                   <option key={option.label} value={option.value}>
                     {option.label}
                   </option>
@@ -363,6 +361,7 @@ export function ManageUsersPage() {
                     {users.map((user) => {
                       const name = userDisplayName(user)
                       const isSelf = user.id === currentUserId
+                      const canManage = canManageRole(actorRole, user.role)
                       return (
                         <tr key={user.id} className="border-b border-border last:border-0">
                           <td className="px-2 py-3 font-medium">
@@ -375,9 +374,7 @@ export function ManageUsersPage() {
                           </td>
                           <td className="px-2 py-3 text-muted-foreground">{user.email}</td>
                           <td className="px-2 py-3">
-                            <Badge tone="neutral">
-                              {ROLE_LABEL[user.role]}
-                            </Badge>
+                            <Badge tone="neutral">{ROLE_LABEL[user.role]}</Badge>
                           </td>
                           <td className="px-2 py-3">
                             <Badge tone={user.status === 'ACTIVE' ? 'success' : 'danger'}>
@@ -391,16 +388,18 @@ export function ManageUsersPage() {
                             <div className="flex justify-center">
                               <AccessSwitch
                                 checked={user.status === 'ACTIVE'}
-                                disabled={isSelf || isActing}
+                                disabled={isSelf || !canManage || isActing}
                                 label={
                                   isSelf
                                     ? 'Your account stays active'
-                                    : user.status === 'ACTIVE'
-                                      ? `Deactivate ${name}`
-                                      : `Activate ${name}`
+                                    : !canManage
+                                      ? 'Only a super user can change super accounts'
+                                      : user.status === 'ACTIVE'
+                                        ? `Deactivate ${name}`
+                                        : `Activate ${name}`
                                 }
                                 onToggle={() => {
-                                  if (!isSelf) setPending(user)
+                                  if (!isSelf && canManage) setPending(user)
                                 }}
                               />
                             </div>
@@ -409,7 +408,7 @@ export function ManageUsersPage() {
                             <div className="flex justify-center gap-1">
                               <Tooltip content={`Open profile for ${name}`}>
                                 <Link
-                                  to={`/admin/users/${user.id}`}
+                                  to={user.id}
                                   aria-label={`Open profile for ${name}`}
                                   className="inline-flex size-8 items-center justify-center rounded-md border border-border bg-card text-foreground hover:bg-muted"
                                 >
@@ -417,7 +416,12 @@ export function ManageUsersPage() {
                                 </Link>
                               </Tooltip>
                               <IconAction
-                                label={`Edit ${name}`}
+                                label={
+                                  canManage
+                                    ? `Edit ${name}`
+                                    : 'Only a super user can edit super accounts'
+                                }
+                                disabled={!canManage}
                                 onClick={() => {
                                   setEditing(user)
                                   setFormMode('edit')

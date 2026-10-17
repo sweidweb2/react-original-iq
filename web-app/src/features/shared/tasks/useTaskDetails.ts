@@ -14,6 +14,7 @@ import {
   deleteTaskFile,
   deleteTaskSolution,
   disapproveTask,
+  downloadTaskZip,
   type FileDownload,
   getTask,
   getTaskFileDownloadUrl,
@@ -21,19 +22,37 @@ import {
   removeTutor,
   setTaskAllowView,
   submitTask,
+  type Task,
   TASK_UPLOAD_MAX_BYTES,
   type TaskDetail,
+  taskStatusLabel,
   type TaskType,
   updateTask,
   updateTaskPrice,
   uploadTaskFile,
   uploadTaskSolution,
 } from '@/services/tasks'
-import { toastApiError } from '@/services/toast'
-import { listUsers, type ManagedUser } from '@/services/users'
+import { toastApiError, toastInvalid, toastSuccess } from '@/services/toast'
+import { listUsers, type ManagedUser, userDisplayName } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
+import { formatFileSize, storedFileName } from './taskDetailsFormat'
+
 export type UploadTarget = 'documents' | 'solutions'
+
+/** Toast copy for one action: success title, failure title, optional success detail line. */
+type ActionCopy<T> = {
+  success: string
+  failure: string
+  detail?: (result: T) => string | undefined
+}
+
+export type UploadProgress = {
+  fileName: string
+  fileIndex: number
+  fileCount: number
+  percent: number
+}
 
 export function useTaskDetails() {
   const { taskId = '' } = useParams()
@@ -75,9 +94,22 @@ export function useTaskDetails() {
   const [editCategory, setEditCategory] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
+  const [zipping, setZipping] = useState<UploadTarget | null>(null)
   const [isActing, setIsActing] = useState(false)
 
+  /** Full-page reload (initial load / error retry). Actions update their own slice instead. */
   const reload = useCallback(() => setReloadKey((k) => k + 1), [])
+
+  const syncForms = useCallback((next: Task) => {
+    setPriceValue(String(next.price))
+    setEditTopic(next.topic ?? '')
+    setEditType(next.type ?? 'assignment')
+    setEditCategory(next.category ?? '')
+    setEditDescription(next.description ?? '')
+    setSelectedCoordId(next.coordinatorId ?? '')
+    setSelectedTutorId(next.tutorId ?? '')
+  }, [])
 
   useEffect(() => {
     if (!taskId) return
@@ -93,13 +125,7 @@ export function useTaskDetails() {
         if (cancelled) return
         setTask(detail)
         setRevisions(revisionList.data)
-        setPriceValue(String(detail.price))
-        setEditTopic(detail.topic ?? '')
-        setEditType(detail.type ?? 'assignment')
-        setEditCategory(detail.category ?? '')
-        setEditDescription(detail.description ?? '')
-        setSelectedCoordId(detail.coordinatorId ?? '')
-        setSelectedTutorId(detail.tutorId ?? '')
+        syncForms(detail)
       } catch (err) {
         if (!cancelled) setError(err)
       } finally {
@@ -110,7 +136,22 @@ export function useTaskDetails() {
     return () => {
       cancelled = true
     }
-  }, [taskId, reloadKey])
+  }, [taskId, reloadKey, syncForms])
+
+  /** Merge a task row returned by a mutation; keeps files/solutions as-is. */
+  function applyTask(updated: Task) {
+    setTask((prev) => (prev ? { ...prev, ...updated } : prev))
+    syncForms(updated)
+  }
+
+  async function refreshRevisions() {
+    try {
+      const result = await listRevisionsForTask(taskId)
+      setRevisions(result.data)
+    } catch (err) {
+      toastApiError(err, "Revision saved, but the list couldn't refresh")
+    }
+  }
 
   useEffect(() => {
     if (!isStaff) return
@@ -121,7 +162,7 @@ export function useTaskDetails() {
         if (!cancelled) setTutors(result.data)
       })
       .catch((err: unknown) => {
-        if (!cancelled) toastApiError(err, 'Could not load tutors')
+        if (!cancelled) toastApiError(err, "Couldn't load the tutor list")
       })
       .finally(() => {
         if (!cancelled) setTutorsLoading(false)
@@ -140,7 +181,7 @@ export function useTaskDetails() {
         if (!cancelled) setCoordinators(result.data)
       })
       .catch((err: unknown) => {
-        if (!cancelled) toastApiError(err, 'Could not load coordinators')
+        if (!cancelled) toastApiError(err, "Couldn't load the coordinator list")
       })
       .finally(() => {
         if (!cancelled) setCoordinatorsLoading(false)
@@ -150,17 +191,75 @@ export function useTaskDetails() {
     }
   }, [isAdmin])
 
-  async function runAction(label: string, action: () => Promise<unknown>) {
+  async function runAction<T>(
+    copy: ActionCopy<T>,
+    action: () => Promise<T>,
+    onSuccess: (result: T) => void | Promise<void>,
+  ): Promise<boolean> {
     setIsActing(true)
     try {
-      await action()
-      toast.success(label)
-      reload()
+      const result = await action()
+      await onSuccess(result)
+      toastSuccess(copy.success, copy.detail?.(result))
+      return true
     } catch (err) {
-      toastApiError(err, 'Action failed')
+      toastApiError(err, copy.failure)
+      return false
     } finally {
       setIsActing(false)
     }
+  }
+
+  /** Task mutations: merges the returned row and mentions the new status when it changed. */
+  function runTaskAction(
+    copy: Omit<ActionCopy<Task>, 'detail'> & { detail?: string },
+    action: () => Promise<Task>,
+  ) {
+    const previousStatus = task?.status
+    return runAction(
+      {
+        ...copy,
+        detail: (updated) => {
+          const statusLine =
+            updated.status !== previousStatus
+              ? `Status is now “${taskStatusLabel(updated.status)}”.`
+              : undefined
+          return [copy.detail, statusLine].filter(Boolean).join(' ') || undefined
+        },
+      },
+      action,
+      applyTask,
+    )
+  }
+
+  function onRemoveFile(fileId: string) {
+    if (!task) return
+    const target = task.files.find((file) => file.id === fileId)
+    const name = target ? storedFileName(target, 'Document') : 'Document'
+    void runAction(
+      { success: 'Document removed', failure: `Couldn't remove “${name}”`, detail: () => name },
+      () => deleteTaskFile(task.id, fileId),
+      () =>
+        setTask((prev) =>
+          prev ? { ...prev, files: prev.files.filter((file) => file.id !== fileId) } : prev,
+        ),
+    )
+  }
+
+  function onRemoveSolution(solutionId: string) {
+    if (!task) return
+    const target = task.solutions.find((item) => item.id === solutionId)
+    const name = target ? storedFileName(target, 'Solution') : 'Solution'
+    void runAction(
+      { success: 'Solution removed', failure: `Couldn't remove “${name}”`, detail: () => name },
+      () => deleteTaskSolution(task.id, solutionId),
+      () =>
+        setTask((prev) =>
+          prev
+            ? { ...prev, solutions: prev.solutions.filter((item) => item.id !== solutionId) }
+            : prev,
+        ),
+    )
   }
 
   async function onSavePrice(event: FormEvent) {
@@ -168,22 +267,38 @@ export function useTaskDetails() {
     if (!task) return
     const price = Number(priceValue)
     if (Number.isNaN(price) || price < 0) {
-      toast.error('Enter a valid price')
+      toastInvalid('Invalid price', 'Enter a number of 0 or more, e.g. 49.99.')
       return
     }
-    await runAction('Price updated', () => updateTaskPrice(task.id, price))
-    setPriceOpen(false)
+    const ok = await runTaskAction(
+      {
+        success: 'Price updated',
+        failure: "Couldn't update the price",
+        detail: `$${task.price.toFixed(2)} → $${price.toFixed(2)}.`,
+      },
+      () => updateTaskPrice(task.id, price),
+    )
+    if (ok) setPriceOpen(false)
   }
 
   async function onCreateRevision(event: FormEvent) {
     event.preventDefault()
     if (!task) return
-    await runAction('Revision created', () =>
-      createRevision(task.id, {
-        title: revisionTitle.trim() || undefined,
-        description: revisionDescription.trim() || undefined,
-      }),
+    const title = revisionTitle.trim()
+    const ok = await runAction(
+      {
+        success: 'Revision created',
+        failure: "Couldn't create the revision",
+        detail: () => (title ? `“${title}” is now open.` : 'A new revision is now open.'),
+      },
+      () =>
+        createRevision(task.id, {
+          title: title || undefined,
+          description: revisionDescription.trim() || undefined,
+        }),
+      refreshRevisions,
     )
+    if (!ok) return
     setRevisionOpen(false)
     setRevisionTitle('')
     setRevisionDescription('')
@@ -192,27 +307,47 @@ export function useTaskDetails() {
   async function onAssignTutor(event: FormEvent) {
     event.preventDefault()
     if (!task || !selectedTutorId) return
-    await runAction('Tutor assigned', () => assignTutor(task.id, selectedTutorId))
+    const tutor = tutors.find((item) => item.id === selectedTutorId)
+    const tutorName = tutor ? userDisplayName(tutor) : null
+    await runTaskAction(
+      {
+        success: 'Tutor assigned',
+        failure: "Couldn't assign the tutor",
+        detail: tutorName ? `${tutorName} is now working on this task.` : undefined,
+      },
+      () => assignTutor(task.id, selectedTutorId),
+    )
   }
 
   async function onSaveEdit(event: FormEvent) {
     event.preventDefault()
     if (!task) return
-    await runAction('Task updated', () =>
-      updateTask(task.id, {
-        topic: editTopic.trim(),
-        type: editType,
-        category: editCategory.trim(),
-        description: editDescription.trim(),
-      }),
+    const ok = await runTaskAction(
+      { success: 'Task details saved', failure: "Couldn't save the task details" },
+      () =>
+        updateTask(task.id, {
+          topic: editTopic.trim(),
+          type: editType,
+          category: editCategory.trim(),
+          description: editDescription.trim(),
+        }),
     )
-    setEditOpen(false)
+    if (ok) setEditOpen(false)
   }
 
   async function onChangeCoordinator(event: FormEvent) {
     event.preventDefault()
     if (!task || !selectedCoordId) return
-    await runAction('Coordinator updated', () => changeCoordinator(task.id, selectedCoordId))
+    const coordinator = coordinators.find((item) => item.id === selectedCoordId)
+    const coordName = coordinator ? userDisplayName(coordinator) : null
+    await runTaskAction(
+      {
+        success: 'Coordinator changed',
+        failure: "Couldn't change the coordinator",
+        detail: coordName ? `${coordName} now coordinates this task.` : undefined,
+      },
+      () => changeCoordinator(task.id, selectedCoordId),
+    )
   }
 
   async function onDeleteTask() {
@@ -221,10 +356,10 @@ export function useTaskDetails() {
     setIsActing(true)
     try {
       await deleteTask(task.id)
-      toast.success('Task deleted')
+      toastSuccess('Task deleted', task.topic ? `“${task.topic}” was removed.` : undefined)
       navigate(`${portalBase}/tasks`)
     } catch (err) {
-      toastApiError(err, 'Could not delete task')
+      toastApiError(err, "Couldn't delete this task")
     } finally {
       setIsActing(false)
     }
@@ -234,26 +369,60 @@ export function useTaskDetails() {
     if (!task || files.length === 0) return
     const tooLarge = files.find((file) => file.size > TASK_UPLOAD_MAX_BYTES)
     if (tooLarge) {
-      toast.error(`${tooLarge.name} is larger than 25 MB`)
+      toastInvalid(
+        'File too large',
+        `“${tooLarge.name}” is ${formatFileSize(tooLarge.size)}. The limit is 25 MB.`,
+      )
       return
     }
-    const upload = target === 'documents' ? uploadTaskFile : uploadTaskSolution
-    const noun = target === 'documents' ? 'File' : 'Solution'
+    const upload = async (file: File, onProgress: (loadedBytes: number) => void) => {
+      if (target === 'documents') {
+        const created = await uploadTaskFile(task.id, file, onProgress)
+        setTask((prev) => (prev ? { ...prev, files: [...prev.files, created] } : prev))
+      } else {
+        const created = await uploadTaskSolution(task.id, file, onProgress)
+        setTask((prev) => (prev ? { ...prev, solutions: [...prev.solutions, created] } : prev))
+      }
+    }
+    const section = target === 'documents' ? 'Documents' : 'Solutions'
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0) || 1
+    let doneBytes = 0
     setUploadTarget(target)
     setIsActing(true)
     let uploaded = 0
+    let current: File | undefined
     try {
-      for (const file of files) {
-        await upload(task.id, file)
+      for (const [index, file] of files.entries()) {
+        current = file
+        const report = (loadedBytes: number) =>
+          setUploadProgress({
+            fileName: file.name,
+            fileIndex: index + 1,
+            fileCount: files.length,
+            percent: Math.min(100, Math.round(((doneBytes + loadedBytes) / totalBytes) * 100)),
+          })
+        report(0)
+        await upload(file, report)
+        doneBytes += file.size
         uploaded += 1
       }
-      toast.success(uploaded === 1 ? `${noun} uploaded` : `${uploaded} files uploaded`)
+      toastSuccess(
+        uploaded === 1 ? 'File uploaded' : `${uploaded} files uploaded`,
+        uploaded === 1 ? `“${files[0]?.name}” added to ${section}.` : `Added to ${section}.`,
+      )
     } catch (err) {
-      toastApiError(err, 'Upload failed')
+      const remaining = files.length - uploaded
+      toastApiError(
+        err,
+        current ? `Couldn't upload “${current.name}”` : `Couldn't upload to ${section}`,
+      )
+      if (uploaded > 0 && remaining > 0) {
+        toast.info(`${uploaded} of ${files.length} files were uploaded before the error.`)
+      }
     } finally {
       setIsActing(false)
       setUploadTarget(null)
-      if (uploaded > 0) reload()
+      setUploadProgress(null)
     }
   }
 
@@ -262,7 +431,7 @@ export function useTaskDetails() {
       const { url } = await request()
       window.open(url, '_blank', 'noopener,noreferrer')
     } catch (err) {
-      toastApiError(err, 'Could not open file')
+      toastApiError(err, "Couldn't open the file")
     }
   }
 
@@ -274,6 +443,24 @@ export function useTaskDetails() {
   function onOpenSolution(solutionId: string) {
     if (!task) return
     void openDownload(() => getTaskSolutionDownloadUrl(task.id, solutionId))
+  }
+
+  /** Returns true when the zip downloaded, so callers can clear their selection. */
+  async function downloadZip(kind: UploadTarget, ids?: string[]): Promise<boolean> {
+    if (!task) return false
+    setZipping(kind)
+    try {
+      await downloadTaskZip(task.id, kind, ids)
+      return true
+    } catch (err) {
+      toastApiError(
+        err,
+        `Couldn't download the ${kind === 'documents' ? 'documents' : 'solutions'}`,
+      )
+      return false
+    } finally {
+      setZipping(null)
+    }
   }
 
   const assignedTutor = task?.tutorId === userId
@@ -306,7 +493,9 @@ export function useTaskDetails() {
     canDelete,
     assignedTutor,
     isActing,
-    runAction,
+    runTaskAction,
+    onRemoveFile,
+    onRemoveSolution,
     onDeleteTask,
     onSavePrice,
     onCreateRevision,
@@ -314,9 +503,12 @@ export function useTaskDetails() {
     onSaveEdit,
     onChangeCoordinator,
     uploadTarget,
+    uploadProgress,
     onUpload,
     onOpenFile,
     onOpenSolution,
+    zipping,
+    downloadZip,
     priceOpen,
     setPriceOpen,
     priceValue,
@@ -353,8 +545,6 @@ export function useTaskDetails() {
     cancelTaskSubmit,
     removeTutor,
     setTaskAllowView,
-    deleteTaskFile,
-    deleteTaskSolution,
   }
 }
 

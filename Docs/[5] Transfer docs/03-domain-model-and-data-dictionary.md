@@ -318,7 +318,7 @@ Indexes: `(email, ip_address)`, `locked_until`.
 | request_id | string?    |                                   |
 | created_at | datetime   |                                   |
 
-**Companion:** `error_logs` for persisted 5xx / unhandled errors (super/admin read).
+**Companion:** `error_logs` for unexpected failures (5xx, unhandled errors, and failures swallowed by backend catch blocks via `reportError()`), with `source`, `level` (`error` | `warning`), and `meta`. Super-only read (Super portal → Error log).
 
 ---
 

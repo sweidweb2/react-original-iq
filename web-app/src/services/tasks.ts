@@ -1,4 +1,4 @@
-import { apiRequest } from './api'
+import { apiDownload, ApiError, apiRequest, NETWORK_ERROR_STATUS } from './api'
 
 export type TaskType = 'assignment' | 'tutoring' | 'research' | 'editing'
 
@@ -97,19 +97,15 @@ export type CreateTaskInput = {
   description: string
   deadline: string
   price?: number
-  status?: TaskStatus
 }
 
+/** Content fields only; status, tutor, and price have dedicated endpoints. */
 export type UpdateTaskInput = Partial<{
   topic: string
   type: TaskType
   category: string
   description: string
   deadline: string
-  status: TaskStatus
-  tutorId: string | null
-  price: number
-  paymentStatus: TaskPaymentStatus
   feedback: string
 }>
 
@@ -204,7 +200,57 @@ export function deleteTask(id: string) {
   return apiRequest<void>(`/tasks/${id}`, { method: 'DELETE' })
 }
 
-async function uploadToTask<T>(collection: 'files' | 'solutions', id: string, file: File) {
+/** Called with bytes sent so far for the current file. */
+export type UploadProgressHandler = (loadedBytes: number) => void
+
+/** Storage response bodies are never surfaced; only our own wording per status. */
+function storageUploadError(status: number): ApiError {
+  if (status === 413) {
+    return new ApiError(413, 'The file is too large for storage.', 'STORAGE_UPLOAD_FAILED')
+  }
+  if (status >= 400 && status < 500) {
+    return new ApiError(
+      status,
+      'The storage service rejected this file. The upload link may have expired — please try again.',
+      'STORAGE_UPLOAD_FAILED',
+    )
+  }
+  return new ApiError(status || 502, 'Storage upload failed', 'STORAGE_UPLOAD_FAILED')
+}
+
+/** XHR instead of fetch: fetch exposes no upload progress events. */
+function putFile(
+  url: string,
+  file: File,
+  contentType: string,
+  onProgress?: UploadProgressHandler,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', url)
+    xhr.setRequestHeader('Content-Type', contentType)
+    xhr.upload.onprogress = (event) => onProgress?.(event.loaded)
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress?.(file.size)
+        resolve()
+      } else {
+        reject(storageUploadError(xhr.status))
+      }
+    }
+    xhr.onerror = () =>
+      reject(new ApiError(NETWORK_ERROR_STATUS, 'Network request failed', 'NETWORK_ERROR'))
+    xhr.onabort = () => reject(new ApiError(499, 'The upload was cancelled.', 'UPLOAD_ABORTED'))
+    xhr.send(file)
+  })
+}
+
+async function uploadToTask<T>(
+  collection: 'files' | 'solutions',
+  id: string,
+  file: File,
+  onProgress?: UploadProgressHandler,
+) {
   const ticket = await apiRequest<UploadTicket>(`/tasks/${id}/${collection}/upload-url`, {
     method: 'POST',
     body: JSON.stringify({
@@ -214,14 +260,7 @@ async function uploadToTask<T>(collection: 'files' | 'solutions', id: string, fi
     }),
   })
 
-  const response = await fetch(ticket.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': ticket.contentType },
-    body: file,
-  })
-  if (!response.ok) {
-    throw new Error(`Could not upload ${file.name} (${response.status})`)
-  }
+  await putFile(ticket.uploadUrl, file, ticket.contentType, onProgress)
 
   return apiRequest<T>(`/tasks/${id}/${collection}`, {
     method: 'POST',
@@ -229,8 +268,8 @@ async function uploadToTask<T>(collection: 'files' | 'solutions', id: string, fi
   })
 }
 
-export function uploadTaskFile(id: string, file: File) {
-  return uploadToTask<TaskFile>('files', id, file)
+export function uploadTaskFile(id: string, file: File, onProgress?: UploadProgressHandler) {
+  return uploadToTask<TaskFile>('files', id, file, onProgress)
 }
 
 export function listTaskFiles(id: string) {
@@ -245,8 +284,8 @@ export function deleteTaskFile(id: string, fileId: string) {
   return apiRequest<void>(`/tasks/${id}/files/${fileId}`, { method: 'DELETE' })
 }
 
-export function uploadTaskSolution(id: string, file: File) {
-  return uploadToTask<TaskSolution>('solutions', id, file)
+export function uploadTaskSolution(id: string, file: File, onProgress?: UploadProgressHandler) {
+  return uploadToTask<TaskSolution>('solutions', id, file, onProgress)
 }
 
 export function listTaskSolutions(id: string) {
@@ -255,6 +294,21 @@ export function listTaskSolutions(id: string) {
 
 export function getTaskSolutionDownloadUrl(id: string, solutionId: string) {
   return apiRequest<FileDownload>(`/tasks/${id}/solutions/${solutionId}/download`)
+}
+
+export type TaskFileKind = 'documents' | 'solutions'
+
+/** Zip of all (or the selected) task documents or solutions; the server names the file. */
+export function downloadTaskZip(id: string, kind: TaskFileKind, ids?: string[]) {
+  const collection = kind === 'documents' ? 'files' : 'solutions'
+  const query = ids && ids.length > 0 ? `?ids=${encodeURIComponent(ids.join(','))}` : ''
+  return apiDownload(
+    `/tasks/${id}/${collection}/zip${query}`,
+    `task-${id.slice(0, 8)}_${kind}.zip`,
+    {
+      label: `Task ${kind} (zip)`,
+    },
+  )
 }
 
 export function deleteTaskSolution(id: string, solutionId: string) {

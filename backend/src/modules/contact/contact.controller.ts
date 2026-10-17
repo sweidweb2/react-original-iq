@@ -1,8 +1,11 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 
 import { respond, respondEmpty } from '../../middleware/respond.js'
+import { type ExportFile, sendExport } from '../_shared/export-file.js'
 import type { ListContactQuery } from './contact.schema.js'
-import type { ContactService } from './contact.service.js'
+import type { ContactService, ExportOptions } from './contact.service.js'
+
+type ExportHandler = (req: Request, res: Response, next: NextFunction) => Promise<void>
 
 export type ContactController = {
   createMessage: RequestHandler
@@ -11,27 +14,36 @@ export type ContactController = {
   updateLead: RequestHandler
   listLeads: RequestHandler
   deleteLead: RequestHandler
-  exportLeads: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  exportLeads: ExportHandler
+  exportLeadsPdf: ExportHandler
   listNewsletter: RequestHandler
   updateNewsletter: RequestHandler
   deleteNewsletter: RequestHandler
-  exportNewsletter: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  exportNewsletter: ExportHandler
+  exportNewsletterPdf: ExportHandler
   listMessages: RequestHandler
   getMessage: RequestHandler
   updateMessage: RequestHandler
   deleteMessage: RequestHandler
-  exportMessages: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  exportMessages: ExportHandler
 }
 
-function searchFromQuery(req: Request): string | undefined {
+function exportOptions(req: Request): ExportOptions {
   const search = req.query.search
-  return typeof search === 'string' && search.trim() ? search.trim() : undefined
+  return {
+    search: typeof search === 'string' && search.trim() ? search.trim() : undefined,
+    actorId: req.user?.id ?? null,
+  }
 }
 
-async function sendCsv(res: Response, filename: string, csv: string): Promise<void> {
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-  res.status(200).send(csv)
+function exportHandler(build: (options: ExportOptions) => Promise<ExportFile>): ExportHandler {
+  return async (req, res, next) => {
+    try {
+      sendExport(res, await build(exportOptions(req)))
+    } catch (error) {
+      next(error)
+    }
+  }
 }
 
 export function createContactController(service: ContactService): ContactController {
@@ -43,13 +55,8 @@ export function createContactController(service: ContactService): ContactControl
 
     listLeads: respond(200, (req) => service.listLeads(req.query as unknown as ListContactQuery)),
     deleteLead: respondEmpty(204, (req) => service.deleteLead(String(req.params.id))),
-    async exportLeads(req, res, next) {
-      try {
-        await sendCsv(res, 'leads.csv', await service.exportLeadsCsv(searchFromQuery(req)))
-      } catch (error) {
-        next(error)
-      }
-    },
+    exportLeads: exportHandler((options) => service.exportLeads('csv', options)),
+    exportLeadsPdf: exportHandler((options) => service.exportLeads('pdf', options)),
 
     listNewsletter: respond(200, (req) =>
       service.listNewsletter(req.query as unknown as ListContactQuery),
@@ -58,17 +65,8 @@ export function createContactController(service: ContactService): ContactControl
       service.updateNewsletter(String(req.params.id), req.body),
     ),
     deleteNewsletter: respondEmpty(204, (req) => service.deleteNewsletter(String(req.params.id))),
-    async exportNewsletter(req, res, next) {
-      try {
-        await sendCsv(
-          res,
-          'stay-updated.csv',
-          await service.exportNewsletterCsv(searchFromQuery(req)),
-        )
-      } catch (error) {
-        next(error)
-      }
-    },
+    exportNewsletter: exportHandler((options) => service.exportNewsletter('csv', options)),
+    exportNewsletterPdf: exportHandler((options) => service.exportNewsletter('pdf', options)),
 
     listMessages: respond(200, (req) =>
       service.listMessages(req.query as unknown as ListContactQuery),
@@ -76,16 +74,6 @@ export function createContactController(service: ContactService): ContactControl
     getMessage: respond(200, (req) => service.getMessage(String(req.params.id))),
     updateMessage: respond(200, (req) => service.updateMessage(String(req.params.id), req.body)),
     deleteMessage: respondEmpty(204, (req) => service.deleteMessage(String(req.params.id))),
-    async exportMessages(req, res, next) {
-      try {
-        await sendCsv(
-          res,
-          'contact-messages.csv',
-          await service.exportMessagesCsv(searchFromQuery(req)),
-        )
-      } catch (error) {
-        next(error)
-      }
-    },
+    exportMessages: exportHandler((options) => service.exportMessages(options)),
   }
 }

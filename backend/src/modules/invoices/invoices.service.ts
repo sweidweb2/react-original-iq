@@ -1,7 +1,7 @@
 import type { AuthActor } from '../../authz/index.js'
 import { isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
 import { forbidden, notFound, serviceUnavailable } from '../../errors/app-error.js'
-import { getLogger } from '../../logging/index.js'
+import { reportError } from '../../errors/report-error.js'
 import type { Mailer } from '../../mail/index.js'
 import { renderInvoicePdf } from '../../pdf/index.js'
 import type { StorageService } from '../../storage/index.js'
@@ -21,7 +21,7 @@ export type InvoiceDownload = {
 }
 
 export type InvoicesService = {
-  /** Create (or finish) the invoice for a paid payment: PDF to R2, email client. Never throws. */
+  /** Create (or finish) the invoice for a paid payment: PDF to storage, email client. Never throws. */
   issueForPayment: (paymentId: string) => Promise<InvoiceSummary | null>
   resend: (invoiceId: string, actor: AuthActor) => Promise<InvoiceSummary>
   getDownloadUrl: (invoiceId: string, actor: AuthActor) => Promise<InvoiceDownload>
@@ -48,7 +48,6 @@ function errorMessage(error: unknown): string {
 
 export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesService {
   const { repository, paymentsRepository, tasksRepository, usersRepository, storage, mailer } = deps
-  const log = getLogger().child({ component: 'invoices' })
 
   async function logPaymentEvent(
     paymentId: string,
@@ -58,7 +57,7 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
     try {
       await paymentsRepository.addPaymentLog(paymentId, event, payload)
     } catch (error) {
-      log.error({ err: error, paymentId, event }, 'failed to write payment log')
+      reportError(error, { source: 'invoices.payment_log', meta: { paymentId, event } })
     }
   }
 
@@ -81,6 +80,11 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
     const problems: string[] = []
     let pdfPath = invoice.pdfPath
     let pdf: Buffer | null = null
+    const invoiceMeta = {
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      paymentId: ctx.payment.id,
+    }
 
     try {
       pdf = await renderInvoicePdf({
@@ -101,6 +105,7 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
       })
     } catch (error) {
       problems.push(`PDF render failed: ${errorMessage(error)}`)
+      reportError(error, { source: 'invoices.pdf_render', level: 'warning', meta: invoiceMeta })
     }
 
     if (pdf && !pdfPath) {
@@ -118,6 +123,7 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
           pdfPath = stored.key
         } catch (error) {
           problems.push(`PDF upload failed: ${errorMessage(error)}`)
+          reportError(error, { source: 'invoices.pdf_upload', level: 'warning', meta: invoiceMeta })
         }
       }
     }
@@ -158,6 +164,7 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
         if (!result.delivered) problems.push('Mail is not configured; email not sent')
       } catch (error) {
         problems.push(`Email failed: ${errorMessage(error)}`)
+        reportError(error, { source: 'invoices.email', level: 'warning', meta: invoiceMeta })
       }
     }
 
@@ -213,7 +220,7 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
         }
         return toInvoiceSummary(await deliver(invoice, ctx))
       } catch (error) {
-        log.error({ err: error, paymentId }, 'invoice issuance failed')
+        reportError(error, { source: 'invoices.issue', meta: { paymentId } })
         return null
       }
     },
@@ -260,7 +267,11 @@ export function createInvoicesService(deps: InvoicesServiceDeps): InvoicesServic
         try {
           await storage.deleteObject(invoice.pdfPath)
         } catch (error) {
-          log.error({ err: error, key: invoice.pdfPath }, 'failed to delete invoice PDF')
+          reportError(error, {
+            source: 'invoices.pdf_delete',
+            level: 'warning',
+            meta: { invoiceId: invoice.id, paymentId, key: invoice.pdfPath },
+          })
         }
       }
       await repository.deleteByPaymentId(paymentId)

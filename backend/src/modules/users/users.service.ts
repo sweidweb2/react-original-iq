@@ -1,5 +1,5 @@
 import type { AuthActor } from '../../authz/index.js'
-import { assertSelfOrOps, isAdmin, isOps } from '../../authz/index.js'
+import { assertCanManageRole, assertSelfOrOps, isOps, isUserAdmin } from '../../authz/index.js'
 import { conflict, forbidden, notFound } from '../../errors/app-error.js'
 import { hashPassword } from '../auth/auth.tokens.js'
 import { getLoggingService } from '../logging/index.js'
@@ -27,7 +27,7 @@ export type UsersService = {
   findByEmail: (email: string) => Promise<AccountRecord | null>
   findById: (id: string) => Promise<AccountRecord | null>
   createAccount: (input: CreateAccountInput) => Promise<AccountRecord>
-  createUser: (input: CreateUserBody) => Promise<User>
+  createUser: (input: CreateUserBody, actor: AuthActor) => Promise<User>
   updateUser: (id: string, input: UpdateUserBody, actor: AuthActor) => Promise<User>
   deactivateUser: (id: string, actor: AuthActor) => Promise<User>
   deleteUser: (id: string, actor: AuthActor) => Promise<void>
@@ -42,6 +42,8 @@ export type UsersService = {
 
 export type UsersServiceDeps = {
   assertDeletable?: (userId: string) => Promise<void>
+  /** Sign the user out everywhere (password reset by an admin, deactivation). */
+  revokeSessions?: (userId: string) => Promise<void>
 }
 
 export function createUsersService(
@@ -97,7 +99,12 @@ export function createUsersService(
       return repository.createAccount(input)
     },
 
-    async createUser(input) {
+    async createUser(input, actor) {
+      if (!isUserAdmin(actor.roles)) {
+        throw forbidden('Only admins can create users')
+      }
+      assertCanManageRole(actor, input.role)
+
       const existing = await repository.findByEmail(input.email)
       if (existing) {
         throw conflict('Email already registered')
@@ -110,6 +117,7 @@ export function createUsersService(
         name: input.name,
       })
       getLoggingService().recordActivitySafe({
+        userId: actor.id,
         action: 'users.create',
         entity: 'user',
         entityId: account.id,
@@ -119,17 +127,15 @@ export function createUsersService(
     },
 
     async updateUser(id, input, actor) {
-      await assertAccessible(id, actor)
+      const target = await assertAccessible(id, actor)
+      assertCanManageRole(actor, target.role)
+      if (input.role !== undefined) {
+        assertCanManageRole(actor, input.role)
+      }
 
       const privileged = input.role !== undefined || input.status !== undefined || input.password
-      if (privileged && !isAdmin(actor.roles)) {
+      if (privileged && !isUserAdmin(actor.roles)) {
         throw forbidden('Only admins can change role, status, or password')
-      }
-      if (!isAdmin(actor.roles) && isOps(actor.roles) && actor.id !== id) {
-        // Coordinators may update display name only on other users.
-        if (input.role !== undefined || input.status !== undefined || input.password) {
-          throw forbidden('Only admins can change role, status, or password')
-        }
       }
       if (actor.id === id && input.status === 'INACTIVE') {
         throw forbidden('You cannot deactivate your own account')
@@ -147,6 +153,9 @@ export function createUsersService(
       if (!updated) {
         throw notFound('User not found', 'USER_NOT_FOUND')
       }
+      if (actor.id !== id && (input.password || input.status === 'INACTIVE')) {
+        await deps.revokeSessions?.(id)
+      }
       getLoggingService().recordActivitySafe({
         userId: actor.id,
         action: 'users.update',
@@ -163,17 +172,19 @@ export function createUsersService(
     },
 
     async deactivateUser(id, actor) {
-      if (!isAdmin(actor.roles)) {
+      if (!isUserAdmin(actor.roles)) {
         throw forbidden('Only admins can deactivate users')
       }
       if (actor.id === id) {
         throw forbidden('You cannot deactivate your own account')
       }
-      await loadOrThrow(id)
+      const target = await loadOrThrow(id)
+      assertCanManageRole(actor, target.role)
       const updated = await repository.updateAccount(id, { status: 'INACTIVE' })
       if (!updated) {
         throw notFound('User not found', 'USER_NOT_FOUND')
       }
+      await deps.revokeSessions?.(id)
       getLoggingService().recordActivitySafe({
         userId: actor.id,
         action: 'users.deactivate',
@@ -188,11 +199,12 @@ export function createUsersService(
         throw forbidden('You cannot delete your own account')
       }
       const target = await loadOrThrow(id)
-      const adminActor = isAdmin(actor.roles)
+      const adminActor = isUserAdmin(actor.roles)
       const coordActor = isOps(actor.roles) && !adminActor
       if (!adminActor && !coordActor) {
         throw forbidden('Only admins or coordinators can delete users')
       }
+      assertCanManageRole(actor, target.role)
       if (
         coordActor &&
         (target.role === 'admin' || target.role === 'super' || target.role === 'coordinator')

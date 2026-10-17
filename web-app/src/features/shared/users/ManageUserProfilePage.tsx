@@ -8,9 +8,9 @@ import { Field, FieldError, FieldLabel } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { toast } from '@/components/ui/toast'
 import { usePortalBreadcrumbs } from '@/features/portals/usePortalBreadcrumbs'
 import { type FieldErrors, parseForm } from '@/lib/form'
+import { assignableRoles, canManageRole, ROLE_OPTIONS } from '@/lib/permissions'
 import type { AuthRole } from '@/services/auth'
 import {
   assignUserPermissions,
@@ -24,7 +24,7 @@ import {
   listSpecializations,
   type Specialization,
 } from '@/services/specializations'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 import {
   deactivateUser,
   deleteUser,
@@ -37,14 +37,6 @@ import {
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
-
-const ROLE_OPTIONS: { value: AuthRole; label: string }[] = [
-  { value: 'super', label: 'Super' },
-  { value: 'admin', label: 'Admin' },
-  { value: 'coordinator', label: 'Coordinator' },
-  { value: 'tutor', label: 'Tutor' },
-  { value: 'client', label: 'Client' },
-]
 
 const editSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
@@ -71,7 +63,7 @@ export function ManageUserProfilePage() {
   const isAdmin = actor?.role === 'admin' || actor?.role === 'super'
   const canDelete = isAdmin || actor?.role === 'coordinator'
   const portalBase = pathname.replace(/\/users\/[^/]+\/?$/, '')
-  const hasUsersList = portalBase.endsWith('/admin')
+  const hasUsersList = isAdmin
   const backTo = hasUsersList ? `${portalBase}/users` : portalBase
 
   const [user, setUser] = useState<ManagedUser | null>(null)
@@ -93,6 +85,8 @@ export function ManageUserProfilePage() {
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<string[]>([])
   const [permsBusy, setPermsBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const canManageTarget = !user || canManageRole(actor?.role, user.role)
+  const roleOptions = canManageTarget ? assignableRoles(actor?.role) : ROLE_OPTIONS
 
   const breadcrumbs = usePortalBreadcrumbs([
     ...(hasUsersList ? [{ label: 'Users', path: 'users' }] : []),
@@ -173,9 +167,9 @@ export function ManageUserProfilePage() {
         status: updated.status,
         password: '',
       }))
-      toast.success('User updated')
+      toastSuccess('User saved', `Changes to ${userDisplayName(updated)} were saved.`)
     } catch (err) {
-      toastApiError(err, 'Could not update user')
+      toastApiError(err, `Couldn't save changes to ${userDisplayName(user)}`)
     } finally {
       setSaving(false)
     }
@@ -188,9 +182,9 @@ export function ManageUserProfilePage() {
       const updated = await deactivateUser(user.id)
       setUser(updated)
       setValues((prev) => ({ ...prev, status: updated.status }))
-      toast.success('User deactivated')
+      toastSuccess('User deactivated', `${userDisplayName(updated)} can no longer sign in.`)
     } catch (err) {
-      toastApiError(err, 'Could not deactivate user')
+      toastApiError(err, `Couldn't deactivate ${userDisplayName(user)}`)
     } finally {
       setDeactivating(false)
     }
@@ -203,7 +197,11 @@ export function ManageUserProfilePage() {
       breadcrumbs={breadcrumbs}
       actions={
         <>
-          {isAdmin && user && user.status === 'ACTIVE' && user.id !== actor?.id ? (
+          {isAdmin &&
+          canManageTarget &&
+          user &&
+          user.status === 'ACTIVE' &&
+          user.id !== actor?.id ? (
             <Button
               type="button"
               variant="danger-soft"
@@ -219,7 +217,7 @@ export function ManageUserProfilePage() {
             type="submit"
             form="manage-user-form"
             size="sm"
-            disabled={saving || isLoading || !user}
+            disabled={saving || isLoading || !user || !canManageTarget}
           >
             {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
             Save
@@ -231,13 +229,21 @@ export function ManageUserProfilePage() {
       <AsyncState isLoading={isLoading} error={error} onRetry={() => void load()}>
         {user ? (
           <>
-            <SectionCard title="User details" description="Update profile fields for this account.">
+            <SectionCard
+              title="User details"
+              description={
+                canManageTarget
+                  ? 'Update profile fields for this account.'
+                  : 'Only a super user can change super accounts.'
+              }
+            >
               <form id="manage-user-form" onSubmit={onSave} className="grid gap-4 sm:grid-cols-2">
                 <Field data-invalid={Boolean(fieldErrors.name) || undefined}>
                   <FieldLabel htmlFor="user-name">Name</FieldLabel>
                   <Input
                     id="user-name"
                     value={values.name}
+                    disabled={!canManageTarget}
                     onChange={(e) => setValues((p) => ({ ...p, name: e.target.value }))}
                     aria-invalid={Boolean(fieldErrors.name) || undefined}
                   />
@@ -252,10 +258,10 @@ export function ManageUserProfilePage() {
                   <Select
                     id="user-role"
                     value={values.role}
-                    disabled={!isAdmin || user.id === actor?.id}
+                    disabled={!isAdmin || !canManageTarget || user.id === actor?.id}
                     onChange={(e) => setValues((p) => ({ ...p, role: e.target.value as AuthRole }))}
                   >
-                    {ROLE_OPTIONS.map((option) => (
+                    {roleOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -268,7 +274,7 @@ export function ManageUserProfilePage() {
                   <Select
                     id="user-status"
                     value={values.status}
-                    disabled={!isAdmin || user.id === actor?.id}
+                    disabled={!isAdmin || !canManageTarget || user.id === actor?.id}
                     onChange={(e) =>
                       setValues((p) => ({ ...p, status: e.target.value as UserStatus }))
                     }
@@ -278,7 +284,7 @@ export function ManageUserProfilePage() {
                   </Select>
                   <FieldError>{fieldErrors.status}</FieldError>
                 </Field>
-                {isAdmin ? (
+                {isAdmin && canManageTarget ? (
                   <Field data-invalid={Boolean(fieldErrors.password) || undefined}>
                     <FieldLabel htmlFor="user-password">New password (optional)</FieldLabel>
                     <Input
@@ -302,15 +308,16 @@ export function ManageUserProfilePage() {
                   className="mb-4 flex flex-wrap gap-2"
                   onSubmit={(event) => {
                     event.preventDefault()
-                    if (!specName.trim()) return
+                    const name = specName.trim()
+                    if (!name) return
                     setSpecBusy(true)
-                    void createSpecialization({ tutorId: user.id, name: specName.trim() })
+                    void createSpecialization({ tutorId: user.id, name })
                       .then(() => {
-                        toast.success('Specialization added')
+                        toastSuccess('Specialization added', `“${name}” added to this tutor.`)
                         setSpecName('')
                         return loadSpecs(user.id)
                       })
-                      .catch((err) => toastApiError(err, 'Could not add specialization'))
+                      .catch((err) => toastApiError(err, `Couldn't add “${name}”`))
                       .finally(() => setSpecBusy(false))
                   }}
                 >
@@ -346,10 +353,10 @@ export function ManageUserProfilePage() {
                             setSpecBusy(true)
                             void deleteSpecialization(spec.id)
                               .then(() => {
-                                toast.success('Removed')
+                                toastSuccess('Specialization removed', `“${spec.name}” removed.`)
                                 return loadSpecs(user.id)
                               })
-                              .catch((err) => toastApiError(err, 'Could not remove'))
+                              .catch((err) => toastApiError(err, `Couldn't remove “${spec.name}”`))
                               .finally(() => setSpecBusy(false))
                           }}
                         >
@@ -420,8 +427,18 @@ export function ManageUserProfilePage() {
                         if (!user) return
                         setPermsBusy(true)
                         void assignUserPermissions(user.id, selectedPermissionIds)
-                          .then(() => toast.success('Permissions saved'))
-                          .catch((err) => toastApiError(err, 'Could not save permissions'))
+                          .then(() =>
+                            toastSuccess(
+                              'Permissions saved',
+                              `${userDisplayName(user)} now has ${selectedPermissionIds.length} direct permission${selectedPermissionIds.length === 1 ? '' : 's'}.`,
+                            ),
+                          )
+                          .catch((err) =>
+                            toastApiError(
+                              err,
+                              `Couldn't save permissions for ${userDisplayName(user)}`,
+                            ),
+                          )
                           .finally(() => setPermsBusy(false))
                       }}
                     >
@@ -440,16 +457,19 @@ export function ManageUserProfilePage() {
                 type="button"
                 variant="danger"
                 size="sm"
-                disabled={!canDelete || deleting || user.id === actor?.id}
+                disabled={!canDelete || !canManageTarget || deleting || user.id === actor?.id}
                 onClick={() => {
                   if (!window.confirm(`Permanently delete ${userDisplayName(user)}?`)) return
                   setDeleting(true)
                   void deleteUser(user.id)
                     .then(() => {
-                      toast.success('User deleted')
+                      toastSuccess(
+                        'User deleted',
+                        `${userDisplayName(user)} was permanently removed.`,
+                      )
                       navigate(backTo)
                     })
-                    .catch((err) => toastApiError(err, 'Could not delete user'))
+                    .catch((err) => toastApiError(err, `Couldn't delete ${userDisplayName(user)}`))
                     .finally(() => setDeleting(false))
                 }}
               >

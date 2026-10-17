@@ -16,7 +16,6 @@ export const createManualPaymentBodySchema = z.object({
   status: paymentStatusSchema.optional(),
   paymentMethod: z.string().trim().max(64).optional(),
   currency: z.string().trim().length(3).optional(),
-  userId: z.string().uuid().optional(),
 })
 
 export const updatePaymentBodySchema = z

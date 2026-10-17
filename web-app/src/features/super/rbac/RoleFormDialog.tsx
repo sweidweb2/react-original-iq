@@ -5,10 +5,9 @@ import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { createRole, type RbacRole, updateRole } from '@/services/rbac'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { editRoleFormSchema, roleFormSchema } from './rbac.schema'
 
@@ -71,7 +70,7 @@ export function RoleFormDialog({ open, mode, role, onClose, onSaved }: RoleFormD
           description: parsed.data.description || null,
           sortOrder: parsed.data.sortOrder,
         })
-        toast.success('Role created')
+        toastSuccess('Role created', `“${parsed.data.name}” (${parsed.data.key}) is ready to use.`)
       } else if (role) {
         const parsed = parseForm(editRoleFormSchema, values)
         if (!parsed.success) {
@@ -84,12 +83,17 @@ export function RoleFormDialog({ open, mode, role, onClose, onSaved }: RoleFormD
           description: parsed.data.description || null,
           sortOrder: parsed.data.sortOrder,
         })
-        toast.success('Role updated')
+        toastSuccess('Role saved', `Changes to “${parsed.data.name}” were saved.`)
       }
       onSaved()
       onClose()
     } catch (error) {
-      toastApiError(error, mode === 'create' ? 'Could not create role' : 'Could not update role')
+      toastApiError(
+        error,
+        mode === 'create'
+          ? "Couldn't create the role"
+          : `Couldn't save the role “${role?.name ?? ''}”`,
+      )
     } finally {
       setIsSubmitting(false)
     }

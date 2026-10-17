@@ -2,10 +2,10 @@ import { z } from 'zod'
 
 import { paginationQuerySchema } from '../_shared/pagination.schema.js'
 
+/** The tutor is taken from the task, never from the client. */
 export const createFeedbackBodySchema = z.object({
   taskId: z.string().trim().uuid(),
-  tutorId: z.string().trim().uuid(),
-  rating: z.coerce.number().int().min(0).max(5),
+  rating: z.coerce.number().int().min(1).max(5),
   comments: z.string().trim().max(2000).optional(),
   suggestions: z.string().trim().max(2000).optional(),
 })

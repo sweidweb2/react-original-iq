@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { toast } from '@/components/ui/toast'
 import type { ContactListMeta } from '@/services/contact'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 export const ADMIN_LIST_PAGE_SIZE = 10
 
@@ -15,10 +14,10 @@ export type UsePagedAdminListOptions<T extends { id: string }> = {
   pageSize?: number
   fetchPage: (args: { page: number; limit: number; search?: string }) => Promise<PagedListResult<T>>
   deleteRow: (id: string) => Promise<void>
-  exportRows: (search?: string) => Promise<void>
   deleteSuccessMessage: string
   deleteErrorMessage: string
-  exportErrorMessage: string
+  /** Names the row in delete toasts, e.g. the lead's email. */
+  rowLabel?: (row: T) => string | null | undefined
   /** Optional side effect when a row is deleted (e.g. clear view dialog). */
   onDeleted?: (row: T) => void
 }
@@ -40,7 +39,6 @@ export function usePagedAdminList<T extends { id: string }>(options: UsePagedAdm
   const [error, setError] = useState<unknown>(null)
   const [pendingDelete, setPendingDelete] = useState<T | null>(null)
   const [isActing, setIsActing] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(searchInput.trim()), 300)
@@ -87,30 +85,21 @@ export function usePagedAdminList<T extends { id: string }>(options: UsePagedAdm
   async function confirmDelete() {
     if (!pendingDelete) return
     const current = optionsRef.current
+    const label = current.rowLabel?.(pendingDelete)
     setIsActing(true)
     try {
       await current.deleteRow(pendingDelete.id)
-      toast.success(current.deleteSuccessMessage)
+      toastSuccess(current.deleteSuccessMessage, label ? `“${label}” was deleted.` : undefined)
       current.onDeleted?.(pendingDelete)
       setPendingDelete(null)
       refresh()
     } catch (actionError) {
-      toastApiError(actionError, current.deleteErrorMessage)
+      toastApiError(
+        actionError,
+        label ? `${current.deleteErrorMessage}: “${label}”` : current.deleteErrorMessage,
+      )
     } finally {
       setIsActing(false)
-    }
-  }
-
-  async function handleExport() {
-    const current = optionsRef.current
-    setIsExporting(true)
-    try {
-      await current.exportRows(search || undefined)
-      toast.success('Export started')
-    } catch (exportError) {
-      toastApiError(exportError, current.exportErrorMessage)
-    } finally {
-      setIsExporting(false)
     }
   }
 
@@ -131,10 +120,8 @@ export function usePagedAdminList<T extends { id: string }>(options: UsePagedAdm
     pendingDelete,
     setPendingDelete,
     isActing,
-    isExporting,
     refresh,
     confirmDelete,
-    handleExport,
     totalPages,
     rangeStart,
     rangeEnd,

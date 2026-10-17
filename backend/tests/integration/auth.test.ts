@@ -64,6 +64,23 @@ describe('auth HTTP', () => {
       .send({ refreshToken: refreshed.body.refreshToken })
 
     expect(logout.status).toBe(204)
+
+    const afterLogout = await request(app).post('/api/v1/auth/refresh').send({ refreshToken })
+    expect(afterLogout.status).toBe(401)
+  })
+
+  it('logging out one session leaves other sessions signed in', async () => {
+    const first = await request(app).post('/api/v1/auth/login').send({ email, password })
+    const second = await request(app).post('/api/v1/auth/login').send({ email, password })
+
+    await request(app)
+      .post('/api/v1/auth/logout')
+      .send({ refreshToken: first.body.tokens.refreshToken })
+
+    const stillLive = await request(app)
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: second.body.tokens.refreshToken })
+    expect(stillLive.status).toBe(200)
   })
 
   it('rejects an invalid refresh token', async () => {
@@ -79,6 +96,7 @@ describe('auth HTTP', () => {
     const loginBefore = await request(app).post('/api/v1/auth/login').send({ email, password })
     expect(loginBefore.status).toBe(200)
     const userId = loginBefore.body.user.id as string
+    const sessionBeforeReset = loginBefore.body.tokens.refreshToken as string
 
     const forgot = await request(app).post('/api/v1/auth/password/forgot').send({ email })
     expect(forgot.status).toBe(200)
@@ -103,6 +121,11 @@ describe('auth HTTP', () => {
       confirmPassword: newPassword,
     })
     expect(reset.status).toBe(200)
+
+    const oldSession = await request(app)
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: sessionBeforeReset })
+    expect(oldSession.status).toBe(401)
 
     const loginNew = await request(app)
       .post('/api/v1/auth/login')

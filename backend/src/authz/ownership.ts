@@ -80,15 +80,30 @@ export function assertSelfOrAdmin(
 }
 
 /**
- * Self, admin, or coordinator may access a user record (manage-user profile).
+ * Self, super, admin, or coordinator may access a user record (manage-user profile).
  */
 export function assertSelfOrOps(
   actor: AuthActor,
   resourceUserId: string,
   message = 'You cannot access this user',
 ): void {
-  if (isOps(actor.roles)) {
+  if (isOps(actor.roles) || isSuper(actor.roles)) {
     return
   }
   assertOwner(actor.id, resourceUserId, message)
+}
+
+/**
+ * Role hierarchy for account management: only super may create, assign, or modify
+ * `super` accounts; admins manage every role below super.
+ * Call with the target's current role and with any role being assigned.
+ */
+export function assertCanManageRole(
+  actor: AuthActor,
+  role: string,
+  message = 'Only a super user can manage super accounts',
+): void {
+  if (role === 'super' && !isSuper(actor.roles)) {
+    throw forbidden(message)
+  }
 }

@@ -45,22 +45,19 @@ Client checkout for remaining task balance; webhook settlement; refunds (partial
 
 ---
 
-## 2. Cloudflare R2 (S3-compatible storage)
+## 2. Supabase Storage (replaces Cloudflare R2)
+
+The old app used Cloudflare R2 (`AWS_*` keys). The rebuild uses Supabase Storage through the backend service-role client.
 
 ### Config keys
 
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_DEFAULT_REGION` (often `auto`)
-- `AWS_BUCKET`
-- `AWS_ENDPOINT`
-- `AWS_URL` (optional public/base URL)
-- `AWS_USE_PATH_STYLE_ENDPOINT` (true for R2)
+- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (shared with the database)
+- `SUPABASE_STORAGE_BUCKET` (`main_bucket`, private; folders `student_files/`, `solutions/`, `invoices/`)
 
 ### Operations
 
-- putObject, getObject, deleteObject, exists
-- Prefer server-mediated download or signed URLs
+- upload (invoice PDFs), signed upload URL (browser uploads), info, exists, remove
+- Downloads via short-lived signed URLs only; the browser never holds a Supabase key
 
 ### Failure modes
 
@@ -157,7 +154,7 @@ ChatProvider    → reply(message, context)
 PdfRenderer     → render(template, data) → bytes
 ```
 
-Swap MontyPay/R2/Gemini without rewriting domain services.
+Swap MontyPay/storage/Gemini without rewriting domain services.
 
 ---
 

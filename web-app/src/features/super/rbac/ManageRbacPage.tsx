@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { IconAction } from '@/components/ui/icon-action'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { cn } from '@/lib/utils'
 import {
@@ -19,7 +18,7 @@ import {
   type RbacPermission,
   type RbacRole,
 } from '@/services/rbac'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { AssignPermissionsDialog } from './AssignPermissionsDialog'
 import { PermissionFormDialog } from './PermissionFormDialog'
@@ -80,19 +79,21 @@ export function ManageRbacPage() {
 
   async function confirmDelete() {
     if (!pendingDelete) return
+    const kind = pendingDelete.type === 'role' ? 'role' : 'permission'
+    const name = pendingDelete.item.name
     setIsDeleting(true)
     try {
       if (pendingDelete.type === 'role') {
         await deleteRole(pendingDelete.item.id)
-        toast.success('Role deleted')
+        toastSuccess('Role deleted', `“${name}” was removed.`)
       } else {
         await deletePermission(pendingDelete.item.id)
-        toast.success('Permission deleted')
+        toastSuccess('Permission deleted', `“${name}” was removed.`)
       }
       setPendingDelete(null)
       refresh()
     } catch (actionError) {
-      toastApiError(actionError, 'Could not delete')
+      toastApiError(actionError, `Couldn't delete the ${kind} “${name}”`)
     } finally {
       setIsDeleting(false)
     }

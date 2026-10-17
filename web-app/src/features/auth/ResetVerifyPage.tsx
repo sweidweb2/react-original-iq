@@ -6,11 +6,10 @@ import { GuestOnly } from '@/components/auth'
 import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { resendResetCode, verifyResetCode } from '@/services/auth'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { AuthCard } from './AuthCard'
 import { verifyResetCodeSchema, type VerifyResetCodeValues } from './password-reset.schema'
@@ -52,12 +51,12 @@ export function ResetVerifyPage() {
     setIsSubmitting(true)
     try {
       await verifyResetCode(parsed.data.email, parsed.data.code)
-      toast.success('Code verified')
+      toastSuccess('Code verified', 'Now choose a new password.')
       void navigate('/password-reset/update', {
         state: { email: parsed.data.email, code: parsed.data.code },
       })
     } catch (error) {
-      toastApiError(error, 'Invalid or expired code')
+      toastApiError(error, "Couldn't verify the code")
     } finally {
       setIsSubmitting(false)
     }
@@ -73,9 +72,9 @@ export function ResetVerifyPage() {
     setIsResending(true)
     try {
       const result = await resendResetCode(email.toLowerCase())
-      toast.success(result.message)
+      toastSuccess('Code sent', result.message)
     } catch (error) {
-      toastApiError(error, 'Could not resend code')
+      toastApiError(error, "Couldn't resend the code")
     } finally {
       setIsResending(false)
     }

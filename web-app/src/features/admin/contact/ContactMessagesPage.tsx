@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { Download, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 
 import { AsyncState, EmptyState } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -10,17 +10,15 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { SearchField } from '@/components/ui/search-field'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import {
   type ContactMessageRecord,
   deleteContactMessage,
-  exportContactMessages,
   listContactMessages,
   sendContactMessage,
   updateContactMessage,
 } from '@/services/contact'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { formatAdminDate } from '../_shared/adminListFormat'
 import { AdminListPagination } from '../_shared/AdminListPagination'
@@ -42,10 +40,9 @@ export function ContactMessagesPage() {
   const list = usePagedAdminList<ContactMessageRecord>({
     fetchPage: listContactMessages,
     deleteRow: deleteContactMessage,
-    exportRows: exportContactMessages,
     deleteSuccessMessage: 'Message deleted',
-    deleteErrorMessage: 'Could not delete message',
-    exportErrorMessage: 'Could not export messages',
+    deleteErrorMessage: "Couldn't delete message",
+    rowLabel: (row) => row.subject || `from ${row.name}`,
     onDeleted: (row) => {
       setViewing((current) => (current?.id === row.id ? null : current))
     },
@@ -80,7 +77,7 @@ export function ContactMessagesPage() {
           subject: subject.trim() || null,
           message: message.trim(),
         })
-        toast.success('Message updated')
+        toastSuccess('Message saved', `Message from ${name.trim()} was updated.`)
       } else {
         await sendContactMessage({
           name: name.trim(),
@@ -88,12 +85,12 @@ export function ContactMessagesPage() {
           subject: subject.trim() || undefined,
           message: message.trim(),
         })
-        toast.success('Message created')
+        toastSuccess('Message added', `Logged a message from ${name.trim()}.`)
       }
       setFormOpen(false)
       list.refresh()
     } catch (err) {
-      toastApiError(err, 'Could not save message')
+      toastApiError(err, editing ? "Couldn't save the message" : "Couldn't add the message")
     } finally {
       setSaving(false)
     }
@@ -103,24 +100,12 @@ export function ContactMessagesPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <PageHeader
         title="Contact messages"
-        description="Messages from the public contact form — create, edit, delete, export."
+        description="Messages from the public contact form — create, edit, and delete."
         actions={
-          <>
-            <Button type="button" size="sm" onClick={openCreate}>
-              <Plus className="size-4" />
-              New message
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={list.isExporting}
-              onClick={list.handleExport}
-            >
-              <Download className="size-4" />
-              Export CSV
-            </Button>
-          </>
+          <Button type="button" size="sm" onClick={openCreate}>
+            <Plus className="size-4" />
+            New message
+          </Button>
         }
       />
 

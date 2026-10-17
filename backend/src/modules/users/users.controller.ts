@@ -21,7 +21,7 @@ export function createUsersController(service: UsersService): UsersController {
     getById: respond(200, (req) =>
       service.assertAccessible(String(req.params.id), requireActor(req)),
     ),
-    create: respond(201, (req) => service.createUser(req.body)),
+    create: respond(201, (req) => service.createUser(req.body, requireActor(req))),
     update: respond(200, (req) =>
       service.updateUser(String(req.params.id), req.body, requireActor(req)),
     ),

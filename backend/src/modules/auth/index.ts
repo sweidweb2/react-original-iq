@@ -6,10 +6,20 @@ import { createUsersService, type UsersService } from '../users/users.service.js
 import { createAuthController } from './auth.controller.js'
 import { createAuthRoutes } from './auth.routes.js'
 import { createAuthService } from './auth.service.js'
+import {
+  type AuthSessionsRepository,
+  createAuthSessionsRepository,
+} from './auth-sessions.repository.js'
 
-export function createAuthModule(config: AppConfig = loadConfig(), users?: UsersService) {
+export { type AuthSessionsRepository, createAuthSessionsRepository }
+
+export function createAuthModule(
+  config: AppConfig = loadConfig(),
+  users?: UsersService,
+  sessions: AuthSessionsRepository = createAuthSessionsRepository(config),
+) {
   const accounts = users ?? createUsersService(createUsersRepository(config))
-  const service = createAuthService(accounts, config, getLoggingService())
+  const service = createAuthService(accounts, config, getLoggingService(), undefined, sessions)
   const controller = createAuthController(service)
   return createAuthRoutes(controller, config)
 }

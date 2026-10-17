@@ -3,7 +3,9 @@ import { Router } from 'express'
 import type { AppConfig } from '../config/index.js'
 import { loadConfig } from '../config/index.js'
 import { conflict } from '../errors/app-error.js'
-import { createAuthModule } from '../modules/auth/index.js'
+import { createAnalyticsModule } from '../modules/analytics/index.js'
+import { createAuthModule, createAuthSessionsRepository } from '../modules/auth/index.js'
+import { createBackupsModule } from '../modules/backups/index.js'
 import { createContactRepository } from '../modules/contact/contact.repository.js'
 import { createContactModule } from '../modules/contact/index.js'
 import { createExportsModule } from '../modules/exports/index.js'
@@ -40,6 +42,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
   const healthController = createHealthController(healthService)
 
   const usersRepository = createUsersRepository(config)
+  const authSessions = createAuthSessionsRepository(config)
   const paymentsRepository = createPaymentsRepository(config)
   const feedbackRepository = createFeedbackRepository(config)
   const contactRepository = createContactRepository(config)
@@ -72,13 +75,19 @@ export function createV1Router(deps: V1Deps = {}): Router {
         }
       }
     },
+    revokeSessions: (userId) => authSessions.revokeAllForUser(userId),
   })
 
   router.use('/health', createHealthRoutes(healthController))
   router.use('/contact', createContactModule(config, contactRepository))
-  router.use('/feedback', createFeedbackModule(config, feedbackRepository))
+  router.use(
+    '/feedback',
+    createFeedbackModule(config, feedbackRepository, {
+      findTask: (taskId) => tasksRepository.findById(taskId),
+    }),
+  )
   router.use('/fx', createFxModule(config))
-  router.use('/auth', createAuthModule(config, users))
+  router.use('/auth', createAuthModule(config, users, authSessions))
   router.use(createLoggingModule())
   router.use('/users', createUsersModule(config, users))
   router.use('/specializations', createSpecializationsModule(config, users))
@@ -103,6 +112,8 @@ export function createV1Router(deps: V1Deps = {}): Router {
     }),
   )
   router.use('/rbac', createRbacModule(config))
+  router.use('/backups', createBackupsModule(config))
+  router.use('/analytics', createAnalyticsModule(config))
 
   return router
 }

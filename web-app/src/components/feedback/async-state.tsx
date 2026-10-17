@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { ApiError } from '@/services/api'
+import { describeError } from '@/services/toast'
 
 type AsyncStateProps = {
   isLoading?: boolean
@@ -10,12 +10,6 @@ type AsyncStateProps = {
   onRetry?: () => void
   loadingFallback?: ReactNode
   children: ReactNode
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message
-  if (error instanceof Error) return error.message
-  return 'Something went wrong'
 }
 
 export function AsyncState({
@@ -43,7 +37,7 @@ export function AsyncState({
     return (
       <div className="rounded-lg border border-destructive px-4 py-3 text-sm" role="alert">
         <p className="font-medium text-destructive">Could not load</p>
-        <p className="mt-1 text-foreground">{errorMessage(error)}</p>
+        <p className="mt-1 text-foreground">{describeError(error)}</p>
         {onRetry ? (
           <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
             Try again

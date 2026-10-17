@@ -24,9 +24,9 @@ export type FeedbackListQuery = {
   search?: string
 }
 
+/** The tutor comes from the task on the server. */
 export type CreateFeedbackInput = {
   taskId: string
-  tutorId: string
   rating: number
   comments?: string
   suggestions?: string

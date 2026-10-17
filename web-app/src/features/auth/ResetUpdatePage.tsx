@@ -6,11 +6,10 @@ import { GuestOnly } from '@/components/auth'
 import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { resetPassword } from '@/services/auth'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { AuthCard } from './AuthCard'
 import { resetPasswordSchema, type ResetPasswordValues } from './password-reset.schema'
@@ -52,10 +51,10 @@ export function ResetUpdatePage() {
     setIsSubmitting(true)
     try {
       const result = await resetPassword(parsed.data)
-      toast.success(result.message)
+      toastSuccess('Password updated', `${result.message} Sign in with your new password.`)
       void navigate('/login', { replace: true })
     } catch (error) {
-      toastApiError(error, 'Could not update password')
+      toastApiError(error, "Couldn't update your password")
     } finally {
       setIsSubmitting(false)
     }

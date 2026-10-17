@@ -2,6 +2,19 @@ import { z } from 'zod'
 
 const nodeEnvSchema = z.enum(['development', 'test', 'staging', 'production'])
 
+const DURATION_UNIT_MS = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const
+
+/** `15m`, `12h`, `7d` → milliseconds. */
+const durationSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+[smhd]$/, 'Use a number followed by s, m, h, or d (e.g. 15m, 7d)')
+  .transform((value) => {
+    const unit = value.slice(-1) as keyof typeof DURATION_UNIT_MS
+    return Number(value.slice(0, -1)) * DURATION_UNIT_MS[unit]
+  })
+  .refine((ms) => ms > 0, 'Duration must be greater than zero')
+
 const baseEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema.default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -17,8 +30,9 @@ const baseEnvSchema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   JWT_ACCESS_SECRET: z.string().min(1).optional(),
   JWT_REFRESH_SECRET: z.string().min(1).optional(),
-  JWT_ACCESS_EXPIRES_IN: z.string().min(1).default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().min(1).default('7d'),
+  JWT_ACCESS_EXPIRES_IN: durationSchema.prefault('15m'),
+  /** Absolute session lifetime from sign-in; refreshing never extends it. */
+  JWT_REFRESH_EXPIRES_IN: durationSchema.prefault('7d'),
   JSON_BODY_LIMIT: z.string().min(1).default('100kb'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(200),
@@ -35,17 +49,8 @@ const baseEnvSchema = z.object({
   MAIL_FROM_ADDRESS: z.string().min(1).optional(),
   MAIL_FROM_NAME: z.string().min(1).optional(),
 
-  STORAGE_PROVIDER: z.enum(['r2']).optional(),
-  AWS_ACCESS_KEY_ID: z.string().min(1).optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-  AWS_DEFAULT_REGION: z.string().min(1).default('auto'),
-  AWS_BUCKET: z.string().min(1).optional(),
-  AWS_ENDPOINT: z.string().min(1).optional(),
-  AWS_URL: z.string().min(1).optional(),
-  AWS_USE_PATH_STYLE_ENDPOINT: z
-    .enum(['true', 'false'])
-    .optional()
-    .transform((value) => (value === undefined ? undefined : value === 'true')),
+  /** Private Supabase Storage bucket for task files, solutions, and invoices. */
+  SUPABASE_STORAGE_BUCKET: z.string().trim().min(1).optional(),
   /** Max bytes per single object upload (default 25 MiB). */
   STORAGE_MAX_FILE_BYTES: z.coerce
     .number()
@@ -89,14 +94,8 @@ export type MailConfig = {
 }
 
 export type StorageConfig = {
-  provider: 'r2'
-  accessKeyId: string
-  secretAccessKey: string
-  region: string
+  provider: 'supabase'
   bucket: string
-  endpoint: string
-  publicUrl?: string
-  usePathStyleEndpoint: boolean
   maxFileBytes: number
   maxTaskBytes: number
   signedUrlTtlSec: number
@@ -127,8 +126,9 @@ export type AppConfig = {
   databaseUrl?: string
   jwtAccessSecret?: string
   jwtRefreshSecret?: string
-  jwtAccessExpiresIn: string
-  jwtRefreshExpiresIn: string
+  jwtAccessTtlMs: number
+  /** Absolute session lifetime (refresh token + session row). */
+  sessionTtlMs: number
   jsonBodyLimit: string
   rateLimitWindowMs: number
   rateLimitMax: number
@@ -170,38 +170,19 @@ function parseCorsOrigins(raw: string | undefined, env: AppConfig['env']): strin
 }
 
 function parseStorage(data: z.infer<typeof baseEnvSchema>): StorageConfig | undefined {
-  const hasAny =
-    data.STORAGE_PROVIDER ||
-    data.AWS_ACCESS_KEY_ID ||
-    data.AWS_SECRET_ACCESS_KEY ||
-    data.AWS_BUCKET ||
-    data.AWS_ENDPOINT
-
-  if (!hasAny) {
+  if (!data.SUPABASE_STORAGE_BUCKET) {
     return undefined
   }
 
-  if (
-    data.STORAGE_PROVIDER !== 'r2' ||
-    !data.AWS_ACCESS_KEY_ID ||
-    !data.AWS_SECRET_ACCESS_KEY ||
-    !data.AWS_BUCKET ||
-    !data.AWS_ENDPOINT
-  ) {
+  if (!data.SUPABASE_URL || !data.SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error(
-      'Storage config incomplete: require STORAGE_PROVIDER=r2, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_BUCKET, AWS_ENDPOINT',
+      'Storage config incomplete: SUPABASE_STORAGE_BUCKET requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
     )
   }
 
   return {
-    provider: 'r2',
-    accessKeyId: data.AWS_ACCESS_KEY_ID,
-    secretAccessKey: data.AWS_SECRET_ACCESS_KEY,
-    region: data.AWS_DEFAULT_REGION,
-    bucket: data.AWS_BUCKET,
-    endpoint: data.AWS_ENDPOINT,
-    publicUrl: data.AWS_URL,
-    usePathStyleEndpoint: data.AWS_USE_PATH_STYLE_ENDPOINT ?? true,
+    provider: 'supabase',
+    bucket: data.SUPABASE_STORAGE_BUCKET,
     maxFileBytes: data.STORAGE_MAX_FILE_BYTES,
     maxTaskBytes: data.STORAGE_MAX_TASK_BYTES,
     signedUrlTtlSec: data.STORAGE_SIGNED_URL_TTL_SEC,
@@ -266,8 +247,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     databaseUrl: data.DATABASE_URL,
     jwtAccessSecret: data.JWT_ACCESS_SECRET,
     jwtRefreshSecret: data.JWT_REFRESH_SECRET,
-    jwtAccessExpiresIn: data.JWT_ACCESS_EXPIRES_IN,
-    jwtRefreshExpiresIn: data.JWT_REFRESH_EXPIRES_IN,
+    jwtAccessTtlMs: data.JWT_ACCESS_EXPIRES_IN,
+    sessionTtlMs: data.JWT_REFRESH_EXPIRES_IN,
     jsonBodyLimit: data.JSON_BODY_LIMIT,
     rateLimitWindowMs: data.RATE_LIMIT_WINDOW_MS,
     rateLimitMax: data.RATE_LIMIT_MAX,
@@ -323,7 +304,7 @@ export function isStorageConfigured(config: AppConfig): boolean {
 
 export function requireStorageConfig(config: AppConfig): StorageConfig {
   if (!config.storage) {
-    throw new Error('Storage is not configured (AWS_* / STORAGE_PROVIDER env vars required)')
+    throw new Error('Storage is not configured (SUPABASE_STORAGE_BUCKET env var required)')
   }
   return config.storage
 }

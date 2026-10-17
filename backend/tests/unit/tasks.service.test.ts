@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AuthActor } from '../../src/authz/index.js'
+import { validationError } from '../../src/errors/app-error.js'
 import type { TasksRepository } from '../../src/modules/tasks/tasks.repository.js'
+import { createTaskBodySchema, updateTaskBodySchema } from '../../src/modules/tasks/tasks.schema.js'
 import { createTasksService } from '../../src/modules/tasks/tasks.service.js'
 import type { Task, TaskDetail } from '../../src/modules/tasks/tasks.types.js'
 import type { UsersRepository } from '../../src/modules/users/users.repository.js'
@@ -12,6 +14,7 @@ import type { StorageService } from '../../src/storage/index.js'
 vi.mock('../../src/modules/logging/index.js', () => ({
   getLoggingService: () => ({
     recordActivitySafe: vi.fn(),
+    recordErrorSafe: vi.fn(),
   }),
 }))
 
@@ -217,17 +220,50 @@ describe('tasks.service', () => {
     expect(repository.update).not.toHaveBeenCalled()
   })
 
-  it('blocks update to completed when an open revision exists', async () => {
-    vi.mocked(repository.findById).mockResolvedValue(
-      makeTask({ status: 'in-progress', tutorId: 'tutor-1' }),
-    )
-    const hasOpenRevision = vi.fn().mockResolvedValue(true)
-    const service = createTasksService(repository, users, usersRepository, { hasOpenRevision })
+  it.each([
+    { status: 'completed' },
+    { price: 100 },
+    { tutorId: '7c9e6679-7425-40de-944b-e07fc1f90ae7' },
+    { paymentStatus: 'paid' },
+  ])('rejects lifecycle field %o on PATCH so dedicated endpoints stay the only path', (body) => {
+    expect(updateTaskBodySchema.safeParse(body).success).toBe(false)
+    expect(updateTaskBodySchema.safeParse({ topic: 'New topic', ...body }).success).toBe(false)
+  })
 
-    await expect(
-      service.updateTask(makeTask().id, { status: 'completed' }, coordinator),
-    ).rejects.toMatchObject({ status: 400 })
-    expect(repository.update).not.toHaveBeenCalled()
+  it('lets staff edit content fields', async () => {
+    vi.mocked(repository.findById).mockResolvedValue(makeTask())
+    vi.mocked(repository.update).mockResolvedValue(makeTask({ topic: 'New topic' }))
+    const service = createTasksService(repository, users, usersRepository)
+    const body = updateTaskBodySchema.parse({ topic: 'New topic', category: 'Math' })
+
+    await expect(service.updateTask(makeTask().id, body, coordinator)).resolves.toMatchObject({
+      topic: 'New topic',
+    })
+    expect(repository.update).toHaveBeenCalledWith(makeTask().id, {
+      topic: 'New topic',
+      category: 'Math',
+    })
+  })
+
+  it('ignores a requested status on create; staff with a tutor start in-progress', async () => {
+    vi.mocked(repository.create).mockResolvedValue(makeTask())
+    const service = createTasksService(repository, users, usersRepository)
+    const body = createTaskBodySchema.parse({
+      ...createBody,
+      clientId: '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+      tutorId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+      status: 'completed',
+    })
+    vi.mocked(users.findById).mockImplementation(async (id) =>
+      id === body.tutorId
+        ? makeAccount({ id, role: 'tutor', email: 't@example.com' })
+        : makeAccount({ id }),
+    )
+
+    await service.createTask(body, admin)
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'in-progress', tutorId: body.tutorId }),
+    )
   })
 
   it('rejects client approve', async () => {
@@ -318,18 +354,23 @@ describe('tasks.service', () => {
       storage = {
         isConfigured: () => true,
         getSignedUploadUrl: vi.fn(async (input: { taskId: string; originalFilename: string }) => ({
-          url: 'https://r2.example/put',
+          url: 'https://storage.example/put',
           key: `student_files/${input.taskId}/abc_${input.originalFilename}`,
           contentType: 'application/pdf',
           sizeBytes: 10,
           expiresInSec: 900,
         })),
         getSignedDownloadUrl: vi.fn(async (key: string) => ({
-          url: `https://r2.example/get/${key}`,
+          url: `https://storage.example/get/${key}`,
           expiresInSec: 900,
           key,
         })),
-        statObject: vi.fn(async () => ({ sizeBytes: 2048, contentType: 'application/pdf' })),
+        validateStoredObject: vi.fn(async (input: { originalFilename: string }) => ({
+          extension: 'pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 2048,
+          originalFilename: input.originalFilename,
+        })),
         deleteObject: vi.fn(async () => undefined),
       } as unknown as StorageService
       vi.mocked(repository.findById).mockResolvedValue(makeTask())
@@ -345,7 +386,7 @@ describe('tasks.service', () => {
         { filename: 'brief.pdf', contentType: 'application/pdf', sizeBytes: 10 },
         client,
       )
-      expect(result.uploadUrl).toBe('https://r2.example/put')
+      expect(result.uploadUrl).toBe('https://storage.example/put')
       expect(storage.getSignedUploadUrl).toHaveBeenCalledWith(
         expect.objectContaining({ category: 'documents', taskId, taskBytesUsed: 0 }),
       )
@@ -401,8 +442,10 @@ describe('tasks.service', () => {
       expect(repository.addFile).not.toHaveBeenCalled()
     })
 
-    it('rejects registration when the object was never uploaded', async () => {
-      vi.mocked(storage.statObject).mockResolvedValue(null)
+    it('rejects registration when storage validation fails', async () => {
+      vi.mocked(storage.validateStoredObject).mockRejectedValue(
+        validationError('Uploaded file was not found in storage'),
+      )
       const service = createTasksService(repository, users, usersRepository, { storage })
 
       await expect(
@@ -412,6 +455,23 @@ describe('tasks.service', () => {
           client,
         ),
       ).rejects.toMatchObject({ status: 400 })
+      expect(repository.addFile).not.toHaveBeenCalled()
+    })
+
+    it('validates against the signed key name and keeps the display name readable', async () => {
+      const service = createTasksService(repository, users, usersRepository, { storage })
+      const key = `student_files/${taskId}/abc_____.pdf`
+
+      await service.addFile(taskId, { key, filename: 'واجب.pdf' }, client)
+      expect(storage.validateStoredObject).toHaveBeenCalledWith({
+        key,
+        originalFilename: 'abc_____.pdf',
+        taskBytesUsed: 0,
+      })
+      expect(repository.addFile).toHaveBeenCalledWith(
+        taskId,
+        expect.objectContaining({ originalName: 'واجب.pdf' }),
+      )
     })
 
     it('purges the stored object when a document is deleted', async () => {
@@ -452,7 +512,7 @@ describe('tasks.service', () => {
         solutions: [solution],
       })
       await expect(service.getSolutionDownloadUrl(taskId, 'sol-1', client)).resolves.toEqual({
-        url: `https://r2.example/get/${key}`,
+        url: `https://storage.example/get/${key}`,
         filename: 'answer.pdf',
         expiresInSec: 900,
       })

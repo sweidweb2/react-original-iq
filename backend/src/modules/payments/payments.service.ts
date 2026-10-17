@@ -1,7 +1,7 @@
 import type { AuthActor } from '../../authz/index.js'
 import { assertTaskRelated, isAdmin, isClient, isOps, isSuper } from '../../authz/index.js'
 import { forbidden, notFound, notImplemented, validationError } from '../../errors/app-error.js'
-import { getLogger } from '../../logging/index.js'
+import { reportError } from '../../errors/report-error.js'
 import type { InvoicesService } from '../invoices/invoices.service.js'
 import { getLoggingService } from '../logging/index.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
@@ -111,7 +111,6 @@ export function createPaymentsService(
   options: PaymentsServiceOptions = {},
 ): PaymentsService {
   const gatewayMode = options.gatewayMode ?? 'simulated'
-  const log = getLogger().child({ component: 'payments' })
 
   async function loadTask(taskId: string): Promise<Task> {
     const task = await tasksRepository.findById(taskId)
@@ -152,7 +151,7 @@ export function createPaymentsService(
     try {
       await repository.addPaymentLog(paymentId, event, payload)
     } catch (error) {
-      log.error({ err: error, paymentId, event }, 'failed to write payment log')
+      reportError(error, { source: 'payments.payment_log', meta: { paymentId, event } })
     }
   }
 
@@ -225,7 +224,7 @@ export function createPaymentsService(
       }
       const payment = await repository.createPayment({
         taskId,
-        userId: body.userId ?? task.clientId,
+        userId: task.clientId,
         amount: roundMoney(body.amount),
         status,
         gateway: MANUAL_GATEWAY,

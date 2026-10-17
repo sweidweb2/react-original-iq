@@ -17,6 +17,7 @@ import {
   updatePriceBodySchema,
   updateTaskBodySchema,
   uploadUrlBodySchema,
+  zipQuerySchema,
 } from './tasks.schema.js'
 
 export type TasksRouteExtras = {
@@ -82,6 +83,11 @@ export function createTasksRoutes(controller: TasksController, extras?: TasksRou
     validate({ params: taskIdParamsSchema, body: addFileBodySchema }),
     controller.addFile,
   )
+  router.get(
+    '/:id/files/zip',
+    validate({ params: taskIdParamsSchema, query: zipQuerySchema }),
+    controller.downloadFilesZip,
+  )
   router.get('/:id/files', validate({ params: taskIdParamsSchema }), controller.listFiles)
   router.get(
     '/:id/files/:fileId/download',
@@ -103,6 +109,11 @@ export function createTasksRoutes(controller: TasksController, extras?: TasksRou
     '/:id/solutions',
     validate({ params: taskIdParamsSchema, body: addSolutionBodySchema }),
     controller.addSolution,
+  )
+  router.get(
+    '/:id/solutions/zip',
+    validate({ params: taskIdParamsSchema, query: zipQuerySchema }),
+    controller.downloadSolutionsZip,
   )
   router.get('/:id/solutions', validate({ params: taskIdParamsSchema }), controller.listSolutions)
   router.get(

@@ -10,10 +10,29 @@ const taskStatusSchema = z.enum([
   'completed',
   'cancelled',
 ])
-const taskPaymentStatusSchema = z.enum(['unpaid', 'paid', 'refund_pending'])
-
 export const taskIdParamsSchema = z.object({
   id: z.string().trim().uuid(),
+})
+
+/** `?ids=a,b,c` selects specific files for the zip; omitted means all. */
+export const zipQuerySchema = z.object({
+  ids: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) =>
+      value
+        ? [
+            ...new Set(
+              value
+                .split(',')
+                .map((id) => id.trim())
+                .filter(Boolean),
+            ),
+          ]
+        : undefined,
+    )
+    .pipe(z.array(z.string().uuid()).max(200).optional()),
 })
 
 export const taskFileParamsSchema = taskIdParamsSchema.extend({
@@ -45,9 +64,12 @@ export const createTaskBodySchema = z.object({
   description: z.string().trim().min(1).max(10000),
   deadline: futureDeadline,
   price: z.coerce.number().min(0).max(999999.99).optional(),
-  status: taskStatusSchema.optional(),
 })
 
+/**
+ * Content fields only. Status, tutor, and price change through their dedicated
+ * endpoints so lifecycle rules and payment recompute always run.
+ */
 export const updateTaskBodySchema = z
   .object({
     topic: z.string().trim().min(1).max(255).optional(),
@@ -55,12 +77,9 @@ export const updateTaskBodySchema = z
     category: z.string().trim().min(1).max(120).optional(),
     description: z.string().trim().min(1).max(10000).optional(),
     deadline: futureDeadline.optional(),
-    status: taskStatusSchema.optional(),
-    tutorId: z.string().uuid().nullable().optional(),
-    price: z.coerce.number().min(0).max(999999.99).optional(),
-    paymentStatus: taskPaymentStatusSchema.optional(),
     feedback: z.string().trim().max(5000).optional(),
   })
+  .strict()
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field is required',
   })
@@ -108,3 +127,4 @@ export type AllowViewBody = z.infer<typeof allowViewBodySchema>
 export type AssignTutorBody = z.infer<typeof assignTutorBodySchema>
 export type ChangeCoordinatorBody = z.infer<typeof changeCoordinatorBodySchema>
 export type UpdatePriceBody = z.infer<typeof updatePriceBodySchema>
+export type ZipQuery = z.infer<typeof zipQuerySchema>

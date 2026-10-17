@@ -5,10 +5,9 @@ import { Field, FieldError, FieldLabel, Form } from '@/components/forms'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { toast } from '@/components/ui/toast'
 import { type FieldErrors, parseForm } from '@/lib/form'
 import { createPermission, type RbacPermission, updatePermission } from '@/services/rbac'
-import { toastApiError } from '@/services/toast'
+import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { editPermissionFormSchema, permissionFormSchema } from './rbac.schema'
 
@@ -77,7 +76,10 @@ export function PermissionFormDialog({
           description: parsed.data.description || null,
           category: parsed.data.category,
         })
-        toast.success('Permission created')
+        toastSuccess(
+          'Permission created',
+          `“${parsed.data.name}” (${parsed.data.key}) can now be assigned.`,
+        )
       } else if (permission) {
         const parsed = parseForm(editPermissionFormSchema, values)
         if (!parsed.success) {
@@ -90,14 +92,16 @@ export function PermissionFormDialog({
           description: parsed.data.description || null,
           category: parsed.data.category,
         })
-        toast.success('Permission updated')
+        toastSuccess('Permission saved', `Changes to “${parsed.data.name}” were saved.`)
       }
       onSaved()
       onClose()
     } catch (error) {
       toastApiError(
         error,
-        mode === 'create' ? 'Could not create permission' : 'Could not update permission',
+        mode === 'create'
+          ? "Couldn't create the permission"
+          : `Couldn't save the permission “${permission?.name ?? ''}”`,
       )
     } finally {
       setIsSubmitting(false)

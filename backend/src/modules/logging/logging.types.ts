@@ -15,8 +15,13 @@ export type ActivityLogDto = {
   } | null
 }
 
+export const ERROR_LEVELS = ['error', 'warning'] as const
+export type ErrorLevel = (typeof ERROR_LEVELS)[number]
+
 export type ErrorLogDto = {
   id: string
+  source: string | null
+  level: ErrorLevel
   requestId: string | null
   userId: string | null
   code: string | null
@@ -25,7 +30,21 @@ export type ErrorLogDto = {
   path: string | null
   method: string | null
   status: number | null
+  meta: Record<string, unknown> | null
   createdAt: string
+  user: {
+    id: string
+    email: string
+    role: string
+  } | null
+}
+
+export type ErrorLogStats = {
+  total: number
+  today: number
+  lastWeek: number
+  errors: number
+  warnings: number
 }
 
 export type PaginatedLogs<T> = {

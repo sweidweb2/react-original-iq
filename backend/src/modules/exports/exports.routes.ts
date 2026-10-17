@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { SUPER_ROLES } from '../../authz/index.js'
 import { authenticate } from '../../middleware/authenticate.js'
 import { authorize } from '../../middleware/authorize.js'
 import { validate } from '../../middleware/validate.js'
@@ -12,7 +13,7 @@ export function createExportsRoutes(controller: ExportsController): Router {
   router.use(authenticate)
   router.get(
     '/:resource',
-    authorize('super', 'admin'),
+    authorize(...SUPER_ROLES),
     validate({ params: exportResourceParamsSchema }),
     controller.exportResource,
   )

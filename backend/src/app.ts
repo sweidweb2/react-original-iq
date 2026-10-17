@@ -28,6 +28,7 @@ export function createApp(deps: AppDeps = {}) {
     cors({
       origin: config.corsOrigins,
       credentials: true,
+      exposedHeaders: ['Content-Disposition', 'X-Estimated-Size'],
     }),
   )
   app.use(express.json({ limit: config.jsonBodyLimit }))

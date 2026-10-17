@@ -7,6 +7,7 @@
  */
 
 export {
+  assertCanManageRole,
   assertOwner,
   assertOwnerOrAdmin,
   assertSelfOrAdmin,
@@ -25,7 +26,9 @@ export {
   isStaff,
   isSuper,
   isTutor,
+  isUserAdmin,
   STAFF_ROLES,
   SUPER_ROLES,
   TUTOR_ROLES,
+  USER_ADMIN_ROLES,
 } from './roles.js'

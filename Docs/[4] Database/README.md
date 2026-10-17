@@ -24,6 +24,9 @@ This folder holds the **DBML reflection** of the schema. Executable migrations l
 | `012_activity_logs_and_super.sql`      | `activity_logs`, `error_logs`, `user_role.super`                                             |
 | `013_file_metadata.sql`                | `files`/`solutions` original_name, content_type, size_bytes                                  |
 | `014_invoices.sql`                     | `invoice_number_seq`, `invoices.invoice_seq`, `sent_at`, `last_error`, unique invoice number |
+| `015_auth_sessions.sql`                | `auth_sessions` (refresh-token sessions)                                                     |
+| `016_backup_history.sql`               | `backup_history`                                                                             |
+| `017_error_logs_source.sql`            | `error_logs.source`, `level`, `meta`                                                         |
 
 ## Apply on Supabase
 

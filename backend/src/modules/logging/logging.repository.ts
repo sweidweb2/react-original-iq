@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { type AppConfig, isSupabaseConfigured, loadConfig } from '../../config/index.js'
 import { getSupabaseAdmin } from '../../database/index.js'
+import type { ErrorLevel, ErrorLogStats } from './logging.types.js'
 
 export type CreateActivityInput = {
   userId?: string | null
@@ -14,6 +15,8 @@ export type CreateActivityInput = {
 }
 
 export type CreateErrorInput = {
+  source?: string | null
+  level?: ErrorLevel
   requestId?: string | null
   userId?: string | null
   code?: string | null
@@ -22,6 +25,16 @@ export type CreateErrorInput = {
   path?: string | null
   method?: string | null
   status?: number | null
+  meta?: Record<string, unknown> | null
+}
+
+export type ErrorListFilter = {
+  page: number
+  limit: number
+  search?: string
+  source?: string
+  level?: ErrorLevel
+  since?: string
 }
 
 export type ActivityListFilter = {
@@ -56,6 +69,8 @@ export type ActivityLogRecord = {
 
 export type ErrorLogRecord = {
   id: string
+  source: string | null
+  level: ErrorLevel
   requestId: string | null
   userId: string | null
   code: string | null
@@ -64,7 +79,9 @@ export type ErrorLogRecord = {
   path: string | null
   method: string | null
   status: number | null
+  meta: Record<string, unknown> | null
   createdAt: Date
+  user: { id: string; email: string; role: string } | null
 }
 
 export type LoggingRepository = {
@@ -75,13 +92,11 @@ export type LoggingRepository = {
     total: number
   }>
   countActivityStats: () => Promise<ActivityLogStats>
-  listErrors: (
-    page: number,
-    limit: number,
-  ) => Promise<{
+  listErrors: (filter: ErrorListFilter) => Promise<{
     items: ErrorLogRecord[]
     total: number
   }>
+  countErrorStats: () => Promise<ErrorLogStats>
 }
 
 type ActivityRow = {
@@ -99,6 +114,8 @@ type ActivityRow = {
 
 type ErrorRow = {
   id: string
+  source: string | null
+  level: string | null
   request_id: string | null
   user_id: string | null
   code: string | null
@@ -107,8 +124,13 @@ type ErrorRow = {
   path: string | null
   method: string | null
   status: number | null
+  meta: Record<string, unknown> | null
   created_at: string
+  users: { id: string; email: string; role: string } | null
 }
+
+const ERROR_SELECT =
+  'id, source, level, request_id, user_id, code, message, stack, path, method, status, meta, created_at, users:user_id (id, email, role)'
 
 const memoryActivity: ActivityLogRecord[] = []
 const memoryErrors: ErrorLogRecord[] = []
@@ -119,15 +141,61 @@ export function resetLoggingRepositoryForTests(): void {
   memoryErrors.length = 0
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
 function startOfTodayIso(): string {
   const now = new Date()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
 }
 
-function searchClause(search: string): string | null {
+function weekAgoIso(): string {
+  return new Date(Date.now() - WEEK_MS).toISOString()
+}
+
+function safeSearchTerm(search: string): string | null {
   const safe = search.replace(/[%_\\,()]/g, '').trim()
+  return safe || null
+}
+
+function searchClause(search: string): string | null {
+  const safe = safeSearchTerm(search)
   if (!safe) return null
   return `action.ilike.%${safe}%,entity.ilike.%${safe}%,entity_id.ilike.%${safe}%,request_id.ilike.%${safe}%,ip.ilike.%${safe}%`
+}
+
+function errorSearchClause(search: string): string | null {
+  const safe = safeSearchTerm(search)
+  if (!safe) return null
+  return `message.ilike.%${safe}%,code.ilike.%${safe}%,path.ilike.%${safe}%,request_id.ilike.%${safe}%,source.ilike.%${safe}%`
+}
+
+function matchesErrorFilter(row: ErrorLogRecord, filter: ErrorListFilter): boolean {
+  if (filter.source && !row.source?.startsWith(filter.source)) return false
+  if (filter.level && row.level !== filter.level) return false
+  if (filter.since && row.createdAt < new Date(filter.since)) return false
+  if (filter.search) {
+    const needle = filter.search.toLowerCase()
+    const hay = [row.message, row.code, row.path, row.requestId, row.source]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    if (!hay.includes(needle)) return false
+  }
+  return true
+}
+
+function summarizeErrors(rows: ErrorLogRecord[]): ErrorLogStats {
+  const todayStart = new Date(startOfTodayIso())
+  const weekStart = new Date(weekAgoIso())
+  let today = 0
+  let lastWeek = 0
+  let warnings = 0
+  for (const row of rows) {
+    if (row.createdAt >= todayStart) today += 1
+    if (row.createdAt >= weekStart) lastWeek += 1
+    if (row.level === 'warning') warnings += 1
+  }
+  return { total: rows.length, today, lastWeek, errors: rows.length - warnings, warnings }
 }
 
 function matchesActivityFilter(row: ActivityLogRecord, filter: ActivityListFilter): boolean {
@@ -163,6 +231,8 @@ function toActivity(row: ActivityRow): ActivityLogRecord {
 function toError(row: ErrorRow): ErrorLogRecord {
   return {
     id: row.id,
+    source: row.source,
+    level: row.level === 'warning' ? 'warning' : 'error',
     requestId: row.request_id,
     userId: row.user_id,
     code: row.code,
@@ -171,7 +241,9 @@ function toError(row: ErrorRow): ErrorLogRecord {
     path: row.path,
     method: row.method,
     status: row.status,
+    meta: row.meta,
     createdAt: new Date(row.created_at),
+    user: row.users ? { id: row.users.id, email: row.users.email, role: row.users.role } : null,
   }
 }
 
@@ -210,6 +282,8 @@ function createMemoryLoggingRepository(): LoggingRepository {
     async createError(input) {
       memoryErrors.unshift({
         id: randomUUID(),
+        source: input.source ?? null,
+        level: input.level ?? 'error',
         requestId: input.requestId ?? null,
         userId: input.userId ?? null,
         code: input.code ?? null,
@@ -218,7 +292,9 @@ function createMemoryLoggingRepository(): LoggingRepository {
         path: input.path ?? null,
         method: input.method ?? null,
         status: input.status ?? null,
+        meta: input.meta ?? null,
         createdAt: new Date(),
+        user: null,
       })
     },
 
@@ -235,12 +311,17 @@ function createMemoryLoggingRepository(): LoggingRepository {
       return summarizeActivity(memoryActivity)
     },
 
-    async listErrors(page, limit) {
-      const start = (page - 1) * limit
+    async listErrors(filter) {
+      const filtered = memoryErrors.filter((row) => matchesErrorFilter(row, filter))
+      const start = (filter.page - 1) * filter.limit
       return {
-        items: memoryErrors.slice(start, start + limit),
-        total: memoryErrors.length,
+        items: filtered.slice(start, start + filter.limit),
+        total: filtered.length,
       }
+    },
+
+    async countErrorStats() {
+      return summarizeErrors(memoryErrors)
     },
   }
 }
@@ -268,6 +349,8 @@ function createSupabaseLoggingRepository(config: AppConfig): LoggingRepository {
 
     async createError(input) {
       const { error } = await client.from('error_logs').insert({
+        source: input.source ?? null,
+        level: input.level ?? 'error',
         request_id: input.requestId ?? null,
         user_id: input.userId ?? null,
         code: input.code ?? null,
@@ -276,6 +359,7 @@ function createSupabaseLoggingRepository(config: AppConfig): LoggingRepository {
         path: input.path ?? null,
         method: input.method ?? null,
         status: input.status ?? null,
+        meta: input.meta ?? null,
       })
       if (error) throw error
     },
@@ -332,21 +416,52 @@ function createSupabaseLoggingRepository(config: AppConfig): LoggingRepository {
       }
     },
 
-    async listErrors(page, limit) {
-      const from = (page - 1) * limit
-      const to = from + limit - 1
-      const { data, error, count } = await client
+    async listErrors(filter) {
+      const from = (filter.page - 1) * filter.limit
+      const to = from + filter.limit - 1
+      let query = client
         .from('error_logs')
-        .select('id, request_id, user_id, code, message, stack, path, method, status, created_at', {
-          count: 'exact',
-        })
+        .select(ERROR_SELECT, { count: 'exact' })
         .order('created_at', { ascending: false })
-        .range(from, to)
 
+      if (filter.source) query = query.like('source', `${filter.source}%`)
+      if (filter.level) query = query.eq('level', filter.level)
+      if (filter.since) query = query.gte('created_at', filter.since)
+      if (filter.search) {
+        const clause = errorSearchClause(filter.search)
+        if (clause) query = query.or(clause)
+      }
+
+      const { data, error, count } = await query.range(from, to)
       if (error) throw error
       return {
-        items: ((data ?? []) as ErrorRow[]).map(toError),
+        items: ((data ?? []) as unknown as ErrorRow[]).map(toError),
         total: count ?? 0,
+      }
+    },
+
+    async countErrorStats() {
+      const base = () => client.from('error_logs').select('id', { count: 'exact', head: true })
+
+      const [totalRes, todayRes, weekRes, warningsRes] = await Promise.all([
+        base(),
+        base().gte('created_at', startOfTodayIso()),
+        base().gte('created_at', weekAgoIso()),
+        base().eq('level', 'warning'),
+      ])
+
+      for (const result of [totalRes, todayRes, weekRes, warningsRes]) {
+        if (result.error) throw result.error
+      }
+
+      const total = totalRes.count ?? 0
+      const warnings = warningsRes.count ?? 0
+      return {
+        total,
+        today: todayRes.count ?? 0,
+        lastWeek: weekRes.count ?? 0,
+        errors: total - warnings,
+        warnings,
       }
     },
   }

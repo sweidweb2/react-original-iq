@@ -1,5 +1,6 @@
 import { type AppConfig, isSupabaseConfigured } from '../../config/index.js'
 import { conflict, unauthorized, validationError } from '../../errors/app-error.js'
+import { reportError } from '../../errors/report-error.js'
 import { getLogger } from '../../logging/index.js'
 import type { LoggingService } from '../logging/index.js'
 import type { UsersService } from '../users/users.service.js'
@@ -17,12 +18,19 @@ import type {
 import type { RoleName } from './auth.schema.js'
 import {
   hashPassword,
+  type SessionClaims,
   signAccessToken,
   signRefreshToken,
   verifyPassword,
   verifyRefreshToken,
 } from './auth.tokens.js'
 import type { AuthTokens, AuthUserDto, LoginResult } from './auth.types.js'
+import {
+  type AuthSessionRecord,
+  type AuthSessionsRepository,
+  createAuthSessionsRepository,
+  isSessionLive,
+} from './auth-sessions.repository.js'
 import {
   createLoginVerificationsRepository,
   generateSixDigitCode,
@@ -45,7 +53,8 @@ export type AuthService = {
   resetPassword: (input: ResetPasswordBody) => Promise<PasswordResetAck>
   resendResetCode: (input: ResendResetCodeBody) => Promise<PasswordResetAck>
   getMe: (userId: string) => Promise<AuthUserDto>
-  updateMe: (userId: string, input: UpdateMeBody) => Promise<AuthUserDto>
+  /** `sessionId` is the caller's session; it survives a password change, all others are revoked. */
+  updateMe: (userId: string, input: UpdateMeBody, sessionId?: string) => Promise<AuthUserDto>
 }
 
 function toUserDto(user: AccountRecord): AuthUserDto {
@@ -64,11 +73,15 @@ function toUserDto(user: AccountRecord): AuthUserDto {
   }
 }
 
-function issueTokens(config: AppConfig, user: AccountRecord): AuthTokens {
+function toSessionClaims(session: AuthSessionRecord): SessionClaims {
+  return { id: session.id, expiresAt: new Date(session.expiresAt) }
+}
+
+function issueTokens(config: AppConfig, user: AccountRecord, session: SessionClaims): AuthTokens {
   const role = user.role as RoleName
   return {
-    accessToken: signAccessToken(config, user.id, role),
-    refreshToken: signRefreshToken(config, user.id, role),
+    accessToken: signAccessToken(config, user.id, role, session),
+    refreshToken: signRefreshToken(config, user.id, role, session),
   }
 }
 
@@ -81,7 +94,16 @@ export function createAuthService(
   config: AppConfig,
   logging?: LoggingService,
   verifications: LoginVerificationsRepository = createLoginVerificationsRepository(config),
+  sessions: AuthSessionsRepository = createAuthSessionsRepository(config),
 ): AuthService {
+  async function startSession(user: AccountRecord): Promise<AuthTokens> {
+    const session = await sessions.create({
+      userId: user.id,
+      expiresAt: new Date(Date.now() + config.sessionTtlMs),
+    })
+    return issueTokens(config, user, toSessionClaims(session))
+  }
+
   async function issuePasswordResetCode(email: string): Promise<void> {
     const user = await users.findByEmail(email)
     if (!user || user.status !== 'ACTIVE') {
@@ -142,12 +164,12 @@ export function createAuthService(
           entityId: user.id,
         })
       } catch (error) {
-        getLogger().error({ err: error }, 'failed to write register activity')
+        reportError(error, { source: 'auth.register.activity', meta: { userId: user.id } })
       }
 
       return {
         user: toUserDto(user),
-        tokens: issueTokens(config, user),
+        tokens: await startSession(user),
       }
     },
 
@@ -170,12 +192,12 @@ export function createAuthService(
           entityId: user.id,
         })
       } catch (error) {
-        getLogger().error({ err: error }, 'failed to write login activity')
+        reportError(error, { source: 'auth.login.activity', meta: { userId: user.id } })
       }
 
       return {
         user: toUserDto(user),
-        tokens: issueTokens(config, user),
+        tokens: await startSession(user),
       }
     },
 
@@ -187,21 +209,31 @@ export function createAuthService(
         throw unauthorized('Invalid or expired refresh token')
       }
 
+      const session = await sessions.findById(payload.sid)
+      if (!session || session.userId !== payload.sub || !isSessionLive(session)) {
+        throw unauthorized('Invalid or expired refresh token')
+      }
+
       const user = await users.findById(payload.sub)
       if (!user || user.status !== 'ACTIVE') {
         throw unauthorized('Invalid or expired refresh token')
       }
 
-      return issueTokens(config, user)
+      return issueTokens(config, user, toSessionClaims(session))
     },
 
     async logout(input) {
       let userId: string | undefined
+      let sessionId: string | undefined
       try {
         const payload = verifyRefreshToken(config, input.refreshToken)
         userId = payload.sub
+        sessionId = payload.sid
       } catch {
-        // Client still discards tokens; logging is best-effort.
+        // Expired or invalid tokens have no live session to revoke; client discards them anyway.
+      }
+      if (sessionId) {
+        await sessions.revoke(sessionId)
       }
 
       try {
@@ -212,7 +244,7 @@ export function createAuthService(
           entityId: userId ?? null,
         })
       } catch (error) {
-        getLogger().error({ err: error }, 'failed to write logout activity')
+        reportError(error, { source: 'auth.logout.activity', meta: { userId: userId ?? null } })
       }
     },
 
@@ -239,6 +271,7 @@ export function createAuthService(
         throw unauthorized('Invalid or expired reset code')
       }
       await verifications.markUsed(record.id)
+      await sessions.revokeAllForUser(user.id)
 
       try {
         await logging?.recordActivity({
@@ -248,7 +281,7 @@ export function createAuthService(
           entityId: user.id,
         })
       } catch (error) {
-        getLogger().error({ err: error }, 'failed to write password reset activity')
+        reportError(error, { source: 'auth.password_reset.activity', meta: { userId: user.id } })
       }
 
       return { message: 'Password updated. You can sign in with your new password.' }
@@ -262,7 +295,7 @@ export function createAuthService(
       return toUserDto(user)
     },
 
-    async updateMe(userId, input) {
+    async updateMe(userId, input, sessionId) {
       const user = await users.findById(userId)
       if (!user || user.status !== 'ACTIVE') {
         throw unauthorized('Invalid or expired access token')
@@ -283,6 +316,9 @@ export function createAuthService(
         phone: input.phone,
         passwordHash: input.newPassword ? await hashPassword(input.newPassword) : undefined,
       })
+      if (input.newPassword) {
+        await sessions.revokeAllForUser(userId, { exceptId: sessionId })
+      }
 
       try {
         await logging?.recordActivity({
@@ -297,7 +333,7 @@ export function createAuthService(
           },
         })
       } catch (error) {
-        getLogger().error({ err: error }, 'failed to write update_me activity')
+        reportError(error, { source: 'auth.update_me.activity', meta: { userId } })
       }
 
       return toUserDto(updated)

@@ -1,4 +1,4 @@
-﻿-- Original IQ — full schema (001→010). Paste into Supabase SQL Editor → Run
+-- Original IQ — full schema (001→010). Paste into Supabase SQL Editor → Run
 -- Generated for one-shot apply. Prefer numbered files for incremental runs.
 
 -- ========== 001_extensions_and_enums.sql ==========
@@ -681,3 +681,94 @@ CREATE UNIQUE INDEX IF NOT EXISTS invoices_invoice_number_unique ON invoices (in
 
 COMMENT ON COLUMN invoices.pdf_path IS 'R2 object key under invoices/ (signed URL at download time)';
 COMMENT ON COLUMN invoices.invoice_status IS 'sent when PDF stored and email delivered; failed otherwise (resend allowed)';
+
+-- ========== 015_auth_sessions.sql ==========
+-- Original IQ — 015: auth sessions (refresh tokens bound to a revocable, fixed-lifetime session)
+-- A session starts at login/register and dies at expires_at (JWT_REFRESH_EXPIRES_IN, default 7d).
+-- Refreshing never extends it. Logout revokes one session; password reset revokes all.
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  expires_at timestamptz NOT NULL,
+  revoked_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS auth_sessions_user_id_idx ON auth_sessions (user_id);
+CREATE INDEX IF NOT EXISTS auth_sessions_expires_at_idx ON auth_sessions (expires_at);
+
+DROP TRIGGER IF EXISTS auth_sessions_set_updated_at ON auth_sessions;
+CREATE TRIGGER auth_sessions_set_updated_at
+  BEFORE UPDATE ON auth_sessions
+  FOR EACH ROW
+  EXECUTE FUNCTION set_updated_at();
+
+-- Backend uses the service-role key (bypasses RLS); no policies = no anon/authenticated access.
+ALTER TABLE auth_sessions ENABLE ROW LEVEL SECURITY;
+
+-- ========== 016_backup_history.sql ==========
+-- Original IQ — 016: backup history (metadata of each SUPER backup export; never the exported data)
+-- Re-export reads type/target/format from a row and writes a new row with rerun_of set.
+
+CREATE TABLE IF NOT EXISTS backup_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  type varchar(32) NOT NULL
+    CHECK (type IN ('table', 'all_tables', 'storage_folder', 'storage_full', 'users')),
+  target varchar(255),
+  format varchar(16) NOT NULL CHECK (format IN ('csv', 'json', 'xlsx', 'sql', 'zip')),
+  status varchar(16) NOT NULL DEFAULT 'running'
+    CHECK (status IN ('running', 'completed', 'failed')),
+  filename varchar(255),
+  size_bytes bigint,
+  row_count integer,
+  file_count integer,
+  duration_ms integer,
+  error text,
+  requested_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  rerun_of uuid REFERENCES backup_history (id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS backup_history_created_at_idx ON backup_history (created_at DESC);
+CREATE INDEX IF NOT EXISTS backup_history_requested_by_idx ON backup_history (requested_by);
+
+DROP TRIGGER IF EXISTS backup_history_set_updated_at ON backup_history;
+CREATE TRIGGER backup_history_set_updated_at
+  BEFORE UPDATE ON backup_history
+  FOR EACH ROW
+  EXECUTE FUNCTION set_updated_at();
+
+-- Backend uses the service-role key (bypasses RLS); no policies = no anon/authenticated access.
+ALTER TABLE backup_history ENABLE ROW LEVEL SECURITY;
+
+-- ========== 017_error_logs_source.sql ==========
+-- Original IQ — 017: error log source / level / meta (unexpected failures from any backend catch)
+-- source = where it failed (http, invoices.issue, process.unhandledRejection, …).
+
+ALTER TABLE error_logs ADD COLUMN IF NOT EXISTS source varchar(80);
+ALTER TABLE error_logs ADD COLUMN IF NOT EXISTS level varchar(16) NOT NULL DEFAULT 'error';
+ALTER TABLE error_logs ADD COLUMN IF NOT EXISTS meta jsonb;
+
+ALTER TABLE error_logs DROP CONSTRAINT IF EXISTS error_logs_level_check;
+ALTER TABLE error_logs
+  ADD CONSTRAINT error_logs_level_check CHECK (level IN ('error', 'warning'));
+
+UPDATE error_logs SET source = 'http' WHERE source IS NULL;
+
+CREATE INDEX IF NOT EXISTS error_logs_source_idx ON error_logs (source);
+CREATE INDEX IF NOT EXISTS error_logs_level_idx ON error_logs (level);
+
+-- ========== 018_feedback_unique.sql ==========
+-- Original IQ — 018: one feedback per client per task
+-- Removes older duplicates (keeps the newest row per task/client) before adding the unique index.
+
+DELETE FROM feedbacks f
+USING feedbacks newer
+WHERE f.task_id = newer.task_id
+  AND f.client_id = newer.client_id
+  AND (f.created_at, f.id) < (newer.created_at, newer.id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS feedbacks_task_client_unique ON feedbacks (task_id, client_id);

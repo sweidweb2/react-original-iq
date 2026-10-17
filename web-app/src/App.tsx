@@ -4,6 +4,7 @@ import { RequireAuth, RequireRole } from '@/components/auth'
 import { ErrorBoundary } from '@/components/errors/ErrorBoundary'
 import { NavigationLoader } from '@/components/feedback'
 import { ContactMessagesPage } from '@/features/admin/contact/ContactMessagesPage'
+import { AdminHomePage } from '@/features/admin/home/AdminHomePage'
 import { LeadsPage } from '@/features/admin/leads/LeadsPage'
 import { StayUpdatedPage } from '@/features/admin/stay-updated/StayUpdatedPage'
 import { ManageUsersPage } from '@/features/admin/users/ManageUsersPage'
@@ -27,6 +28,8 @@ import { TaskPaymentsPage } from '@/features/shared/tasks/TaskPaymentsPage'
 import { TasksPage } from '@/features/shared/tasks/TasksPage'
 import { ManageUserProfilePage } from '@/features/shared/users/ManageUserProfilePage'
 import { ActivityLogsPage } from '@/features/super/ActivityLogsPage'
+import { BackupPage } from '@/features/super/backup/BackupPage'
+import { ErrorLogsPage } from '@/features/super/ErrorLogsPage'
 import { ManageRbacPage } from '@/features/super/rbac/ManageRbacPage'
 import type { AuthRole } from '@/services/auth'
 
@@ -35,7 +38,11 @@ function portalChildRoutes(role: AuthRole) {
     return (
       <>
         <Route index element={<ActivityLogsPage />} />
+        <Route path="errors" element={<ErrorLogsPage />} />
+        <Route path="users" element={<ManageUsersPage />} />
+        <Route path="users/:userId" element={<ManageUserProfilePage />} />
         <Route path="rbac" element={<ManageRbacPage />} />
+        <Route path="backup" element={<BackupPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </>
     )
@@ -48,7 +55,7 @@ function portalChildRoutes(role: AuthRole) {
 
   return (
     <>
-      <Route index element={<PortalDashboardPage />} />
+      <Route index element={role === 'admin' ? <AdminHomePage /> : <PortalDashboardPage />} />
       <Route path="tasks" element={<TasksPage />} />
       <Route path="tasks/:taskId" element={<TaskDetailsPage />} />
       {hasPayments ? <Route path="tasks/:taskId/payments" element={<TaskPaymentsPage />} /> : null}
