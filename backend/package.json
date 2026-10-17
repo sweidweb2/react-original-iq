@@ -2,11 +2,8 @@
   "name": "original-iq-api",
   "version": "0.1.0",
   "description": "Original IQ tutoring API - Express + TypeScript",
-  "main": "dist/src/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/src/server.js",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "vitest run",
