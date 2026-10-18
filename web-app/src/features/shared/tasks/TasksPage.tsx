@@ -356,6 +356,7 @@ export function TasksPage() {
             <FieldLabel htmlFor="task-topic">Topic</FieldLabel>
             <Input
               id="task-topic"
+              placeholder="What do you need help with?"
               value={createValues.topic}
               onChange={(e) => setCreateValues((v) => ({ ...v, topic: e.target.value }))}
             />
@@ -386,6 +387,7 @@ export function TasksPage() {
               <FieldLabel htmlFor="task-category">Category</FieldLabel>
               <Input
                 id="task-category"
+                placeholder="e.g. Calculus"
                 value={createValues.category}
                 onChange={(e) => setCreateValues((v) => ({ ...v, category: e.target.value }))}
               />
@@ -407,6 +409,7 @@ export function TasksPage() {
             <Textarea
               id="task-description"
               rows={4}
+              placeholder="Requirements, instructions, or other details…"
               value={createValues.description}
               onChange={(e) => setCreateValues((v) => ({ ...v, description: e.target.value }))}
             />

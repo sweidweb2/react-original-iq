@@ -146,6 +146,7 @@ export function PaymentFormDialog({
           <Input
             id="payment-amount"
             inputMode="decimal"
+            placeholder="0.00"
             value={values.amount}
             onChange={(e) => setValues((prev) => ({ ...prev, amount: e.target.value }))}
           />

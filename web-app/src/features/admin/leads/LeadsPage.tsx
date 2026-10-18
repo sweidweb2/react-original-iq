@@ -207,6 +207,7 @@ export function LeadsPage() {
             <FieldLabel htmlFor="lead-country">Country</FieldLabel>
             <Input
               id="lead-country"
+              placeholder="e.g. Lebanon"
               value={country}
               onChange={(e) => setCountry(e.target.value)}
               required
@@ -217,6 +218,7 @@ export function LeadsPage() {
               <FieldLabel htmlFor="lead-dial">Dial code</FieldLabel>
               <Input
                 id="lead-dial"
+                placeholder="e.g. +961"
                 value={dialCode}
                 onChange={(e) => setDialCode(e.target.value)}
                 required
@@ -227,6 +229,7 @@ export function LeadsPage() {
             <FieldLabel htmlFor="lead-phone">Phone</FieldLabel>
             <Input
               id="lead-phone"
+              placeholder="Phone number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
@@ -238,6 +241,7 @@ export function LeadsPage() {
               <Input
                 id="lead-email"
                 type="email"
+                placeholder="name@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />

@@ -72,6 +72,7 @@ export function ResetUpdatePage() {
                   id="newPassword"
                   type={showNewPassword ? 'text' : 'password'}
                   autoComplete="new-password"
+                  placeholder="At least 8 characters"
                   className="pr-10"
                   value={values.newPassword}
                   aria-invalid={Boolean(fieldErrors.newPassword) || undefined}
@@ -100,6 +101,7 @@ export function ResetUpdatePage() {
                   id="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   autoComplete="new-password"
+                  placeholder="Re-enter your new password"
                   className="pr-10"
                   value={values.confirmPassword}
                   aria-invalid={Boolean(fieldErrors.confirmPassword) || undefined}

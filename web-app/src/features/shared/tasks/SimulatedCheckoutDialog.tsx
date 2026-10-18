@@ -120,6 +120,7 @@ export function SimulatedCheckoutDialog({
           <Input
             id="checkout-amount"
             inputMode="decimal"
+            placeholder="0.00"
             value={values.amount}
             onChange={(e) => set('amount', e.target.value)}
           />
@@ -131,6 +132,7 @@ export function SimulatedCheckoutDialog({
           <Input
             id="checkout-cardholder"
             autoComplete="cc-name"
+            placeholder="Name on card"
             value={values.cardholder}
             onChange={(e) => set('cardholder', e.target.value)}
           />
@@ -167,6 +169,7 @@ export function SimulatedCheckoutDialog({
               id="checkout-cvc"
               inputMode="numeric"
               autoComplete="cc-csc"
+              placeholder="123"
               value={values.cvc}
               onChange={(e) => set('cvc', e.target.value.replace(/\D/g, '').slice(0, 4))}
             />

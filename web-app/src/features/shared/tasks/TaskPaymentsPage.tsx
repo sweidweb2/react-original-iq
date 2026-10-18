@@ -578,6 +578,7 @@ export function TaskPaymentsPage() {
               type="number"
               min={0}
               step="0.01"
+              placeholder="0.00"
               value={refundAmount}
               onChange={(e) => setRefundAmount(e.target.value)}
             />
@@ -587,6 +588,7 @@ export function TaskPaymentsPage() {
             <Textarea
               id="refund-reason"
               rows={3}
+              placeholder="Why is this payment being refunded?"
               value={refundReason}
               onChange={(e) => setRefundReason(e.target.value)}
             />

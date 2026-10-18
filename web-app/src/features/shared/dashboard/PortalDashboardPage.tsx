@@ -216,6 +216,7 @@ function CoordinatorSections({ base }: { base: string }) {
               <Input
                 id="dash-topic"
                 value={values.topic}
+                placeholder="What does the client need help with?"
                 onChange={(e) => setValues((v) => ({ ...v, topic: e.target.value }))}
               />
               <FieldError>{fieldErrors.topic}</FieldError>
@@ -225,6 +226,7 @@ function CoordinatorSections({ base }: { base: string }) {
               <Input
                 id="dash-category"
                 value={values.category}
+                placeholder="e.g. Calculus"
                 onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))}
               />
               <FieldError>{fieldErrors.category}</FieldError>
@@ -248,6 +250,7 @@ function CoordinatorSections({ base }: { base: string }) {
                 id="dash-desc"
                 rows={2}
                 value={values.description}
+                placeholder="Requirements, instructions, or other details…"
                 onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
               />
               <FieldError>{fieldErrors.description}</FieldError>
@@ -367,6 +370,7 @@ function ClientSections({ base }: { base: string }) {
               <Input
                 id="client-category"
                 value={values.category}
+                placeholder="e.g. Calculus"
                 onChange={(e) => setValues((v) => ({ ...v, category: e.target.value }))}
               />
               <FieldError>{fieldErrors.category}</FieldError>
@@ -390,6 +394,7 @@ function ClientSections({ base }: { base: string }) {
                 id="client-desc"
                 rows={3}
                 value={values.description}
+                placeholder="Requirements, instructions, or other details…"
                 onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
               />
               <FieldError>{fieldErrors.description}</FieldError>

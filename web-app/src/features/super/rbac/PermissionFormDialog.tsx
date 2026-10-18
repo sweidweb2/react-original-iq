@@ -133,6 +133,7 @@ export function PermissionFormDialog({
             id="perm-name"
             value={values.name}
             onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+            placeholder="e.g. Manage exports"
           />
           <FieldError>{fieldErrors.name}</FieldError>
         </Field>
@@ -152,6 +153,7 @@ export function PermissionFormDialog({
             id="perm-description"
             value={values.description}
             onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+            placeholder="What this permission allows"
           />
           <FieldError>{fieldErrors.description}</FieldError>
         </Field>

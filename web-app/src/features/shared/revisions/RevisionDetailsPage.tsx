@@ -331,13 +331,19 @@ export function RevisionDetailsPage() {
         <form id="edit-revision-form" onSubmit={onSaveEdit} className="grid gap-3">
           <Field>
             <FieldLabel htmlFor="rev-title">Title</FieldLabel>
-            <Input id="rev-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input
+              id="rev-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Short summary of the change"
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="rev-desc">Description</FieldLabel>
             <Textarea
               id="rev-desc"
               rows={4}
+              placeholder="Describe what needs to change…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />

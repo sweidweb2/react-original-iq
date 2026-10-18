@@ -91,6 +91,7 @@ export function ResetVerifyPage() {
                 id="email"
                 type="email"
                 autoComplete="email"
+                placeholder="Enter your email address"
                 value={values.email}
                 aria-invalid={Boolean(fieldErrors.email) || undefined}
                 onChange={(e) => setValues((prev) => ({ ...prev, email: e.target.value }))}

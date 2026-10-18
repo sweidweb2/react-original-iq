@@ -194,6 +194,7 @@ export function StayUpdatedPage() {
             <Input
               id="newsletter-email"
               type="email"
+              placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

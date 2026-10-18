@@ -130,6 +130,7 @@ export function RoleFormDialog({ open, mode, role, onClose, onSaved }: RoleFormD
             id="role-name"
             value={values.name}
             onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+            placeholder="e.g. Support"
           />
           <FieldError>{fieldErrors.name}</FieldError>
         </Field>
@@ -139,6 +140,7 @@ export function RoleFormDialog({ open, mode, role, onClose, onSaved }: RoleFormD
             id="role-description"
             value={values.description}
             onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+            placeholder="What this role is responsible for"
           />
           <FieldError>{fieldErrors.description}</FieldError>
         </Field>
@@ -150,6 +152,7 @@ export function RoleFormDialog({ open, mode, role, onClose, onSaved }: RoleFormD
             min={0}
             value={values.sortOrder}
             onChange={(e) => setValues((v) => ({ ...v, sortOrder: e.target.value }))}
+            placeholder="e.g. 10"
           />
           <FieldError>{fieldErrors.sortOrder}</FieldError>
         </Field>

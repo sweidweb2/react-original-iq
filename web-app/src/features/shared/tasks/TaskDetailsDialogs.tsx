@@ -85,6 +85,7 @@ export function TaskDetailsDialogs({
               type="number"
               min={0}
               step="0.01"
+              placeholder="0.00"
               value={priceValue}
               onChange={(e) => setPriceValue(e.target.value)}
             />
@@ -118,6 +119,7 @@ export function TaskDetailsDialogs({
             <FieldLabel htmlFor="revision-title">Title</FieldLabel>
             <Input
               id="revision-title"
+              placeholder="Short summary of the change"
               value={revisionTitle}
               onChange={(e) => setRevisionTitle(e.target.value)}
             />
@@ -127,6 +129,7 @@ export function TaskDetailsDialogs({
             <Textarea
               id="revision-desc"
               rows={3}
+              placeholder="Describe what needs to change…"
               value={revisionDescription}
               onChange={(e) => setRevisionDescription(e.target.value)}
             />
@@ -155,6 +158,7 @@ export function TaskDetailsDialogs({
             <FieldLabel htmlFor="edit-topic">Topic</FieldLabel>
             <Input
               id="edit-topic"
+              placeholder="What is this task about?"
               value={editTopic}
               onChange={(e) => setEditTopic(e.target.value)}
             />
@@ -176,6 +180,7 @@ export function TaskDetailsDialogs({
             <FieldLabel htmlFor="edit-category">Category</FieldLabel>
             <Input
               id="edit-category"
+              placeholder="e.g. Calculus"
               value={editCategory}
               onChange={(e) => setEditCategory(e.target.value)}
             />
@@ -185,6 +190,7 @@ export function TaskDetailsDialogs({
             <Textarea
               id="edit-description"
               rows={4}
+              placeholder="Requirements, instructions, or other details…"
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
             />

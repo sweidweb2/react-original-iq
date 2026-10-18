@@ -218,13 +218,20 @@ export function ContactMessagesPage() {
         <form id="contact-message-form" onSubmit={onSave} className="grid gap-3">
           <Field>
             <FieldLabel htmlFor="msg-name">Name</FieldLabel>
-            <Input id="msg-name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input
+              id="msg-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Sender's full name"
+              required
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="msg-email">Email</FieldLabel>
             <Input
               id="msg-email"
               type="email"
+              placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -232,12 +239,18 @@ export function ContactMessagesPage() {
           </Field>
           <Field>
             <FieldLabel htmlFor="msg-subject">Subject</FieldLabel>
-            <Input id="msg-subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+            <Input
+              id="msg-subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="What is this about?"
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="msg-body">Message</FieldLabel>
             <Textarea
               id="msg-body"
+              placeholder="Write the message…"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={5}

@@ -197,6 +197,7 @@ export function ProfilePage() {
                     id="currentPassword"
                     type={showCurrentPassword ? 'text' : 'password'}
                     autoComplete="current-password"
+                    placeholder="Enter your current password"
                     className="pr-10"
                     value={values.currentPassword}
                     aria-invalid={Boolean(fieldErrors.currentPassword) || undefined}
