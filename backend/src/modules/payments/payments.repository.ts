@@ -27,6 +27,14 @@ export class PaymentCapError extends Error {
   }
 }
 
+/** Raised when `montypay_transaction_id` is already stored (callback replay). */
+export class DuplicateTransactionError extends Error {
+  constructor() {
+    super('duplicate transaction')
+    this.name = 'DuplicateTransactionError'
+  }
+}
+
 /** Task price: paid payments − paid refunds may never exceed this. */
 export type PaymentGuard = { maxNet: number }
 
@@ -43,6 +51,7 @@ export type PaymentsRepository = {
   listPaymentsByTask: (taskId: string) => Promise<PaymentRecord[]>
   listRefundsByTask: (taskId: string) => Promise<RefundRecord[]>
   findPaymentById: (id: string) => Promise<PaymentRecord | null>
+  findPaymentByTransactionId: (transactionId: string) => Promise<PaymentRecord | null>
   /** Locks the task; throws PaymentCapError('overpay') if a paid insert would exceed `maxNet`. */
   createPayment: (input: CreatePaymentInput, guard: PaymentGuard) => Promise<PaymentRecord>
   /**
@@ -208,7 +217,16 @@ function createMemoryPaymentsRepository(): PaymentsRepository {
     async findPaymentById(id) {
       return memoryPayments.find((row) => row.id === id) ?? null
     },
+    async findPaymentByTransactionId(transactionId) {
+      return memoryPayments.find((row) => row.montypayTransactionId === transactionId) ?? null
+    },
     async createPayment(input, guard) {
+      if (
+        input.montypayTransactionId &&
+        memoryPayments.some((row) => row.montypayTransactionId === input.montypayTransactionId)
+      ) {
+        throw new DuplicateTransactionError()
+      }
       if (input.status === 'paid') {
         const totals = memoryTotals(input.taskId)
         if (
@@ -355,11 +373,14 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
     REFUND_UNCOVERED: 'refund_uncovered',
   }
 
-  function mapRpcError(error: { message?: string }): Error {
+  function mapRpcError(error: { message?: string; code?: string }): Error {
     const message = error.message ?? ''
     const reason = CAP_REASONS[message]
     if (reason) return new PaymentCapError(reason)
     if (message === 'TASK_NOT_FOUND') return notFound('Task not found', 'TASK_NOT_FOUND')
+    if (error.code === '23505' || /montypay_transaction_id/i.test(message)) {
+      return new DuplicateTransactionError()
+    }
     return error as Error
   }
 
@@ -413,6 +434,15 @@ function createSupabasePaymentsRepository(config: AppConfig): PaymentsRepository
         .from('payments')
         .select(PAYMENT_COLUMNS)
         .eq('id', id)
+        .maybeSingle()
+      if (error) throw error
+      return data ? fromPaymentRow(data as PaymentRow) : null
+    },
+    async findPaymentByTransactionId(transactionId) {
+      const { data, error } = await client
+        .from('payments')
+        .select(PAYMENT_COLUMNS)
+        .eq('montypay_transaction_id', transactionId)
         .maybeSingle()
       if (error) throw error
       return data ? fromPaymentRow(data as PaymentRow) : null

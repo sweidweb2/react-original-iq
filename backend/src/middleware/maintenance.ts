@@ -15,6 +15,7 @@ const ALLOWED: ReadonlyArray<{ method: string; path: RegExp }> = [
   { method: 'GET', path: /^\/health(\/.*)?$/ },
   { method: 'GET', path: /^\/settings\/status\/?$/ },
   { method: 'POST', path: /^\/auth\/(login|refresh|logout)\/?$/ },
+  { method: 'POST', path: /^\/payments\/montypay\/callback\/?$/ },
 ]
 
 function isAllowed(method: string, path: string): boolean {

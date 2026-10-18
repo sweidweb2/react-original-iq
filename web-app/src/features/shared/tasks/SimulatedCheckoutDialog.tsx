@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { type FieldErrors, parseForm } from '@/lib/form'
-import { checkoutTaskPayment } from '@/services/payments'
+import { checkoutTaskPayment, isCheckoutRedirect } from '@/services/payments'
 import { toastApiError, toastSuccess } from '@/services/toast'
 
 import { checkoutSchema } from './payments.schema'
@@ -77,6 +77,10 @@ export function SimulatedCheckoutDialog({
     setIsSubmitting(true)
     try {
       const payment = await checkoutTaskPayment(taskId, { amount: parsed.data.amount })
+      if (isCheckoutRedirect(payment)) {
+        window.location.assign(payment.redirectUrl)
+        return
+      }
       const invoiceNote = payment.invoice
         ? ` Invoice ${payment.invoice.invoiceNumber} ${payment.invoice.invoiceStatus === 'sent' ? 'was emailed to you' : 'will be emailed to you shortly'}.`
         : ''

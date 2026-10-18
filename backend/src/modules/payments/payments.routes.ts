@@ -15,6 +15,12 @@ import {
   updateRefundStatusBodySchema,
 } from './payments.schema.js'
 
+export function createMontyPayCallbackRoutes(controller: PaymentsController): Router {
+  const router = Router()
+  router.post('/montypay/callback', controller.montyPayCallback)
+  return router
+}
+
 export function createTaskPaymentsRoutes(
   controller: PaymentsController,
   config: AppConfig,

@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { type RequestHandler, Router } from 'express'
 
 import { setPermissionSource } from '../authz/index.js'
 import type { AppConfig } from '../config/index.js'
@@ -37,8 +37,13 @@ export type V1Deps = {
   settings?: SettingsService
 }
 
-export function createV1Router(deps: V1Deps = {}): Router {
-  const router = Router()
+export type V1Router = Router & {
+  /** Registered with MontyPay as https://original-iq.com/montypay-callback */
+  montyPayCallback: RequestHandler
+}
+
+export function createV1Router(deps: V1Deps = {}): V1Router {
+  const router = Router() as V1Router
   const config = deps.config ?? loadConfig()
 
   const rbacModule = createRbacModule(config)
@@ -71,6 +76,7 @@ export function createV1Router(deps: V1Deps = {}): Router {
     tasksRepository,
     invoices: invoicesModule.service,
     repository: paymentsRepository,
+    usersRepository,
   })
   const revisionsModule = createRevisionsModule(config, tasksRepository)
 
@@ -102,6 +108,8 @@ export function createV1Router(deps: V1Deps = {}): Router {
     }),
   )
   router.use('/revisions', revisionsModule.detailRoutes)
+  router.montyPayCallback = paymentsModule.montyPayCallback
+  router.use('/payments', paymentsModule.callbackRoutes)
   router.use('/invoices', invoicesModule.routes)
   router.use(
     '/exports',

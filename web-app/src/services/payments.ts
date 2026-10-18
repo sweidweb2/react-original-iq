@@ -72,6 +72,15 @@ export type TaskPaymentsView = {
   summary: TaskPaymentsSummary
   payments: PaymentRecord[]
   refunds: RefundRecord[]
+  checkoutMode: 'simulated' | 'montypay'
+}
+
+export type CheckoutRedirect = { redirectUrl: string }
+
+export function isCheckoutRedirect(
+  value: PaymentRecord | CheckoutRedirect,
+): value is CheckoutRedirect {
+  return 'redirectUrl' in value && !('id' in value)
 }
 
 export type ManualPaymentInput = {
@@ -108,12 +117,12 @@ export function updatePayment(taskId: string, paymentId: string, input: UpdatePa
   })
 }
 
-/** Simulated gateway: completes instantly and returns the paid payment (with invoice). */
+/** Simulated mode returns the paid payment. MontyPay mode returns a hosted checkout URL. */
 export function checkoutTaskPayment(
   taskId: string,
   input?: { amount?: number; currency?: string },
 ) {
-  return apiRequest<PaymentRecord>(`/tasks/${taskId}/payments/checkout`, {
+  return apiRequest<PaymentRecord | CheckoutRedirect>(`/tasks/${taskId}/payments/checkout`, {
     method: 'POST',
     body: JSON.stringify(input ?? {}),
   })

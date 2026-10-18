@@ -39,9 +39,12 @@ export function createApp(deps: AppDeps = {}) {
     }),
   )
   app.use(express.json({ limit: config.jsonBodyLimit }))
+  app.use(express.urlencoded({ extended: false, limit: config.jsonBodyLimit }))
   app.use(createApiRateLimiter(config))
 
-  app.use('/api/v1', createV1Router({ config, settings: deps.settings }))
+  const v1 = createV1Router({ config, settings: deps.settings })
+  app.post('/montypay-callback', v1.montyPayCallback)
+  app.use('/api/v1', v1)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

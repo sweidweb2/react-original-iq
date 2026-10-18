@@ -35,6 +35,7 @@ describe('maintenance guard', () => {
       request(app).post('/auth/login'),
       request(app).post('/auth/refresh'),
       request(app).post('/auth/logout'),
+      request(app).post('/payments/montypay/callback'),
     ]) {
       expect((await req).status).toBe(200)
     }

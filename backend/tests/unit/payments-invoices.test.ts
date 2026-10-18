@@ -136,6 +136,11 @@ describe('payments + invoices', () => {
 
   afterEach(flushBackgroundTasks)
 
+  function recorded(result: Awaited<ReturnType<PaymentsService['checkout']>>) {
+    if (!('id' in result)) throw new Error('expected a recorded payment')
+    return result
+  }
+
   /** Waits for background invoice delivery, then re-reads the payment. */
   async function settled(payment: { id: string }) {
     await flushBackgroundTasks()
@@ -149,7 +154,7 @@ describe('payments + invoices', () => {
   })
 
   it('simulated checkout pays the balance and emails a stored PDF invoice', async () => {
-    const payment = await payments.checkout(TASK_ID, {}, client)
+    const payment = recorded(await payments.checkout(TASK_ID, {}, client))
 
     expect(payment).toMatchObject({ amount: 100, status: 'paid', gateway: 'simulated' })
     expect(payment.montypayTransactionId).toMatch(/^SIM_/)
@@ -214,7 +219,7 @@ describe('payments + invoices', () => {
   it('marks the invoice failed but keeps the PDF when email fails, then resend fixes it', async () => {
     vi.mocked(mailer.send).mockRejectedValueOnce(new Error('SMTP down'))
 
-    const payment = await settled(await payments.checkout(TASK_ID, {}, client))
+    const payment = await settled(recorded(await payments.checkout(TASK_ID, {}, client)))
     expect(payment.status).toBe('paid')
     expect(payment.invoice).toMatchObject({ invoiceStatus: 'failed', hasPdf: true })
     expect(payment.invoice?.lastError).toContain('SMTP down')
@@ -228,7 +233,7 @@ describe('payments + invoices', () => {
   })
 
   it('issueForPayment is idempotent once sent', async () => {
-    const payment = await settled(await payments.checkout(TASK_ID, {}, client))
+    const payment = await settled(recorded(await payments.checkout(TASK_ID, {}, client)))
     const again = await invoices.issueForPayment(payment.id)
 
     expect(again?.id).toBe(payment.invoice?.id)
@@ -236,7 +241,7 @@ describe('payments + invoices', () => {
   })
 
   it('limits invoice downloads to the task client and staff', async () => {
-    const payment = await settled(await payments.checkout(TASK_ID, {}, client))
+    const payment = await settled(recorded(await payments.checkout(TASK_ID, {}, client)))
     const invoiceId = payment.invoice!.id
 
     await expect(invoices.getDownloadUrl(invoiceId, otherClient)).rejects.toMatchObject({

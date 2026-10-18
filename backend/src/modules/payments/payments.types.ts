@@ -8,6 +8,13 @@ export const LEDGER_CURRENCY = 'USD'
 /** Gateway labels: manual staff entries use `No Gateway` (doc 06). */
 export const MANUAL_GATEWAY = 'No Gateway'
 export const SIMULATED_GATEWAY = 'simulated'
+export const MONTYPAY_GATEWAY = 'montypay'
+
+/**
+ * Cap passed when a real card charge is recorded. The money has already left the client, so the
+ * insert must succeed even if it pushes net above the task price (`refund_pending`).
+ */
+export const GATEWAY_SETTLEMENT_MAX_NET = 999_999.99
 
 export type PaymentRecord = {
   id: string

@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { CreditCard, Download, Eye, Loader2, Pencil, RefreshCw, Trash2 } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 
 import { AsyncState, EmptyState, InlineSpinner } from '@/components/feedback'
 import { Field, FieldLabel } from '@/components/forms'
@@ -27,6 +27,7 @@ import {
 import { toastApiError, toastFailure, toastInvalid, toastSuccess } from '@/services/toast'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
+import { MontyPayCheckoutDialog } from './MontyPayCheckoutDialog'
 import { PaymentDetailsDialog } from './PaymentDetailsDialog'
 import { PaymentFormDialog } from './PaymentFormDialog'
 import { SimulatedCheckoutDialog } from './SimulatedCheckoutDialog'
@@ -53,8 +54,18 @@ const STATUS_TONE: Record<PaymentStatus, 'success' | 'warning' | 'danger' | 'neu
   refunded: 'neutral',
 }
 
+const RECENT_PAYMENT_MS = 10 * 60 * 1000
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
 export function TaskPaymentsPage() {
   const { taskId = '' } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const checkoutFlag = searchParams.get('checkout')
   const can = useCan()
   const canManagePayments = can('manage_payments')
   const canManageRefunds = can('manage_refunds')
@@ -102,6 +113,65 @@ export function TaskPaymentsPage() {
       cancelled = true
     }
   }, [taskId, reloadKey])
+
+  useEffect(() => {
+    if (!taskId || (checkoutFlag !== 'success' && checkoutFlag !== 'cancel')) return
+    let cancelled = false
+    const clearFlag = () => {
+      setSearchParams(
+        (prev) => {
+          if (!prev.get('checkout')) return prev
+          const next = new URLSearchParams(prev)
+          next.delete('checkout')
+          return next
+        },
+        { replace: true },
+      )
+    }
+
+    if (checkoutFlag === 'cancel') {
+      toastFailure('Payment canceled', 'Nothing was charged.')
+      clearFlag()
+      return
+    }
+
+    async function confirmSettlement() {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        try {
+          const data = await getTaskPayments(taskId)
+          if (cancelled) return
+          setView(data)
+          const recent = data.payments.find((payment) => {
+            if (payment.status !== 'paid') return false
+            const age = Date.now() - Date.parse(payment.createdAt)
+            return age >= 0 && age < RECENT_PAYMENT_MS
+          })
+          if (recent) {
+            toastSuccess(
+              'Payment confirmed',
+              `$${recent.amount.toFixed(2)} was recorded${recent.invoice ? ` (${recent.invoice.invoiceNumber})` : ''}.`,
+            )
+            clearFlag()
+            return
+          }
+        } catch {
+          // The page load already surfaces a hard failure.
+        }
+        if (attempt < 4) await sleep(2000)
+        if (cancelled) return
+      }
+      toastFailure(
+        'Payment not confirmed yet',
+        'If you were charged, it will show up here shortly. Refresh this page.',
+      )
+      clearFlag()
+    }
+
+    void confirmSettlement()
+    return () => {
+      cancelled = true
+    }
+  }, [checkoutFlag, setSearchParams, taskId])
 
   function reload() {
     setReloadKey((k) => k + 1)
@@ -490,13 +560,23 @@ export function TaskPaymentsPage() {
         )}
       </SectionCard>
 
-      <SimulatedCheckoutDialog
-        open={checkoutOpen}
-        taskId={taskId}
-        due={summary.due}
-        onClose={() => setCheckoutOpen(false)}
-        onPaid={reload}
-      />
+      {view.checkoutMode === 'montypay' ? (
+        <MontyPayCheckoutDialog
+          open={checkoutOpen}
+          taskId={taskId}
+          due={summary.due}
+          onClose={() => setCheckoutOpen(false)}
+          onPaid={reload}
+        />
+      ) : (
+        <SimulatedCheckoutDialog
+          open={checkoutOpen}
+          taskId={taskId}
+          due={summary.due}
+          onClose={() => setCheckoutOpen(false)}
+          onPaid={reload}
+        />
+      )}
 
       <PaymentFormDialog
         open={formMode !== null}

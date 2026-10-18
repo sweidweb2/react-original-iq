@@ -18,12 +18,23 @@ function expiryInFuture(value: string): boolean {
   return year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1)
 }
 
+function amountWithinDue(due: number) {
+  return amountField.refine((value) => value <= due + 0.005, {
+    message: `Amount cannot exceed the balance due (${due.toFixed(2)})`,
+  })
+}
+
+/** Amount only. Used when checkout redirects to MontyPay (no card data on this site). */
+export function checkoutAmountSchema(due: number) {
+  return z.object({
+    amount: amountWithinDue(due),
+  })
+}
+
 /** Card fields are UX-only in simulated mode; they are never sent to the API. */
 export function checkoutSchema(due: number) {
   return z.object({
-    amount: amountField.refine((value) => value <= due + 0.005, {
-      message: `Amount cannot exceed the balance due (${due.toFixed(2)})`,
-    }),
+    amount: amountWithinDue(due),
     cardholder: z.string().trim().min(2, 'Cardholder name is required').max(120),
     cardNumber: z
       .string()

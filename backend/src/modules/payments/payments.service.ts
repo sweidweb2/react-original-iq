@@ -3,14 +3,16 @@ import { randomUUID } from 'node:crypto'
 import type { AuthActor } from '../../authz/index.js'
 import { hasPermission, isTaskClient, isTaskStaff } from '../../authz/index.js'
 import { runInBackground } from '../../background/index.js'
+import type { MontyPayConfig } from '../../config/index.js'
 import {
   conflict,
   forbidden,
   notFound,
-  notImplemented,
+  serviceUnavailable,
   validationError,
 } from '../../errors/app-error.js'
 import { reportError } from '../../errors/report-error.js'
+import { getLogger } from '../../logging/index.js'
 import { formatAmount, fromMinor, sumMinor, toMinor } from '../_shared/money.js'
 import type { InvoicesService } from '../invoices/invoices.service.js'
 import type { PaymentInvoices } from '../invoices/invoices.types.js'
@@ -19,6 +21,21 @@ import { derivePaymentStatus } from '../tasks/payment-status.js'
 import type { TasksRepository } from '../tasks/tasks.repository.js'
 import type { Task, TaskPaymentStatus } from '../tasks/tasks.types.js'
 import {
+  checkoutOrderDescription,
+  checkoutOrderNumber,
+  createMontyPaySession,
+  formatGatewayAmount,
+  hashesMatch,
+  MontyPayGatewayError,
+  montyPayHash,
+  parseCallbackAmount,
+  parseCheckoutOrderNumber,
+  readCallbackFields,
+  returnUrl,
+  secretsMatch,
+} from './montypay.js'
+import {
+  DuplicateTransactionError,
   PaymentCapError,
   type PaymentCapReason,
   type PaymentLogRecord,
@@ -31,7 +48,10 @@ import type {
   UpdatePaymentBody,
 } from './payments.schema.js'
 import {
+  GATEWAY_SETTLEMENT_MAX_NET,
+  LEDGER_CURRENCY,
   MANUAL_GATEWAY,
+  MONTYPAY_GATEWAY,
   type PaymentRecord,
   type PaymentWithInvoice,
   type RefundRecord,
@@ -39,10 +59,17 @@ import {
   type TaskPaymentsSummary,
 } from './payments.types.js'
 
+export type CheckoutRedirect = { redirectUrl: string }
+
+export type CheckoutResult = PaymentWithInvoice | CheckoutRedirect
+
+export type MontyPayCallbackResult = { status: 200 | 400 | 401; body: 'OK' | 'invalid' }
+
 export type TaskPaymentsView = {
   summary: TaskPaymentsSummary
   payments: PaymentWithInvoice[]
   refunds: RefundRecord[]
+  checkoutMode: 'simulated' | 'montypay'
 }
 
 export type PaymentDetail = PaymentWithInvoice & {
@@ -64,11 +91,11 @@ export type PaymentsService = {
     body: UpdatePaymentBody,
     actor: AuthActor,
   ) => Promise<PaymentWithInvoice>
-  checkout: (
-    taskId: string,
-    body: CheckoutPaymentBody,
-    actor: AuthActor,
-  ) => Promise<PaymentWithInvoice>
+  checkout: (taskId: string, body: CheckoutPaymentBody, actor: AuthActor) => Promise<CheckoutResult>
+  handleMontyPayCallback: (input: {
+    token: string | undefined
+    body: unknown
+  }) => Promise<MontyPayCallbackResult>
   deletePayment: (taskId: string, paymentId: string, actor: AuthActor) => Promise<void>
   createRefund: (taskId: string, body: CreateRefundBody, actor: AuthActor) => Promise<RefundRecord>
   updateRefundStatus: (
@@ -81,8 +108,14 @@ export type PaymentsService = {
   recomputeForTask: (taskId: string) => Promise<TaskPaymentStatus>
 }
 
+export type PayerProfile = { name: string; email: string }
+
 export type PaymentsServiceOptions = {
   gatewayMode?: 'simulated' | 'montypay'
+  montypay?: MontyPayConfig
+  webOrigin?: string
+  findPayer?: (userId: string) => Promise<PayerProfile | null>
+  fetchImpl?: typeof fetch
 }
 
 /** Positive amount in minor units; rejects amounts that round to zero. */
@@ -259,7 +292,57 @@ export function createPaymentsService(
       },
       payments: payments.map((row) => ({ ...row, ...(invoiceMap.get(row.id) ?? NO_INVOICES) })),
       refunds,
+      checkoutMode: gatewayMode,
     }
+  }
+
+  function requireMontyPay(): MontyPayConfig {
+    if (!options.montypay) {
+      throw serviceUnavailable('PAYMENT_GATEWAY', 'Card checkout is not configured')
+    }
+    return options.montypay
+  }
+
+  const CALLBACK_OK: MontyPayCallbackResult = { status: 200, body: 'OK' }
+  const CALLBACK_INVALID: MontyPayCallbackResult = { status: 400, body: 'invalid' }
+
+  async function settleCallback(
+    task: Task,
+    amount: number,
+    transactionId: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const existing = await repository.findPaymentByTransactionId(transactionId)
+    if (existing) return
+
+    let payment: PaymentRecord
+    try {
+      payment = await repository.createPayment(
+        {
+          taskId: task.id,
+          userId: task.clientId,
+          amount,
+          status: 'paid',
+          gateway: MONTYPAY_GATEWAY,
+          paymentMethod: 'card',
+          montypayTransactionId: transactionId,
+        },
+        { maxNet: GATEWAY_SETTLEMENT_MAX_NET },
+      )
+    } catch (error) {
+      if (error instanceof DuplicateTransactionError) return
+      throw error
+    }
+
+    await logEvent(payment.id, 'checkout.settled', payload)
+    getLoggingService().recordActivitySafe({
+      userId: task.clientId,
+      action: 'payments.checkout',
+      entity: 'payment',
+      entityId: payment.id,
+      meta: { taskId: task.id, amount, gateway: MONTYPAY_GATEWAY },
+    })
+    await finalize(payment, task)
   }
 
   return {
@@ -394,9 +477,6 @@ export function createPaymentsService(
       if (!hasPermission(actor, 'pay_own_tasks') || !isTaskClient(actor, task)) {
         throw forbidden('Only the task client can start checkout')
       }
-      if (gatewayMode !== 'simulated') {
-        throw notImplemented('MontyPay checkout')
-      }
       const dueMinor = dueMinorFor(task, await totals(taskId))
       if (dueMinor <= 0) {
         throw validationError('Nothing left to pay on this task')
@@ -408,6 +488,45 @@ export function createPaymentsService(
         )
       }
       const amount = fromMinor(amountMinor)
+
+      if (gatewayMode === 'montypay') {
+        const montypay = requireMontyPay()
+        const origin = options.webOrigin
+        if (!origin) {
+          throw serviceUnavailable('PAYMENT_GATEWAY', 'Card checkout is not configured')
+        }
+        const payer = await options.findPayer?.(actor.id)
+        if (!payer?.email.trim()) {
+          throw validationError('Your account has no email address')
+        }
+        const amountText = formatGatewayAmount(amount)
+        const description = checkoutOrderDescription(taskId)
+        const orderNumber = checkoutOrderNumber(taskId)
+        let redirectUrl: string
+        try {
+          redirectUrl = await createMontyPaySession({
+            config: montypay,
+            orderNumber,
+            amount: amountText,
+            description,
+            successUrl: returnUrl(origin, taskId, 'success'),
+            cancelUrl: returnUrl(origin, taskId, 'cancel'),
+            customerName: payer.name,
+            customerEmail: payer.email,
+            fetchImpl: options.fetchImpl,
+          })
+        } catch (error) {
+          if (error instanceof MontyPayGatewayError) {
+            reportError(error, { source: 'payments.montypay', meta: { taskId } })
+            throw serviceUnavailable(
+              'PAYMENT_GATEWAY',
+              'Card checkout is unavailable. Try again shortly.',
+            )
+          }
+          throw error
+        }
+        return { redirectUrl }
+      }
 
       const payment = await guarded(() =>
         repository.createPayment(
@@ -436,6 +555,66 @@ export function createPaymentsService(
         meta: { taskId, amount, gateway: SIMULATED_GATEWAY },
       })
       return finalize(payment, task)
+    },
+
+    async handleMontyPayCallback(input) {
+      const montypay = options.montypay
+      if (!montypay) {
+        throw serviceUnavailable('PAYMENT_GATEWAY', 'Card checkout is not configured')
+      }
+      // The dashboard URL is https://original-iq.com/montypay-callback with no query token.
+      // A wrong token is still rejected. The merchant-password hash is what authenticates the post.
+      if (input.token && !secretsMatch(montypay.callbackSecret, input.token)) {
+        return { status: 401, body: 'invalid' }
+      }
+
+      const fields = readCallbackFields(input.body)
+      if (!fields) return CALLBACK_INVALID
+
+      const expected = montyPayHash([
+        fields.id,
+        fields.orderNumber,
+        fields.orderAmount,
+        fields.orderCurrency,
+        fields.orderDescription,
+        montypay.merchantPassword,
+      ])
+      if (!hashesMatch(expected, fields.hash)) {
+        getLogger().warn({ orderNumber: fields.orderNumber }, 'montypay callback hash mismatch')
+        return CALLBACK_INVALID
+      }
+
+      if (fields.status.toLowerCase() !== 'success' || fields.orderStatus.toLowerCase() !== 'settled') {
+        return CALLBACK_OK
+      }
+
+      const parsed = parseCheckoutOrderNumber(fields.orderNumber)
+      const amount = parseCallbackAmount(fields.orderAmount)
+      if (!parsed || fields.orderCurrency.toUpperCase() !== LEDGER_CURRENCY || amount === null) {
+        reportError(new Error('MontyPay callback could not be applied'), {
+          source: 'payments.montypay',
+          level: 'warning',
+          meta: { orderNumber: fields.orderNumber },
+        })
+        return CALLBACK_OK
+      }
+
+      const task = await tasksRepository.findById(parsed.taskId)
+      if (!task) {
+        reportError(new Error('MontyPay callback task was not found'), {
+          source: 'payments.montypay',
+          level: 'warning',
+          meta: { orderNumber: fields.orderNumber, taskId: parsed.taskId },
+        })
+        return CALLBACK_OK
+      }
+
+      if (!fields.id.trim()) return CALLBACK_OK
+
+      const payload =
+        input.body && typeof input.body === 'object' ? (input.body as Record<string, unknown>) : {}
+      await settleCallback(task, amount, fields.id.trim(), payload)
+      return CALLBACK_OK
     },
 
     async deletePayment(taskId, paymentId, actor) {
