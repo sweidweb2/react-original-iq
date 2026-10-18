@@ -19,7 +19,6 @@
     /* Type checking */
     "strict": true,
 
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
