@@ -13,7 +13,7 @@ import { profileName } from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 
 import { PortalPageShell, SectionCard } from '../PortalPageShell'
-import { profileUpdateSchema, type ProfileUpdateValues } from './profile.schema'
+import { createProfileUpdateSchema, type ProfileUpdateValues } from './profile.schema'
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user)
@@ -69,7 +69,7 @@ export function ProfilePage() {
 
   async function onSave(event: FormEvent) {
     event.preventDefault()
-    const parsed = parseForm(profileUpdateSchema, values)
+    const parsed = parseForm(createProfileUpdateSchema(user?.role === 'client'), values)
     if (!parsed.success) {
       setFieldErrors(parsed.fieldErrors)
       return
@@ -172,14 +172,21 @@ export function ProfilePage() {
                 <span className="font-medium">Email</span>
                 <Input defaultValue={user?.email ?? ''} type="email" readOnly disabled />
               </label>
-              <Field>
+              <Field data-invalid={Boolean(fieldErrors.phone) || undefined}>
                 <FieldLabel htmlFor="phone">Phone</FieldLabel>
                 <Input
                   id="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  dir="ltr"
+                  maxLength={20}
                   value={values.phone}
-                  placeholder="Optional"
+                  placeholder={user?.role === 'client' ? '+961 70 123 456' : 'Optional'}
+                  aria-invalid={Boolean(fieldErrors.phone) || undefined}
                   onChange={(e) => setValues((prev) => ({ ...prev, phone: e.target.value }))}
                 />
+                <FieldError>{fieldErrors.phone}</FieldError>
               </Field>
               <label className="grid gap-1.5 text-sm">
                 <span className="font-medium">Role</span>

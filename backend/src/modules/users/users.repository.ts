@@ -190,7 +190,7 @@ function createMemoryUsersRepository(): UsersRepository {
         passwordHash: input.passwordHash,
         role: input.role,
         status: 'ACTIVE',
-        phone: null,
+        phone: input.phone ?? null,
         profile: profileFor(input),
         createdAt: now,
         updatedAt: now,
@@ -331,6 +331,7 @@ function createSupabaseUsersRepository(config: AppConfig): UsersRepository {
           password_hash: input.passwordHash,
           role: input.role,
           name: displayNameFor(input),
+          phone: input.phone ?? null,
           email_verified: false,
           is_active: true,
         })

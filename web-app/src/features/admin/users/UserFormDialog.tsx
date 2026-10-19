@@ -25,6 +25,7 @@ import { createUserSchema, editUserSchema } from './users.schema'
 type FormState = {
   name: string
   email: string
+  phone: string
   password: string
   role: AuthRole
   status: UserStatus
@@ -33,6 +34,7 @@ type FormState = {
 const emptyForm: FormState = {
   name: '',
   email: '',
+  phone: '',
   password: '',
   role: 'client',
   status: 'ACTIVE',
@@ -74,6 +76,7 @@ export function UserFormDialog({
       setValues({
         name: profileName(user),
         email: user.email,
+        phone: user.phone ?? '',
         password: '',
         role: user.role,
         status: user.status,
@@ -94,7 +97,8 @@ export function UserFormDialog({
           return
         }
         setFieldErrors({})
-        await createUser(parsed.data)
+        const { phone, ...rest } = parsed.data
+        await createUser({ ...rest, ...(phone ? { phone } : {}) })
         toastSuccess('User created', `${parsed.data.name} (${parsed.data.email}) can now sign in.`)
       } else if (user) {
         const parsed = parseForm(editUserSchema, values)
@@ -167,6 +171,28 @@ export function UserFormDialog({
           />
           <FieldError>{fieldErrors.email}</FieldError>
         </Field>
+
+        {mode === 'create' ? (
+          <Field data-invalid={Boolean(fieldErrors.phone) || undefined}>
+            <FieldLabel htmlFor="user-phone">Phone</FieldLabel>
+            <Input
+              id="user-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              dir="ltr"
+              maxLength={20}
+              value={values.phone}
+              placeholder="Optional"
+              aria-invalid={Boolean(fieldErrors.phone) || undefined}
+              onChange={(event) => setValues((prev) => ({ ...prev, phone: event.target.value }))}
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional. 8 to 20 characters if you add one.
+            </p>
+            <FieldError>{fieldErrors.phone}</FieldError>
+          </Field>
+        ) : null}
 
         <Field>
           <FieldLabel htmlFor="user-role">Role</FieldLabel>

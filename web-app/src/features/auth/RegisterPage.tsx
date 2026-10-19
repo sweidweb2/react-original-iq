@@ -24,6 +24,7 @@ export function RegisterPage() {
     firstName: '',
     lastName: '',
     email: '',
+    phone: '',
     password: '',
   })
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<keyof RegisterValues>>({})
@@ -41,10 +42,11 @@ export function RegisterPage() {
     setFieldErrors({})
     setIsSubmitting(true)
     try {
-      const { firstName, lastName, email, password } = parsed.data
+      const { firstName, lastName, email, phone, password } = parsed.data
       await register({
         email,
         password,
+        phone,
         firstName: firstName || undefined,
         lastName: lastName || undefined,
       })
@@ -99,6 +101,23 @@ export function RegisterPage() {
                   onChange={(e) => setValues((prev) => ({ ...prev, email: e.target.value }))}
                 />
                 <FieldError>{fieldErrors.email}</FieldError>
+              </Field>
+
+              <Field data-invalid={Boolean(fieldErrors.phone) || undefined}>
+                <FieldLabel htmlFor="signup-phone">Phone number</FieldLabel>
+                <Input
+                  id="signup-phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  dir="ltr"
+                  placeholder="+961 70 123 456"
+                  maxLength={20}
+                  value={values.phone}
+                  aria-invalid={Boolean(fieldErrors.phone) || undefined}
+                  onChange={(e) => setValues((prev) => ({ ...prev, phone: e.target.value }))}
+                />
+                <FieldError>{fieldErrors.phone}</FieldError>
               </Field>
 
               <Field data-invalid={Boolean(fieldErrors.password) || undefined}>

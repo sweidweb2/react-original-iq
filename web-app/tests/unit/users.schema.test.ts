@@ -10,6 +10,7 @@ describe('createUserSchema', () => {
   const valid = {
     name: '  Ada Lovelace ',
     email: ' ada@example.com ',
+    phone: '',
     password: 'password1',
     role: 'tutor',
   }
@@ -19,9 +20,17 @@ describe('createUserSchema', () => {
     expect(parsed).toEqual({
       name: 'Ada Lovelace',
       email: 'ada@example.com',
+      phone: '',
       password: 'password1',
       role: 'tutor',
     })
+  })
+
+  it('accepts a phone when one is entered and rejects a short one', () => {
+    expect(createUserSchema.parse({ ...valid, phone: '+961 70 123 456' }).phone).toBe(
+      '+961 70 123 456',
+    )
+    expect(createUserSchema.safeParse({ ...valid, phone: '12345' }).success).toBe(false)
   })
 
   it.each([

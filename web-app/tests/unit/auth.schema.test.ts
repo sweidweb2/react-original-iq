@@ -10,6 +10,7 @@ describe('registerSchema', () => {
       firstName: 'Ada',
       lastName: 'Lovelace',
       email: 'ada@example.com',
+      phone: '+96170123456',
       password: 'short',
     })
     expect(result.success).toBe(false)
@@ -22,11 +23,26 @@ describe('registerSchema', () => {
       firstName: 'Ada',
       lastName: 'Lovelace',
       email: ' ada@example.com ',
+      phone: '+961 70 123 456',
       password: 'password1',
     })
     expect(result.success).toBe(true)
     if (!result.success) return
     expect(result.data.email).toBe('ada@example.com')
+    expect(result.data.phone).toBe('+961 70 123 456')
+  })
+
+  it('rejects a short phone number', () => {
+    const result = parseForm(registerSchema, {
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@example.com',
+      phone: '12345',
+      password: 'password1',
+    })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.fieldErrors.phone).toBeTruthy()
   })
 })
 

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { isPhone, requiredPhoneSchema } from '../_shared/phone.js'
+
 /** Domain roles — public register defaults to `client`. */
 export const roleSchema = z.enum(['super', 'admin', 'coordinator', 'tutor', 'client'])
 
@@ -13,6 +15,7 @@ export const registerBodySchema = z.object({
   password: z.string().min(8).max(128),
   firstName: z.string().min(1).max(80).optional(),
   lastName: z.string().min(1).max(80).optional(),
+  phone: requiredPhoneSchema,
 })
 
 export const loginBodySchema = z.object({
@@ -69,9 +72,12 @@ export const updateMeBodySchema = z
     phone: z
       .string()
       .trim()
-      .max(40)
+      .max(20)
       .optional()
-      .transform((value) => (value === undefined ? undefined : value || null)),
+      .transform((value) => (value === undefined ? undefined : value || null))
+      .refine((value) => value === undefined || value === null || isPhone(value), {
+        message: 'Enter a phone number of 8 to 20 characters',
+      }),
     currentPassword: z.string().min(1).max(128).optional(),
     newPassword: z.string().min(8).max(128).optional(),
     confirmPassword: z.string().min(8).max(128).optional(),

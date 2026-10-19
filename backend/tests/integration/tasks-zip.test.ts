@@ -12,6 +12,7 @@ async function registerClient(app: ReturnType<typeof createApp>, email: string):
     password: 'password1',
     firstName: 'Zip',
     lastName: 'Client',
+    phone: '+96170123456',
   })
   expect(res.status).toBe(201)
   return res.body.tokens.accessToken as string

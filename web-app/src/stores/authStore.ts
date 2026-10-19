@@ -16,6 +16,7 @@ type AuthState = {
   register: (input: {
     email: string
     password: string
+    phone: string
     firstName?: string
     lastName?: string
   }) => Promise<void>

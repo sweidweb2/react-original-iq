@@ -44,6 +44,7 @@ export type CreateUserInput = {
   email: string
   password: string
   role: AuthRole
+  phone?: string
 }
 
 export type UpdateUserInput = {

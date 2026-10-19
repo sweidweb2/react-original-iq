@@ -133,6 +133,7 @@ export function createUsersService(
         passwordHash: await hashPassword(input.password),
         role: input.role,
         name: input.name,
+        phone: input.phone ? input.phone : null,
       })
       getLoggingService().recordActivitySafe({
         userId: actor.id,

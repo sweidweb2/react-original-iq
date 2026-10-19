@@ -31,6 +31,7 @@ export type CreateAccountInput = {
   firstName?: string
   lastName?: string
   name?: string
+  phone?: string | null
 }
 
 export type UpdateAccountInput = {

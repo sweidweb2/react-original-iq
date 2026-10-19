@@ -1,10 +1,13 @@
 import { z } from 'zod'
 
+import { optionalPhoneField } from '@/lib/phone'
+
 const roleSchema = z.enum(['super', 'admin', 'coordinator', 'tutor', 'client'])
 
 export const createUserSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120),
   email: z.string().trim().min(1, 'Email is required').email('Enter a valid email'),
+  phone: optionalPhoneField,
   password: z.string().min(8, 'Password must be at least 8 characters').max(128),
   role: roleSchema,
 })

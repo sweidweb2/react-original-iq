@@ -46,6 +46,7 @@ describe('exports HTTP (super only)', () => {
       password: 'password1',
       firstName: 'Export',
       lastName: 'Client',
+      phone: '+96170123456',
     })
     clientToken = client.body.tokens.accessToken as string
 

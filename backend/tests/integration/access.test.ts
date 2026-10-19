@@ -45,6 +45,7 @@ describe('users and logs HTTP', () => {
       password: 'password1',
       firstName: 'Client',
       lastName: 'User',
+      phone: '+96170123456',
     })
     expect(client.status).toBe(201)
     clientToken = client.body.tokens.accessToken as string

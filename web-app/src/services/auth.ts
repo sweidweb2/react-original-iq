@@ -34,6 +34,7 @@ export function login(email: string, password: string) {
 export function register(input: {
   email: string
   password: string
+  phone: string
   firstName?: string
   lastName?: string
 }) {

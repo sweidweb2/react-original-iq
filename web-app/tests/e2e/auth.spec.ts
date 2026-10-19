@@ -22,6 +22,7 @@ test.describe('auth flows', () => {
     await page.getByLabel('First name').fill('Ada')
     await page.getByLabel('Last name').fill('Lovelace')
     await page.getByLabel('Email').fill(email)
+    await page.getByLabel('Phone number').fill('+96170123456')
     await page.getByRole('textbox', { name: 'Password' }).fill('password1')
     await page.getByRole('button', { name: 'Sign up' }).click()
 

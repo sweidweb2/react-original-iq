@@ -19,6 +19,7 @@ describe('auth HTTP', () => {
       password,
       firstName: 'Ada',
       lastName: 'Lovelace',
+      phone: '+96170123456',
     })
 
     expect(res.status).toBe(201)
@@ -28,7 +29,9 @@ describe('auth HTTP', () => {
   })
 
   it('rejects a duplicate email', async () => {
-    const res = await request(app).post('/api/v1/auth/register').send({ email, password })
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email, password, phone: '+96170123456' })
 
     expect(res.status).toBe(409)
     expect(res.body).toMatchObject({ code: 'CONFLICT' })

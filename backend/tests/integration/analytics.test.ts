@@ -30,6 +30,7 @@ describe('admin analytics HTTP', () => {
       password: 'password1',
       firstName: 'Analytics',
       lastName: 'Client',
+      phone: '+96170123456',
     })
     clientToken = client.body.tokens.accessToken as string
   })

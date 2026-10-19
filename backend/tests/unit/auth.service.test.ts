@@ -104,6 +104,7 @@ describe('auth.service', () => {
       password: 'secret123',
       firstName: 'Ada',
       lastName: 'Lovelace',
+      phone: '+96170123456',
     })
 
     expect(result.user.email).toBe('user@example.com')
@@ -116,6 +117,7 @@ describe('auth.service', () => {
       expect.objectContaining({
         email: 'user@example.com',
         role: 'client',
+        phone: '+96170123456',
       }),
     )
   })
@@ -128,6 +130,7 @@ describe('auth.service', () => {
       service.register({
         email: 'user@example.com',
         password: 'secret123',
+        phone: '+96170123456',
       }),
     ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' })
   })

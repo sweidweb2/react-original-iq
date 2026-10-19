@@ -201,6 +201,7 @@ export function createAuthService(
         role: 'client',
         firstName: input.firstName,
         lastName: input.lastName,
+        phone: input.phone,
       })
 
       logging?.recordActivitySafe({
@@ -340,6 +341,10 @@ export function createAuthService(
         if (!ok) {
           throw unauthorized('Current password is incorrect')
         }
+      }
+
+      if (user.role === 'client' && input.phone === null) {
+        throw validationError('Phone is required')
       }
 
       const updated = await users.updateSelfProfile(userId, {
