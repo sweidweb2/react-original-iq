@@ -147,6 +147,7 @@ export const publicEn = {
       description:
         'Send payments instantly using Whish digital wallet. Quick and convenient for mobile users.',
       label: 'Whish Phone Number',
+      nameLabel: 'Whish Company Name',
       feature: 'Instant Transfer',
     },
     copy: 'Copy',

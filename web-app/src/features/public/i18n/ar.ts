@@ -148,6 +148,7 @@ export const publicAr: PublicDictionary = {
       title: `الدفع عبر ${ltr('Whish')}`,
       description: `أرسل دفعتك فورًا عبر محفظة ${ltr('Whish')} الرقمية. طريقة سريعة ومريحة لمستخدمي الهاتف.`,
       label: `رقم هاتف ${ltr('Whish')}`,
+      nameLabel: `اسم الشركة على ${ltr('Whish')}`,
       feature: 'تحويل فوري',
     },
     copy: 'نسخ',

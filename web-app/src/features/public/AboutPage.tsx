@@ -7,18 +7,16 @@ import {
   CircleCheck,
   ClipboardCheck,
   Copy,
-  CreditCard,
   Eye,
   Layers,
   Lock,
-  Phone,
   Shield,
   User,
   Users,
   Zap,
 } from 'lucide-react'
 
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useDocumentTitle } from '@/hooks/useDocumentTitle'
 import { cn } from '@/lib/utils'
@@ -27,7 +25,10 @@ import { usePublicDictionary } from './i18n'
 
 const PAYMENT_IBAN = 'LB12 3456 7890 1234 5678 9012 3456'
 const PAYMENT_WHISH_PHONE = '+961 3 123 456'
+const PAYMENT_WHISH_NAME = 'Original IQ'
 const APPLY_URL = 'https://forms.gle/1T9au5gptw4bLbPZA'
+
+type PaymentCopyKey = 'iban' | 'phone' | 'whishName'
 
 const statTones = ['text-chart-5', 'text-accent', 'text-warning', 'text-chart-5', 'text-accent']
 
@@ -52,9 +53,9 @@ const portraits = [
 export function AboutPage() {
   const t = usePublicDictionary().about
   useDocumentTitle(t.documentTitle)
-  const [copied, setCopied] = useState<'iban' | 'phone' | null>(null)
+  const [copied, setCopied] = useState<PaymentCopyKey | null>(null)
 
-  async function copyValue(kind: 'iban' | 'phone', value: string) {
+  async function copyValue(kind: PaymentCopyKey, value: string) {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(kind)
@@ -165,24 +166,41 @@ export function AboutPage() {
             <PaymentCard
               title={t.bankCard.title}
               description={t.bankCard.description}
-              label={t.bankCard.label}
-              value={PAYMENT_IBAN}
-              copied={copied === 'iban'}
-              onCopy={() => copyValue('iban', PAYMENT_IBAN.replace(/\s/g, ''))}
-              icon={CreditCard}
-              iconClass="bg-gradient-to-br from-primary to-primary-dark"
+              fields={[
+                {
+                  key: 'iban',
+                  label: t.bankCard.label,
+                  value: PAYMENT_IBAN,
+                  copyValue: PAYMENT_IBAN.replace(/\s/g, ''),
+                },
+              ]}
+              copied={copied}
+              onCopy={copyValue}
+              iconSrc="/marketing/visa-logo.jpg"
+              iconAlt="Visa"
               feature={t.bankCard.feature}
               featureIcon={Shield}
             />
             <PaymentCard
               title={t.whishCard.title}
               description={t.whishCard.description}
-              label={t.whishCard.label}
-              value={PAYMENT_WHISH_PHONE}
-              copied={copied === 'phone'}
-              onCopy={() => copyValue('phone', PAYMENT_WHISH_PHONE)}
-              icon={Phone}
-              iconClass="bg-accent"
+              fields={[
+                {
+                  key: 'phone',
+                  label: t.whishCard.label,
+                  value: PAYMENT_WHISH_PHONE,
+                },
+                {
+                  key: 'whishName',
+                  label: t.whishCard.nameLabel,
+                  value: PAYMENT_WHISH_NAME,
+                },
+              ]}
+              fieldsLayout="row"
+              copied={copied}
+              onCopy={copyValue}
+              iconSrc="/marketing/whish-icon.png"
+              iconAlt="Whish"
               feature={t.whishCard.feature}
               featureIcon={Zap}
             />
@@ -333,23 +351,28 @@ function StoryCard({
 function PaymentCard({
   title,
   description,
-  label,
-  value,
+  fields,
+  fieldsLayout = 'stack',
   copied,
   onCopy,
-  icon: Icon,
-  iconClass,
+  iconSrc,
+  iconAlt,
   feature,
   featureIcon: FeatureIcon,
 }: {
   title: string
   description: string
-  label: string
-  value: string
-  copied: boolean
-  onCopy: () => void
-  icon: LucideIcon
-  iconClass: string
+  fields: Array<{
+    key: PaymentCopyKey
+    label: string
+    value: string
+    copyValue?: string
+  }>
+  fieldsLayout?: 'stack' | 'row'
+  copied: PaymentCopyKey | null
+  onCopy: (kind: PaymentCopyKey, value: string) => void
+  iconSrc?: string
+  iconAlt?: string
   feature: string
   featureIcon: LucideIcon
 }) {
@@ -358,39 +381,56 @@ function PaymentCard({
   return (
     <Card className="group relative overflow-hidden border-2 p-8 shadow-md transition duration-300 before:absolute before:inset-x-0 before:top-0 before:h-1 before:scale-x-0 before:from-primary before:to-accent before:transition before:duration-300 before:content-[''] hover:-translate-y-2 hover:border-primary hover:shadow-lg hover:before:scale-x-100 sm:p-10 ltr:before:origin-left ltr:before:bg-gradient-to-r rtl:before:origin-right rtl:before:bg-gradient-to-l">
       <div className="flex items-center gap-4">
-        <span
-          className={cn(
-            'flex size-14 items-center justify-center rounded-xl text-white transition group-hover:scale-110 group-hover:rotate-3',
-            iconClass,
-          )}
-        >
-          <Icon className="size-7" aria-hidden />
-        </span>
+        {iconSrc ? (
+          <img
+            src={iconSrc}
+            alt={iconAlt ?? ''}
+            width={72}
+            height={30}
+            className="h-10 w-auto shrink-0 rounded-md object-contain transition group-hover:scale-110"
+          />
+        ) : null}
         <h3 className="text-2xl font-bold">{title}</h3>
       </div>
       <p className="mt-5 text-base leading-7 text-muted-foreground">{description}</p>
-      <div className="relative mt-6">
-        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          {label}
-        </p>
-        <div className="mt-3 flex flex-col items-start gap-3 rounded-xl border-2 border-border bg-background px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p dir="ltr" className="font-mono text-sm font-semibold tracking-wide break-all">
-            {value}
-          </p>
-          <Button size="sm" aria-label={t.copyLabel(label)} onClick={onCopy}>
-            <Copy className="size-4" aria-hidden />
-            {t.copy}
-          </Button>
-        </div>
-        {copied ? (
-          <p
-            role="status"
-            className="mt-2 flex items-center justify-center gap-2 rounded-md bg-chart-5 px-3 py-2 text-sm font-semibold text-white"
-          >
-            <Check className="size-4" aria-hidden />
-            {t.copied}
-          </p>
-        ) : null}
+      <div
+        className={cn(
+          'mt-6 gap-4',
+          fieldsLayout === 'row' ? 'grid grid-cols-2' : 'flex flex-col gap-5',
+        )}
+      >
+        {fields.map((field) => (
+          <div key={field.key} className="relative min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              {field.label}
+            </p>
+            <div className="mt-3 flex items-center gap-2 rounded-xl border-2 border-border bg-background px-3 py-3 sm:px-4">
+              <p
+                dir="ltr"
+                className="min-w-0 flex-1 font-mono text-sm font-semibold tracking-wide break-all"
+              >
+                {field.value}
+              </p>
+              <button
+                type="button"
+                className="shrink-0 rounded-md p-1 text-muted-foreground transition hover:text-foreground"
+                aria-label={t.copyLabel(field.label)}
+                onClick={() => onCopy(field.key, field.copyValue ?? field.value)}
+              >
+                <Copy className="size-5" aria-hidden />
+              </button>
+            </div>
+            {copied === field.key ? (
+              <p
+                role="status"
+                className="mt-2 flex items-center justify-center gap-2 rounded-md bg-chart-5 px-3 py-2 text-sm font-semibold text-white"
+              >
+                <Check className="size-4" aria-hidden />
+                {t.copied}
+              </p>
+            ) : null}
+          </div>
+        ))}
       </div>
       <div className="mt-6 flex items-center gap-2 border-t border-border pt-5 text-sm text-muted-foreground">
         <FeatureIcon className="size-4 text-chart-5" aria-hidden />
